@@ -1,13 +1,10 @@
-dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-}
+// common/build.gradle  (라이브러리 모듈 — 부트JAR 아님)
+// 루트가 plugin/group/Java21/lombok/test 를 관리하므로 여기엔 common 고유 설정만.
+bootJar { enabled = false }
+jar     { enabled = true  }
 
-bootJar {
-    enabled = false
-}
-jar {
-    enabled = true
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'        // GlobalExceptionHandler(@RestControllerAdvice)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'   // BaseEntity(@MappedSuperclass), JPA Auditing
+    implementation 'com.fasterxml.uuid:java-uuid-generator:5.1.0'            // UUIDv7 생성 (BaseEntity)
 }
