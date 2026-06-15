@@ -1,0 +1,31 @@
+name: _service-ci
+
+# 재사용 워크플로: "서비스 1개"를 빌드한다. dev-ci / main-ci 가 호출한다.
+on:
+  workflow_call:
+    inputs:
+      service:
+        description: "빌드할 Gradle 모듈명 (예: user-service, common)"
+        required: true
+        type: string
+
+jobs:
+  build:
+    name: build (${{ inputs.service }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      # 현재는 컴파일+패키징만. 테스트가 인프라-독립적으로 정리되면 -x test 제거.
+      - name: Build ${{ inputs.service }}
+        run: ./gradlew :${{ inputs.service }}:build -x test --no-daemon

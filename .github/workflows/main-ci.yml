@@ -1,0 +1,45 @@
+name: CI (main)
+
+# main 은 운영 기준 브랜치라, push/PR 시 "전체 모듈"을 빌드해 항상 그린 보장.
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+concurrency:
+  group: main-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 전체 서비스를 재사용 워크플로로 빌드 (변경분만 X — main은 전부 검증)
+  build-all:
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - common
+          - eureka-server
+          - config-server
+          - gateway-service
+          - user-service
+          - feed-service
+          - ticketing-service
+          - order-service
+          - notification-service
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: ${{ matrix.service }}
+
+  ci-gate:
+    name: ci-gate
+    needs: build-all
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify build result
+        run: |
+          if [ "${{ needs.build-all.result }}" != "success" ]; then
+            echo "main build failed (${{ needs.build-all.result }})"; exit 1
+          fi
+          echo "main CI passed."

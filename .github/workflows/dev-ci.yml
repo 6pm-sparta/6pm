@@ -1,0 +1,72 @@
+name: CI (develop)
+
+# develop 으로 가는 PR: "변경된 모듈만" 빌드 → 빠름
+on:
+  pull_request:
+    branches: ["develop"]
+
+concurrency:
+  group: dev-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 1) 어떤 모듈이 바뀌었는지 감지 → 빌드할 모듈 목록(JSON)을 만든다
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            common: ['common/**', 'build.gradle', 'settings.gradle', 'gradle/**', 'gradlew', 'gradlew.bat']
+            eureka-server: 'eureka-server/**'
+            config-server: 'config-server/**'
+            gateway-service: 'gateway-service/**'
+            user-service: 'user-service/**'
+            feed-service: 'feed-service/**'
+            ticketing-service: 'ticketing-service/**'
+            order-service: 'order-service/**'
+            notification-service: 'notification-service/**'
+
+      - id: set
+        run: |
+          ALL='["common","eureka-server","config-server","gateway-service","user-service","feed-service","ticketing-service","order-service","notification-service"]'
+          CHANGED='${{ steps.filter.outputs.changes }}'   # 예: ["user-service","common"]
+          # 함정① common/루트 빌드파일이 바뀌면 전체 빌드
+          if echo "$CHANGED" | grep -q '"common"'; then
+            echo "matrix=$ALL" >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix=$CHANGED" >> "$GITHUB_OUTPUT"
+          fi
+
+  # 2) 변경 모듈마다 재사용 워크플로로 빌드 (병렬)
+  build:
+    needs: changes
+    if: ${{ needs.changes.outputs.matrix != '[]' && needs.changes.outputs.matrix != '' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    uses: ./.github/workflows/_service-ci.yml
+    with:
+      service: ${{ matrix.service }}
+
+  # 3) 함정②: 항상 도는 게이트. 브랜치 보호의 "required status check"는 이 잡으로 지정.
+  ci-gate:
+    name: ci-gate
+    needs: [changes, build]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify build result
+        run: |
+          echo "build result = ${{ needs.build.result }}"
+          # failure/cancelled 면 실패, success/skipped(변경 없음) 면 통과
+          if [ "${{ needs.build.result }}" = "failure" ] || [ "${{ needs.build.result }}" = "cancelled" ]; then
+            exit 1
+          fi
+          echo "CI passed."
