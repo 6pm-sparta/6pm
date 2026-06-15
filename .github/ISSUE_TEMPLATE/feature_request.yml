@@ -1,0 +1,70 @@
+name: "✨ 기능 요청 / 작업"
+description: "새 기능이나 작업 단위를 등록합니다"
+title: "[FEAT] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "작업 단위를 명확히 쪼개면 PR도 작아지고 리뷰가 빨라집니다."
+
+  - type: dropdown
+    id: service
+    attributes:
+      label: 관련 서비스/모듈
+      options:
+        - gateway-service
+        - eureka-server
+        - config-server
+        - user-service
+        - feed-service
+        - ticketing-service
+        - order-service
+        - notification-service
+        - aiops-service
+        - common
+        - infra (docker/CI/CD/DB)
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: 배경 / 문제
+      description: 왜 필요한가요? 어떤 문제를 해결하나요?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 제안 내용
+      description: 무엇을 어떻게 만들 것인지.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: 작업 항목 (Task)
+      description: 체크 가능한 단위로 쪼개주세요.
+      value: |
+        - [ ]
+        - [ ]
+        - [ ] 테스트 작성
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건 (Acceptance Criteria)
+      placeholder: |
+        - [ ] API가 정상 응답(ApiResponse 규약 준수)
+        - [ ] 동시성/예외 케이스 처리
+        - [ ] 단위/통합 테스트 통과
+    validations:
+      required: true
+
+  - type: input
+    id: ref
+    attributes:
+      label: 관련 SA / 설계 문서 링크
+      placeholder: "Notion / ERD / API 명세서 링크"

@@ -1,0 +1,2 @@
+com.fandom.common.config.CommonAutoConfiguration
+com.fandom.common.config.JpaAuditingConfig
