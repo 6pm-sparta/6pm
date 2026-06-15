@@ -48,8 +48,6 @@ docker_data/
 /.github/test/*
 /.github/_service-ci-local-test.yml
 
-*.md
-
 # QueryDSL generated sources
 **/src/main/generated/
 
