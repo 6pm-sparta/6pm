@@ -23,25 +23,24 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(errorCode.getStatus(), errorCode.getMessage()));
     }
 
-    // 2. 프론트엔드에서 넘어온 입력값 검증(@Valid) 실패 시 발생하는 예외 처리
+    // 2. @Valid 검증 실패 시 발생하는 예외 처리
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationException(MethodArgumentNotValidException e) {
         String errorMessage = e.getBindingResult().getAllErrors().get(0).getDefaultMessage();
         log.warn("[ValidationException] message: {}", errorMessage);
 
         return ResponseEntity
-                .status(ErrorCode.INVALID_INPUT_VALUE.getStatus())
-                .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE.getStatus(), errorMessage));
+                .status(CommonErrorCode.INVALID_INPUT_VALUE.getStatus())
+                .body(ApiResponse.error(CommonErrorCode.INVALID_INPUT_VALUE.getStatus(), errorMessage));
     }
 
-    // 3. 그 외 미처 잡지 못한 모든 런타임 예외 (최후의 방어선)
+    // 3. 미처 잡지 못한 모든 런타임 예외 (최후의 방어선)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleException(Exception e) {
-        // AIOps 로그 수집용 (심각 수준 - 스택 트레이스 포함)
         log.error("[UnexpectedException] message: {}", e.getMessage(), e);
 
         return ResponseEntity
-                .status(ErrorCode.INTERNAL_SERVER_ERROR.getStatus())
-                .body(ApiResponse.error(ErrorCode.INTERNAL_SERVER_ERROR.getStatus(), ErrorCode.INTERNAL_SERVER_ERROR.getMessage()));
+                .status(CommonErrorCode.INTERNAL_SERVER_ERROR.getStatus())
+                .body(ApiResponse.error(CommonErrorCode.INTERNAL_SERVER_ERROR.getStatus(), CommonErrorCode.INTERNAL_SERVER_ERROR.getMessage()));
     }
 }
