@@ -21,6 +21,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// 최상위 루트 밑에 있는 공통 모듈 라이브러리를 가져옵니다.
+	implementation project(':common')
 }
 
 tasks.named('test') {

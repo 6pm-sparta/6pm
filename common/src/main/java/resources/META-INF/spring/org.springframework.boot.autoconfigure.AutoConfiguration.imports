@@ -1,0 +1,4 @@
+com.boxoffice.common.config.CommonAutoConfiguration
+com.boxoffice.common.config.FeignConfig
+com.boxoffice.common.config.SecurityConfig
+com.boxoffice.common.exception.GlobalExceptionHandler

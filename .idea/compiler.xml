@@ -11,6 +11,7 @@
         <module name="6pm-fandom-sns.notification-service.main" />
         <module name="6pm-fandom-sns.ticketing-service.main" />
         <module name="6pm-fandom-sns.user-service.main" />
+        <module name="6pm-fandom-sns.common.main" />
         <module name="6pm-fandom-sns.aiops-service.main" />
         <module name="6pm-fandom-sns.feed-service.main" />
         <module name="6pm-fandom-sns.eureka-server.main" />
