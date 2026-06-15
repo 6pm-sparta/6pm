@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Gradle Imported" enabled="true">
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.projectlombok/lombok/1.18.46/a5cfe99fdf320e84955ef653f2ce1bf789d11385/lombok-1.18.46.jar" />
+        </processorPath>
+        <module name="6pm-fandom-sns.gateway-service.main" />
+        <module name="6pm-fandom-sns.notification-service.main" />
+        <module name="6pm-fandom-sns.ticketing-service.main" />
+        <module name="6pm-fandom-sns.user-service.main" />
+        <module name="6pm-fandom-sns.aiops-service.main" />
+        <module name="6pm-fandom-sns.feed-service.main" />
+        <module name="6pm-fandom-sns.eureka-server.main" />
+        <module name="6pm-fandom-sns.order-service.main" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel target="21">
+      <module name="aiops-service" target="21" />
+      <module name="aiops-service.main" target="21" />
+      <module name="aiops-service.test" target="21" />
+      <module name="eureka-server" target="21" />
+      <module name="eureka-server.main" target="21" />
+      <module name="eureka-server.test" target="21" />
+      <module name="feed-service" target="21" />
+      <module name="feed-service.main" target="21" />
+      <module name="feed-service.test" target="21" />
+      <module name="gateway-service" target="21" />
+      <module name="gateway-service.main" target="21" />
+      <module name="gateway-service.test" target="21" />
+      <module name="notification-service" target="21" />
+      <module name="notification-service.main" target="21" />
+      <module name="notification-service.test" target="21" />
+    </bytecodeTargetLevel>
+  </component>
+</project>

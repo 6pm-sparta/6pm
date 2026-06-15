@@ -1,0 +1,10 @@
+rootProject.name = '6pm-fandom-sns'
+
+include 'gateway-service'
+include 'eureka-server'
+include 'user-service'
+include 'ticketing-service'
+include 'order-service'
+include 'feed-service'
+include 'notification-service'
+include 'aiops-service'
