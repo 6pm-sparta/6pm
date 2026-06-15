@@ -1,12 +1,25 @@
+// =====================================================================
+// 루트 build.gradle  (프로젝트 루트에 그대로 교체)
+// 역할: 모든 모듈 공통 설정을 여기서 한 번에 관리.
+//   - group = com.fandom 로 통일
+//   - Java 21 toolchain
+//   - Spring Boot / dependency-management 플러그인 (apply false → subprojects에서 적용)
+//   - Spring Cloud BOM (2025.0.x · Boot 3.5.x 호환)
+//   - Lombok / 테스트 공통
+// boot 버전은 현재 레포가 생성된 버전(3.5.x)에 맞춤. 필요시 숫자만 교체.
+// =====================================================================
 plugins {
     id 'org.springframework.boot' version '3.5.15' apply false
     id 'io.spring.dependency-management' version '1.1.7' apply false
-    id 'java'
 }
 
 allprojects {
     group = 'com.fandom'
     version = '0.0.1-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+    }
 }
 
 subprojects {
@@ -20,8 +33,14 @@ subprojects {
         }
     }
 
-    repositories {
-        mavenCentral()
+    ext {
+        set('springCloudVersion', "2025.0.0")   // 최신 2025.0.x SR 사용 권장
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+        }
     }
 
     dependencies {
@@ -29,5 +48,9 @@ subprojects {
         annotationProcessor 'org.projectlombok:lombok'
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.named('test') {
+        useJUnitPlatform()
     }
 }

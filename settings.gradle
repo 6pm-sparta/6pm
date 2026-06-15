@@ -1,11 +1,12 @@
 rootProject.name = '6pm-fandom-sns'
 
-include 'gateway-service'
+include 'common'
 include 'eureka-server'
+include 'gateway-service'
 include 'user-service'
+include 'feed-service'
 include 'ticketing-service'
 include 'order-service'
-include 'feed-service'
 include 'notification-service'
 include 'aiops-service'
-include 'common'
+// include 'config-server'   // ← 4단계에서 주석 해제
