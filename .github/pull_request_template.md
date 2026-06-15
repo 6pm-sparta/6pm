@@ -1,33 +1,36 @@
-## 🎫 관련 이슈
-* resolves #
+<!-- 제목 규칙: [feat] 티켓 예매 동시성 처리  /  [fix] 결제 SAGA 보상 누락  /  [infra] ECR 배포 파이프라인 -->
 
-## 🎯 작업 내용
-- [ ] 회원가입 API 로직 구현 (`POST /api/v1/users`)
-- [ ] UserContext DTO 추가 및 GlobalExceptionHandler 연동
+## 관련 이슈
+Closes #
 
-## 🏗️ 영향을 받는 마이크로서비스
-- [ ] `common` (전사 공통 모듈)
-- [ ] `eureka-server` / `gateway-service` / `config-server`
-- [ ] `user-service`
-- [ ] `feed-service`
-- [ ] `ticketing-service`
-- [ ] `order-service`
-- [ ] `notification-service`
-- [ ] `aiops-service`
-- [ ] 인프라 (Docker, CI/CD, AWS 등)
+## 변경 유형
+- [ ] feat (기능)  · [ ] fix (버그)  · [ ] refactor  · [ ] infra  · [ ] test  · [ ] docs/chore
 
-## 💡 테스트 및 검증 방법
-1. `docker compose --profile infra up -d` 로 DB 실행
-2. `{서비스명}` 실행 후 Postman으로 아래 JSON 데이터 전송
-```json
-{
-  "email": "test@fandom.com",
-  "password": "password123!"
-}
-```
+## 관련 서비스/모듈
+<!-- 해당되는 것만: gateway / eureka / config / user / feed / ticketing / order / notification / aiops / common / infra -->
 
-## 🛡️ 백엔드 체크리스트
-- [ ] 빌드 및 테스트가 정상적으로 통과되었는가? (`gradlew build`)
-- [ ] 컨트롤러 응답 시 `ApiResponse` 공통 규격을 사용했는가?
-- [ ] 에러 발생 시 `CustomException`과 `ErrorCode`를 사용해 예외 처리를 했는가?
-- [ ] 민감한 정보(비밀번호, API Key 등)가 하드코딩되지 않았는가?
+## 변경 내용
+<!-- 무엇을 왜 바꿨는지 핵심만 -->
+-
+
+## 영향 / 마이그레이션
+- [ ] 다른 서비스에 영향(Breaking) 없음  <!-- 있으면 내용 적기 -->
+- [ ] DB 스키마 변경 없음  <!-- 있으면 적용 순서/스크립트 명시 -->
+
+## 테스트 방법
+<!-- 프론트 없음 → API 기준. 리뷰어가 그대로 검증 가능하게 -->
+- [ ] `./gradlew :<module>:test` 통과
+- 확인한 API:
+  ```
+  # 예) curl -X POST localhost:8080/api/tickets/1/reserve
+  ```
+
+## 체크리스트
+- [ ] 셀프 리뷰 완료 (올리기 전 내 diff 직접 확인)
+- [ ] 로컬 빌드 통과 (`./gradlew clean build`)
+- [ ] 공통 규약 준수 (`ApiResponse` · `CustomException`/`ErrorCode` · 엔티티 `BaseEntity` 상속)
+- [ ] `application.yml`에 평문 시크릿 없음 (환경변수/Config 사용)
+- [ ] 신규 서비스/엔드포인트면 Eureka 등록 · Gateway 라우트 확인
+
+## 비고 (선택)
+<!-- 리뷰 시 봐줬으면 하는 부분, 트레이드오프, 후속 작업 -->
