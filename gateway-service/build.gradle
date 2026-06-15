@@ -1,3 +1,6 @@
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.cloud:spring-cloud-starter-gateway'              // 리액티브 게이트웨이
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // 유레카 등록·발견(lb://)
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'                // config-server 에서 설정 가져오기
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'                // /actuator/gateway/routes 확인용
 }
