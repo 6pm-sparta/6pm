@@ -6,10 +6,12 @@
 #   + Loki / Promtail / Alertmanager 추가 (o11y 프로파일)
 #   + prometheus 가 alertmanager 와 연동되도록 alertmanager.yml 추가
 #   + gateway 포트 8080 으로 통일
+#   + [신규] core/apps 9개 서비스의 build 를 공통 멀티스테이지 Dockerfile 로 연결
+#           (멀티모듈이라 context 는 레포 루트, 모듈 구분은 args.SERVICE)
 # 사용법:
 #   인프라만:        docker compose --profile infra up -d
 #   인프라+관측:     docker compose --profile infra --profile o11y up -d
-#   전체:            docker compose --profile all up -d
+#   전체:            docker compose --profile all up -d --build
 # =====================================================================
 
 services:
@@ -85,7 +87,11 @@ services:
   # 2. CORE (Spring Cloud 인프라)
   # ---------------------------------------------------------------
   eureka-server:
-    build: ./eureka-server
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: eureka-server
     profiles: ["core", "all"]
     container_name: 6pm-eureka
     ports:
@@ -94,14 +100,22 @@ services:
       - SPRING_PROFILES_ACTIVE=dev
 
   config-server:
-    build: ./config-server
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: config-server
     profiles: ["core", "all"]
     container_name: 6pm-config
     ports:
       - "8888:8888"
 
   gateway-service:
-    build: ./gateway-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: gateway-service
     profiles: ["core", "all"]
     container_name: 6pm-gateway
     ports:
@@ -113,37 +127,61 @@ services:
   # 3. APPS (비즈니스 마이크로서비스)
   # ---------------------------------------------------------------
   user-service:
-    build: ./user-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: user-service
     profiles: ["apps", "all"]
     container_name: 6pm-user
     ports: ["8081:8081"]
 
   feed-service:
-    build: ./feed-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: feed-service
     profiles: ["apps", "all"]
     container_name: 6pm-feed
     ports: ["8082:8082"]
 
   ticketing-service:
-    build: ./ticketing-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: ticketing-service
     profiles: ["apps", "all"]
     container_name: 6pm-ticketing
     ports: ["8083:8083"]
 
   order-service:
-    build: ./order-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: order-service
     profiles: ["apps", "all"]
     container_name: 6pm-order
     ports: ["8084:8084"]
 
   notification-service:
-    build: ./notification-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: notification-service
     profiles: ["apps", "all"]
     container_name: 6pm-notification
     ports: ["8085:8085"]
 
   aiops-service:
-    build: ./aiops-service
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: aiops-service
     profiles: ["apps", "all"]
     container_name: 6pm-aiops
     ports: ["8086:8086"]
