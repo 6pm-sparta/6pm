@@ -9,8 +9,11 @@ import com.fandom.user_service.member.domain.repository.CreatorRepository;
 import com.fandom.user_service.member.domain.repository.UserRepository;
 import com.fandom.user_service.member.presentation.dto.request.CreatorSignUpRequest;
 import com.fandom.user_service.member.presentation.dto.request.SignUpRequest;
+import com.fandom.user_service.member.presentation.dto.response.CreatorSignUpResponse;
 import com.fandom.user_service.member.presentation.dto.response.InternalMemberResponse;
-import com.fandom.user_service.member.presentation.dto.response.SignUpResponse;
+import com.fandom.user_service.member.presentation.dto.response.MemberSignUpResponse;
+import com.fandom.user_service.profile.application.ProfileService;
+import com.fandom.user_service.profile.domain.entity.Profile;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,35 +45,58 @@ class MemberServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private ProfileService profileService;
+
     @InjectMocks
     private MemberService memberService;
 
     @Test
-    @DisplayName("일반회원 가입에 성공하면 MEMBER/ACTIVE로 저장되고 응답이 반환된다")
+    @DisplayName("일반회원 가입에 성공하면 User와 Profile이 저장되고 응답이 반환된다")
     void signUp_success() {
         // given
-        SignUpRequest request = new SignUpRequest("test@example.com", "password123");
+        SignUpRequest request = new SignUpRequest(
+                "test@example.com",
+                "password123",
+                "테스터",
+                "06978",
+                "서울특별시 동작구 상도로 369",
+                "단독"
+        );
+        Profile profile = Profile.builder()
+                .nickname(request.nickname())
+                .build();
         given(userRepository.existsByEmail(request.email())).willReturn(false);
         given(passwordEncoder.encode(request.password())).willReturn("encoded-password");
         given(userRepository.save(any(User.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
+        given(profileService.createInitialProfile(any(User.class), anyString())).willReturn(profile);
 
         // when
-        SignUpResponse response = memberService.signUp(request);
+        MemberSignUpResponse response = memberService.signUp(request);
 
         // then
         assertThat(response.email()).isEqualTo("test@example.com");
+        assertThat(response.nickname()).isEqualTo("테스터");
         assertThat(response.role()).isEqualTo(Role.MEMBER.name());
         assertThat(response.status()).isEqualTo(Status.ACTIVE.name());
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
+        verify(profileService).createInitialProfile(any(User.class), anyString());
     }
 
     @Test
     @DisplayName("이미 존재하는 이메일로 가입하면 DUPLICATE_EMAIL 예외가 발생한다")
     void signUp_duplicateEmail() {
         // given
-        SignUpRequest request = new SignUpRequest("dup@example.com", "password123");
+        SignUpRequest request = new SignUpRequest(
+                "dup@example.com",
+                "password123",
+                "중복닉네임",
+                null,
+                null,
+                null
+        );
         given(userRepository.existsByEmail(request.email())).willReturn(true);
 
         // when & then
@@ -82,28 +108,46 @@ class MemberServiceTest {
         // 중복이면 저장/해싱까지 가지 않는다
         verify(passwordEncoder, never()).encode(anyString());
         verify(userRepository, never()).save(any(User.class));
+        verify(profileService, never()).createInitialProfile(any(User.class), anyString());
     }
 
     @Test
-    @DisplayName("크리에이터 가입에 성공하면 CREATOR로 저장되고 creators도 함께 저장된다")
+    @DisplayName("크리에이터 가입에 성공하면 User, Creator, Profile이 저장되고 응답이 반환된다")
     void signUpCreator_success() {
         // given
         CreatorSignUpRequest request =
-                new CreatorSignUpRequest("creator@example.com", "password123", "소속사");
+                new CreatorSignUpRequest(
+                        "creator@example.com",
+                        "password123",
+                        "크리에이터",
+                        "소속사",
+                        "12028",
+                        "경기도 남양주시 오남읍 진건오남로667번길 64-33",
+                        null
+                );
+        Profile profile = Profile.builder()
+                .nickname(request.nickname())
+                .build();
         given(userRepository.existsByEmail(request.email())).willReturn(false);
         given(passwordEncoder.encode(request.password())).willReturn("encoded-password");
         given(userRepository.save(any(User.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
+        given(creatorRepository.save(any()))
+                .willAnswer(invocation -> invocation.getArgument(0));
+        given(profileService.createInitialProfile(any(User.class), anyString())).willReturn(profile);
 
         // when
-        SignUpResponse response = memberService.signUpCreator(request);
+        CreatorSignUpResponse response = memberService.signUpCreator(request);
 
         // then
         assertThat(response.email()).isEqualTo("creator@example.com");
+        assertThat(response.nickname()).isEqualTo("크리에이터");
+        assertThat(response.agencyName()).isEqualTo("소속사");
         assertThat(response.role()).isEqualTo(Role.CREATOR.name());
         assertThat(response.status()).isEqualTo(Status.ACTIVE.name());
         verify(userRepository).save(any(User.class));
         verify(creatorRepository).save(any());
+        verify(profileService).createInitialProfile(any(User.class), anyString());
     }
 
     @Test
