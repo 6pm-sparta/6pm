@@ -14,7 +14,11 @@ public record PostRequest(
         List<@ValidImageKey String> imageKeys
 ) {
     public PostRequest {
-        imageKeys = (imageKeys == null) ? List.of() : imageKeys; // null → 빈 리스트
+        // 공백만 있는 경우 null 처리
+        content = (content != null && content.isBlank()) ? null : content;
+
+        // null인 경우 빈 리스트 처리
+        imageKeys = (imageKeys == null) ? List.of() : imageKeys;
     }
 
     @AssertTrue(message = "내용 또는 이미지를 하나 이상 포함해주세요.")
