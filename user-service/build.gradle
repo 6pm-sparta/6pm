@@ -1,22 +1,29 @@
 // user-service/build.gradle — 표준 와이어링 (인프라 담당 제공)
 // 루트가 plugin/group/Java21/SpringCloud BOM/lombok/test 관리. 여기엔 의존성만 둔다.
 dependencies {
-	implementation project(':common')                                                   // ApiResponse, BaseEntity, 예외, 인증(UserIdCard)
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	runtimeOnly    'org.postgresql:postgresql'
+    implementation project(':common')   // ApiResponse, BaseEntity, 예외, 인증(UserIdCard 등)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
 
-	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // 서비스 등록/발견 (lb://)
-	implementation 'org.springframework.cloud:spring-cloud-starter-config'                // config-server 설정 수신
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'                // /actuator/health, prometheus
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'org.postgresql:postgresql'
 
-	implementation 'io.micrometer:micrometer-tracing-bridge-brave'                        // 분산추적(Zipkin)
-	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
-	implementation 'io.micrometer:micrometer-registry-prometheus'                         // Prometheus 메트릭
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'  // 서비스 등록/발견 (lb://)
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'                 // config-server 설정 수신
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'                 // /actuator/health, prometheus
 
-	// === 본인 도메인에 필요한 것만 주석 해제 ===
-	// implementation 'org.springframework.boot:spring-boot-starter-data-redis'           // 캐시/세션 (user/feed/ticketing)
-	// implementation 'org.redisson:redisson-spring-boot-starter:3.35.0'                  // 분산락/대기열 (ticketing)
-	// implementation 'org.springframework.kafka:spring-kafka'                            // 이벤트 (ticketing/order/notification/feed)
-	// implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'          // 서비스 간 동기 호출
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave'    // 분산추적(Zipkin)
+    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+    implementation 'io.micrometer:micrometer-registry-prometheus'     // Prometheus 메트릭
+
+    // BCrypt 인코더만 사용 (필터 체인 없는 security-crypto). 인증은 Gateway 담당.
+    implementation 'org.springframework.security:spring-security-crypto'
+
+    // 요청 검증 (@Valid)
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // === 본인 도메인에 필요한 것만 주석 해제 ===
+    // implementation 'org.springframework.boot:spring-boot-starter-data-redis'   // 캐시/세션 (user/feed/ticketing)
+    // implementation 'org.redisson:redisson-spring-boot-starter:3.35.0'          // 분산락/대기열 (ticketing)
+    // implementation 'org.springframework.kafka:spring-kafka'                    // 이벤트 (ticketing/order/notification/feed)
+    // implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'  // 서비스 간 동기 호출
 }
