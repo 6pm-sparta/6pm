@@ -9,8 +9,11 @@ import com.fandom.user_service.member.domain.repository.CreatorRepository;
 import com.fandom.user_service.member.domain.repository.UserRepository;
 import com.fandom.user_service.member.presentation.dto.request.CreatorSignUpRequest;
 import com.fandom.user_service.member.presentation.dto.request.SignUpRequest;
+import com.fandom.user_service.member.presentation.dto.response.CreatorSignUpResponse;
 import com.fandom.user_service.member.presentation.dto.response.InternalMemberResponse;
-import com.fandom.user_service.member.presentation.dto.response.SignUpResponse;
+import com.fandom.user_service.member.presentation.dto.response.MemberSignUpResponse;
+import com.fandom.user_service.profile.application.ProfileService;
+import com.fandom.user_service.profile.domain.entity.Profile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -24,12 +27,13 @@ public class MemberService {
     private final UserRepository userRepository;
     private final CreatorRepository creatorRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ProfileService profileService;
 
     /**
      * 일반회원 가입. role=MEMBER, status는 기본 ACTIVE.
      */
     @Transactional
-    public SignUpResponse signUp(SignUpRequest request) {
+    public MemberSignUpResponse signUp(SignUpRequest request) {
         validateEmailNotDuplicated(request.email());
 
         String encodedPassword = passwordEncoder.encode(request.password());
@@ -38,17 +42,21 @@ public class MemberService {
                         .email(request.email())
                         .password(encodedPassword)
                         .role(Role.MEMBER)
+                        .zipCode(request.zipCode())
+                        .address1(request.address1())
+                        .address2(request.address2())
                         .build()
         );
+        Profile profile = profileService.createInitialProfile(user, request.nickname());
 
-        return SignUpResponse.from(user);
+        return MemberSignUpResponse.from(user, profile);
     }
 
     /**
      * 크리에이터 가입. User(role=CREATOR) + Creator를 한 트랜잭션으로 생성.
      */
     @Transactional
-    public SignUpResponse signUpCreator(CreatorSignUpRequest request) {
+    public CreatorSignUpResponse signUpCreator(CreatorSignUpRequest request) {
         validateEmailNotDuplicated(request.email());
 
         String encodedPassword = passwordEncoder.encode(request.password());
@@ -57,16 +65,20 @@ public class MemberService {
                         .email(request.email())
                         .password(encodedPassword)
                         .role(Role.CREATOR)
+                        .zipCode(request.zipCode())
+                        .address1(request.address1())
+                        .address2(request.address2())
                         .build()
         );
-        creatorRepository.save(
+        Creator creator = creatorRepository.save(
                 Creator.builder()
                         .user(user)
                         .agencyName(request.agencyName())
                         .build()
         );
+        Profile profile = profileService.createInitialProfile(user, request.nickname());
 
-        return SignUpResponse.from(user);
+        return CreatorSignUpResponse.from(user, profile, creator);
     }
 
     /**
