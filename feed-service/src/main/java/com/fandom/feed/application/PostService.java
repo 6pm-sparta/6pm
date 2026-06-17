@@ -7,7 +7,6 @@ import com.fandom.feed.infra.repository.ImageRepository;
 import com.fandom.feed.infra.repository.PostRepository;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +23,7 @@ public class PostService {
     private final ImageUrlConverter imageUrlConverter;
 
     @Transactional
-    public PostResponse.Create create(String content, List<String> imageKeys, UUID userId) {
+    public PostResponse.Create createPost(String content, List<String> imageKeys, UUID userId) {
         Post post = Post.builder().authorId(userId).content(content).build();
         postRepository.save(post);
 
@@ -38,7 +37,7 @@ public class PostService {
      * @param postId 게시글 식별자
      * @param imageKeys S3 이미지 키
      */
-    private void saveImages(UUID postId, @NonNull List<String> imageKeys) {
+    private void saveImages(UUID postId, List<String> imageKeys) {
         if (imageKeys.isEmpty()) return;
 
         List<Image> images = IntStream.range(0, imageKeys.size())

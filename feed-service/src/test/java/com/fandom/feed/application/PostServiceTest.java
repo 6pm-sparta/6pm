@@ -44,7 +44,7 @@ class PostServiceTest {
             List<String> imageKeys = List.of("key1", "key2");
 
             // when
-            postService.create(content, imageKeys, userId);
+            postService.createPost(content, imageKeys, userId);
 
             // then
             verify(postRepository, times(1)).save(any(Post.class));
@@ -61,7 +61,7 @@ class PostServiceTest {
             List<String> imageKeys = List.of();
 
             // when
-            postService.create(content, imageKeys, userId);
+            postService.createPost(content, imageKeys, userId);
 
             // then
             verify(postRepository, times(1)).save(any(Post.class));

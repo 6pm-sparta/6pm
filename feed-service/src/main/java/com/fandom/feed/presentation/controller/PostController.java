@@ -10,12 +10,11 @@ import com.fandom.feed.presentation.dto.response.PostResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-@RequestMapping("/api/v1")
+import java.util.UUID;
+
+@RequestMapping("/api/feeds")
 @RestController
 @RequiredArgsConstructor
 public class PostController {
@@ -24,11 +23,11 @@ public class PostController {
     @RequireRole({"CREATOR"})
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<PostResponse.Create> create(
+    public ApiResponse<PostResponse.Create> createPost(
             @Valid PostRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
-        PostResponse.Create response = postService.create(request.content(), request.imageKeys(), idCard.getUserId());
+        PostResponse.Create response = postService.createPost(request.content(), request.imageKeys(), idCard.getUserId());
         return ApiResponse.created(response);
     }
 }
