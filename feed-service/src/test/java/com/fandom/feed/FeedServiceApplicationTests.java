@@ -1,13 +1,11 @@
-package com.fandom.feed_service;
+package com.fandom.feed;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
 class FeedServiceApplicationTests {
-
 	@Test
 	void contextLoads() {
 	}
-
 }

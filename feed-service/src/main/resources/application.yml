@@ -43,3 +43,7 @@ management:
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
+
+s3:
+  base-url:
+    https://cdn.example.com/
