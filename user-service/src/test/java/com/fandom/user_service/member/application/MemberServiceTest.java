@@ -46,7 +46,7 @@ class MemberServiceTest {
     private MemberService memberService;
 
     @Test
-    @DisplayName("일반회원 가입에 성공하면 USER/ACTIVE로 저장되고 응답이 반환된다")
+    @DisplayName("일반회원 가입에 성공하면 MEMBER/ACTIVE로 저장되고 응답이 반환된다")
     void signUp_success() {
         // given
         SignUpRequest request = new SignUpRequest("test@example.com", "password123");
@@ -60,7 +60,7 @@ class MemberServiceTest {
 
         // then
         assertThat(response.email()).isEqualTo("test@example.com");
-        assertThat(response.role()).isEqualTo(Role.USER.name());
+        assertThat(response.role()).isEqualTo(Role.MEMBER.name());
         assertThat(response.status()).isEqualTo(Status.ACTIVE.name());
         verify(passwordEncoder).encode("password123");
         verify(userRepository).save(any(User.class));
@@ -113,7 +113,7 @@ class MemberServiceTest {
         User user = User.builder()
                 .email("test@example.com")
                 .password("encoded-password")
-                .role(Role.USER)
+                .role(Role.MEMBER)
                 .build();
         given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
 
@@ -123,7 +123,7 @@ class MemberServiceTest {
         // then
         assertThat(response.email()).isEqualTo("test@example.com");
         assertThat(response.password()).isEqualTo("encoded-password");
-        assertThat(response.role()).isEqualTo(Role.USER.name());
+        assertThat(response.role()).isEqualTo(Role.MEMBER.name());
     }
 
     @Test

@@ -26,7 +26,7 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
 
     /**
-     * 일반회원 가입. role=USER, status는 기본 ACTIVE.
+     * 일반회원 가입. role=MEMBER, status는 기본 ACTIVE.
      */
     @Transactional
     public SignUpResponse signUp(SignUpRequest request) {
@@ -37,7 +37,7 @@ public class MemberService {
                 User.builder()
                         .email(request.email())
                         .password(encodedPassword)
-                        .role(Role.USER)
+                        .role(Role.MEMBER)
                         .build()
         );
 
