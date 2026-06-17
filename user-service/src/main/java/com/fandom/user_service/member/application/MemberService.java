@@ -2,6 +2,7 @@ package com.fandom.user_service.member.application;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.user_service.member.domain.entity.Creator;
+import com.fandom.user_service.member.domain.entity.Role;
 import com.fandom.user_service.member.domain.entity.User;
 import com.fandom.user_service.member.domain.exception.MemberErrorCode;
 import com.fandom.user_service.member.domain.repository.CreatorRepository;
@@ -25,14 +26,20 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
 
     /**
-     * 일반회원 가입. role=USER, status=ACTIVE.
+     * 일반회원 가입. role=USER, status는 기본 ACTIVE.
      */
     @Transactional
     public SignUpResponse signUp(SignUpRequest request) {
         validateEmailNotDuplicated(request.email());
 
         String encodedPassword = passwordEncoder.encode(request.password());
-        User user = userRepository.save(User.createUser(request.email(), encodedPassword));
+        User user = userRepository.save(
+                User.builder()
+                        .email(request.email())
+                        .password(encodedPassword)
+                        .role(Role.USER)
+                        .build()
+        );
 
         return SignUpResponse.from(user);
     }
@@ -45,8 +52,19 @@ public class MemberService {
         validateEmailNotDuplicated(request.email());
 
         String encodedPassword = passwordEncoder.encode(request.password());
-        User user = userRepository.save(User.createCreator(request.email(), encodedPassword));
-        creatorRepository.save(Creator.create(user, request.agencyName()));
+        User user = userRepository.save(
+                User.builder()
+                        .email(request.email())
+                        .password(encodedPassword)
+                        .role(Role.CREATOR)
+                        .build()
+        );
+        creatorRepository.save(
+                Creator.builder()
+                        .user(user)
+                        .agencyName(request.agencyName())
+                        .build()
+        );
 
         return SignUpResponse.from(user);
     }

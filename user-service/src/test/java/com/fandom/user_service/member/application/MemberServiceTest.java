@@ -110,7 +110,11 @@ class MemberServiceTest {
     @DisplayName("내부 조회 시 존재하는 이메일이면 비밀번호 해시를 포함한 정보를 반환한다")
     void findByEmailForInternal_success() {
         // given
-        User user = User.createUser("test@example.com", "encoded-password");
+        User user = User.builder()
+                .email("test@example.com")
+                .password("encoded-password")
+                .role(Role.USER)
+                .build();
         given(userRepository.findByEmail("test@example.com")).willReturn(Optional.of(user));
 
         // when

@@ -16,6 +16,8 @@ import lombok.NoArgsConstructor;
  * 크리에이터(creators) 엔티티.
  * User와 1:1로 연결되며, 크리에이터 부가정보(소속사명 등)를 담는다.
  * User -> Creator 단방향 (Creator만 User를 참조).
+ *
+ * 객체 생성은 빌더로만 가능하다(생성자 private). new 직접 생성은 차단된다.
  */
 @Entity
 @Getter
@@ -34,12 +36,5 @@ public class Creator extends BaseEntity {
     private Creator(User user, String agencyName) {
         this.user = user;
         this.agencyName = agencyName;
-    }
-
-    public static Creator create(User user, String agencyName) {
-        return Creator.builder()
-                .user(user)
-                .agencyName(agencyName)
-                .build();
     }
 }

@@ -15,6 +15,9 @@ import lombok.NoArgsConstructor;
  * 사용자(users) 엔티티.
  * 일반회원/크리에이터/마스터가 role로 구분되며, 공통 계정 정보를 담는다.
  * 크리에이터 부가정보는 Creator 엔티티가 1:1로 참조한다.
+ *
+ * 객체 생성은 빌더로만 가능하다(생성자 private). new 직접 생성은 차단된다.
+ * role은 가입 종류에 따라 호출 측에서 지정하고, status는 기본 ACTIVE이다.
  */
 @Entity
 @Getter
@@ -51,34 +54,9 @@ public class User extends BaseEntity {
         this.email = email;
         this.password = password;
         this.role = role;
-        this.status = status;
+        this.status = (status != null) ? status : Status.ACTIVE;
         this.zipCode = zipCode;
         this.address1 = address1;
         this.address2 = address2;
-    }
-
-    /**
-     * 일반회원 가입용 팩토리. role=USER, status=ACTIVE 기본 부여.
-     * password는 호출 측에서 BCrypt 해싱된 값을 넘긴다.
-     */
-    public static User createUser(String email, String encodedPassword) {
-        return User.builder()
-                .email(email)
-                .password(encodedPassword)
-                .role(Role.USER)
-                .status(Status.ACTIVE)
-                .build();
-    }
-
-    /**
-     * 크리에이터 가입용 팩토리. role=CREATOR, status=ACTIVE 기본 부여.
-     */
-    public static User createCreator(String email, String encodedPassword) {
-        return User.builder()
-                .email(email)
-                .password(encodedPassword)
-                .role(Role.CREATOR)
-                .status(Status.ACTIVE)
-                .build();
     }
 }
