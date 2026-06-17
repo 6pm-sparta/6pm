@@ -30,7 +30,7 @@ public class Image extends BaseEntity {
     private String imageKey;
 
     @Builder
-    public Image(UUID postId, Integer order, String imageKey) {
+    private Image(UUID postId, Integer order, String imageKey) {
         this.postId = postId;
         this.order = order;
         this.imageKey = imageKey;

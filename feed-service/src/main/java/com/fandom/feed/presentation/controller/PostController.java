@@ -3,7 +3,7 @@ package com.fandom.feed.presentation.controller;
 import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
-import com.fandom.feed.application.service.PostService;
+import com.fandom.feed.application.PostService;
 import com.fandom.feed.global.annotation.RequireRole;
 import com.fandom.feed.presentation.dto.request.PostRequest;
 import com.fandom.feed.presentation.dto.response.PostResponse;

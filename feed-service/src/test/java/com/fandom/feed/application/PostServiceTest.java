@@ -1,7 +1,7 @@
-package com.fandom.feed.application.service;
+package com.fandom.feed.application;
 
 import com.fandom.feed.domain.entity.Post;
-import com.fandom.feed.domain.util.ImageUrlConverter;
+import com.fandom.feed.infra.util.ImageUrlConverter;
 import com.fandom.feed.infra.repository.ImageRepository;
 import com.fandom.feed.infra.repository.PostRepository;
 import org.junit.jupiter.api.DisplayName;
