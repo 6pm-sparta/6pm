@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -55,6 +56,7 @@ public class SeatService {
                 .toList();
     }
 
+    @Transactional
     public HoldResponse hold(UUID showSeatId, UUID userId) {
         ShowSeat seat = showSeatRepository.findById(showSeatId)
                 .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
@@ -77,6 +79,8 @@ public class SeatService {
 
         try {
             var order = orderClient.create(new CreateOrderRequest(userId, seat.getShowId(), showSeatId, seat.getPrice()));
+            seat.hold(order.orderId());
+            showSeatRepository.save(seat);
             return new HoldResponse(order.orderId());
         } catch (Exception e) {
             // 주문 생성 실패 시 선점 해제
