@@ -1,0 +1,52 @@
+package com.fandom.notification_service.infra.repository;
+
+import com.fandom.notification_service.domain.entity.Notification;
+import com.fandom.notification_service.domain.entity.NotificationSendStatus;
+import com.fandom.notification_service.domain.entity.NotificationType;
+import com.fandom.notification_service.domain.repository.NotificationRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+@RequiredArgsConstructor
+public class NotificationRepositoryImpl implements NotificationRepository {
+
+    private final NotificationJpaRepository jpaRepository;
+
+    @Override
+    public Notification save(Notification notification) {
+        return jpaRepository.save(notification);
+    }
+
+    @Override
+    public Optional<Notification> findById(UUID id) {
+        return jpaRepository.findById(id);
+    }
+
+    @Override
+    public List<Notification> findAllByUserId(UUID userId) {
+        return jpaRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    @Override
+    public void softDeleteAllByUserId(UUID userId) {
+        jpaRepository.softDeleteAllByUserId(userId, LocalDateTime.now());
+    }
+
+    @Override
+    public boolean existsByUserIdAndTypeAndReferenceId(UUID userId, NotificationType type, UUID referenceId) {
+        return jpaRepository.existsByUserIdAndTypeAndReferenceId(userId, type, referenceId);
+    }
+
+    @Override
+    public List<Notification> findPendingCreatedBefore(LocalDateTime cutoff, int limit) {
+        return jpaRepository.findBySendStatusAndCreatedAtBefore(
+                NotificationSendStatus.PENDING, cutoff, PageRequest.of(0, limit));
+    }
+}
