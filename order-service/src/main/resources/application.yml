@@ -15,6 +15,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
+    defer-datasource-initialization: true
     properties:
       hibernate:
         default_schema: order_db
@@ -25,6 +26,11 @@ spring:
       host: localhost
       port: 6379
       password: fandom_redis_pw   # docker-compose redis requirepass와 동일
+  sql:
+    init:
+      mode: always
+      schema-locations:
+        - classpath:sql/manual_migrations.sql
 
 # 주문 생성 관련 커스텀 설정 (OrderProperties로 바인딩)
 order:
