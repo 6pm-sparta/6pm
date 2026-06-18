@@ -92,13 +92,11 @@ class PostServiceTest {
         LocalDateTime at = LocalDateTime.now();
         UserResponse author = new UserResponse(userId, "nic");
 
-        PostResponse.Detail postDetail = new PostResponse.Detail(
-                postId, author, "내용", List.of(), 0L, 0L, false, at, at
-        );
+        PostCache.Detail cachedPost = new PostCache.Detail(postId, author, "내용", List.of(), at, at);
         PostCache.ReactionInfo reactionInfo = new PostCache.ReactionInfo(10L, 5L, true);
 
-        when(postCacheService.getPostDetail(postId)).thenReturn(postDetail);
-        when(postReactionService.getReactionInfo(any(), eq(userId), anyLong())).thenReturn(reactionInfo);
+        when(postCacheService.getPostDetail(postId)).thenReturn(cachedPost);
+        when(postReactionService.getReactionInfo(any(), eq(userId))).thenReturn(reactionInfo);
 
         // When
         PostResponse.Detail result = postService.getPost(postId, userId);

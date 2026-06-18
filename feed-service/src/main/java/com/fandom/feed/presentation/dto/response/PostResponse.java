@@ -19,18 +19,11 @@ public class PostResponse {
             UUID postId, UserResponse author, String content, List<String> imageUrls,
             long commentCount, long likeCount, boolean liked, LocalDateTime createdAt, LocalDateTime updatedAt
     ) {
-        public static Detail of(PostCache.Detail cachedPost, long commentCount) {
+        public static Detail of(PostCache.Detail cachedPost, PostCache.ReactionInfo reactionInfo) {
             return new Detail(
                     cachedPost.postId(), cachedPost.author(), cachedPost.content(), cachedPost.imageUrls(),
-                    commentCount, 0L, false, cachedPost.createdAt(), cachedPost.updatedAt()
-            );
-        }
-
-        public Detail withReaction(PostCache.ReactionInfo reactionInfo) {
-            return new Detail(
-                    this.postId, this.author, this.content, this.imageUrls,
                     reactionInfo.commentCount(), reactionInfo.likeCount(), reactionInfo.liked(),
-                    this.createdAt, this.updatedAt
+                    cachedPost.createdAt(), cachedPost.updatedAt()
             );
         }
     }

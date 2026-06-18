@@ -38,12 +38,10 @@ public class PostService {
     }
 
     public PostResponse.Detail getPost(UUID id, UUID userId) {
-        PostResponse.Detail postDetail = postCacheService.getPostDetail(id);
-        PostCache.ReactionInfo reactionInfo = postReactionService.getReactionInfo(
-                postDetail.postId(), userId, postDetail.commentCount()
-        );
+        PostCache.Detail cachePost = postCacheService.getPostDetail(id);
+        PostCache.ReactionInfo reactionInfo = postReactionService.getReactionInfo(id, userId);
 
-        return postDetail.withReaction(reactionInfo);
+        return PostResponse.Detail.of(cachePost, reactionInfo);
     }
 
     /**
