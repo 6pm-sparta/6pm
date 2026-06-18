@@ -29,6 +29,8 @@ notification:
     batch-size: 100
     cutoff-minutes: 5
     interval-ms: 300000
+  dispatch:
+    max-attempt: 3
 
 eureka:
   client:
