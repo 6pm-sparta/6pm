@@ -61,7 +61,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(showId).seatName("A-1").grade("VIP").price(100000).build();
             given(showSeatRepository.findAllByShowId(showId)).willReturn(List.of(seat));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
-            given(valueOperations.get(anyString())).willReturn(null);
+            given(valueOperations.multiGet(anyList())).willReturn(java.util.Arrays.asList((String) null));
 
             // when
             List<ShowSeatResponse> result = seatService.getSeats(showId);
@@ -80,7 +80,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(showId).seatName("B-2").grade("R").price(80000).build();
             given(showSeatRepository.findAllByShowId(showId)).willReturn(List.of(seat));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
-            given(valueOperations.get(anyString())).willReturn("HOLDING");
+            given(valueOperations.multiGet(anyList())).willReturn(List.of("HOLDING"));
 
             // when
             List<ShowSeatResponse> result = seatService.getSeats(showId);

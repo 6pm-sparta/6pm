@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 @Slf4j
 @Service
@@ -47,11 +48,17 @@ public class SeatService {
 
     public List<ShowSeatResponse> getSeats(Long showId) {
         List<ShowSeat> seats = showSeatRepository.findAllByShowId(showId);
-        return seats.stream()
-                .map(seat -> {
-                    String seatKey = SEAT_KEY.formatted(showId, seat.getId());
-                    String status = redisTemplate.opsForValue().get(seatKey);
-                    return ShowSeatResponse.of(seat, status != null ? status : "AVAILABLE");
+        if (seats.isEmpty()) return List.of();
+
+        List<String> keys = seats.stream()
+                .map(seat -> SEAT_KEY.formatted(showId, seat.getId()))
+                .toList();
+        List<String> statuses = redisTemplate.opsForValue().multiGet(keys);
+
+        return IntStream.range(0, seats.size())
+                .mapToObj(i -> {
+                    String status = (statuses != null && statuses.get(i) != null) ? statuses.get(i) : "AVAILABLE";
+                    return ShowSeatResponse.of(seats.get(i), status);
                 })
                 .toList();
     }
