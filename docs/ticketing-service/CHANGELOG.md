@@ -14,19 +14,20 @@
 ---
 
 
-### [공유 필요] Kafka 토픽명 변경: `ticketing.booking.completed` → `ticketing.seat.booked`
+### ~~[공유 필요]~~ [공유 완료] Kafka 토픽명 변경: `ticketing.booking.completed` → `ticketing.seat.booked`
 - **대상**: order-service, notification-service 담당자
 - **이유**: order/payment 설계 문서와 토픽명 정렬. 기존 명칭은 예매 완료에 초점이 맞춰져 있어 좌석 확정 시점과 의미가 모호했음.
 
-### [공유 필요] Kafka 토픽 신규 추가: `ticketing.seat.book.failed`
+### ~~[공유 필요]~~ [공유 완료] Kafka 토픽 신규 추가: `ticketing.seat.book.failed`
 - **대상**: order-service 담당자
 - **이유**: 좌석 예매 실패 시 SAGA 보상 트랜잭션 트리거 용도. order-service가 구독하여 COMPENSATING 상태로 전환 후 환불 처리.
 
-### [공유 필요] Kafka 토픽 제거: `ticketing.seat.held`
+### [확인 완료] Kafka 토픽 제거: `ticketing.seat.held`
 - **대상**: order-service 담당자
 - **이유**: 구간 2(좌석 선점 → 주문 생성)를 Feign 동기 호출로 구현하면서 불필요해짐. orderId 즉시 응답이 필요한 동기 흐름에는 Feign이 적합.
+- **확인**: order-service에 해당 토픽 구독 코드 없음. 별도 공유 불필요.
 
-### [공유 필요] notification Consumer 이관
+### ~~[공유 필요]~~ [공유 완료] notification Consumer 이관
 - **대상**: notification-service 담당자
 - **이유**: 예매완료 push는 좌석 확정 시점이 아니라 주문 최종 확정 시점에 발송해야 함. `ticketing.seat.booked` 대신 order-service가 발행하는 `order.confirmed` 구독으로 이관.
 
