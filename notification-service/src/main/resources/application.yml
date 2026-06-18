@@ -1,4 +1,3 @@
-# notification-service/src/main/resources/application.yml — 표준 와이어링 (인프라 담당 제공)
 server:
   port: 8085
 
@@ -20,7 +19,10 @@ spring:
         default_schema: notify_db
         format_sql: true
     show-sql: true
-
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer: 
+      group-id: notification-service
 eureka:
   client:
     service-url:
