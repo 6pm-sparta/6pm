@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'user-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8081']
+  - job_name: 'feed-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8082']
+  - job_name: 'ticketing-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8083']
+  - job_name: 'order-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8084']
+  - job_name: 'notification-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8085']
+  - job_name: 'aiops-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['host.docker.internal:8086']
+
+  # gateway/eureka/config 메트릭도 보려면: 각 build.gradle에
+  #   implementation 'io.micrometer:micrometer-registry-prometheus'
+  # 추가 + management 노출 설정 후 아래 주석 해제
+  # - job_name: 'gateway-service'
+  #   metrics_path: '/actuator/prometheus'
+  #   static_configs:
+  #     - targets: ['host.docker.internal:8080']
