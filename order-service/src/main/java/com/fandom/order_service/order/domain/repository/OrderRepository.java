@@ -2,6 +2,8 @@ package com.fandom.order_service.order.domain.repository;
 
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
@@ -18,4 +20,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      * - DB UNIQUE 제약 충돌 시, 실제로 이미 존재하는 진행중 주문을 찾아 멱등 응답을 만들기 위한 조회
      */
     Optional<Order> findFirstBySeatIdAndStatusIn(UUID seatId, Collection<OrderStatus> statuses);
+
+    /**
+     * 유저의 전체 주문 내역 조회 (api 명세서 "주문 목록 조회"). 최신 주문이 먼저 보이도록 호출 측에서
+     * createdAt DESC 정렬 Pageable을 넘겨준다 (Repository 메서드 자체는 정렬을 강제하지 않음).
+     */
+    Page<Order> findByUserId(UUID requesterId, Pageable pageable);
 }
