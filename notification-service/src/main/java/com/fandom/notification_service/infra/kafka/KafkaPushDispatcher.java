@@ -1,7 +1,7 @@
 package com.fandom.notification_service.infra.kafka;
 
 import com.fandom.notification_service.application.port.PushDispatchPort;
-//import com.fandom.notification_service.presentation.dto.PushFailedMessage;
+import com.fandom.notification_service.presentation.dto.PushFailedMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -22,6 +22,7 @@ public class KafkaPushDispatcher implements PushDispatchPort {
 
     @Override
     public void publishRetry(UUID notificationId, String deviceToken) {
-
+        retryKafkaTemplate.send(KafkaTopics.NOTIFICATION_PUSH_FAILED, notificationId.toString(),
+                new PushFailedMessage(notificationId, deviceToken));
     }
 }
