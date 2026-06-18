@@ -41,7 +41,7 @@ public class AuthService {
             throw new CustomException(AuthErrorCode.INACTIVE_MEMBER);
         }
 
-        String accessToken = jwtProvider.createAccessToken(member.userId(), member.role());
+        String accessToken = jwtProvider.createAccessToken(member.userId(), member.role(), member.status());
         return LoginResponse.of(accessToken, jwtProvider.getAccessTokenExpiration());
     }
 
