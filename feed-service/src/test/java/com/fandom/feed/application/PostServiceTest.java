@@ -90,13 +90,13 @@ class PostServiceTest {
         UUID userId = UUID.randomUUID();
 
         LocalDateTime at = LocalDateTime.now();
-        UserResponse author = new UserResponse(userId, "nic");
+        UserResponse author = new UserResponse(userId, "닉네임");
 
         PostCache.Detail cachedPost = new PostCache.Detail(postId, author, "내용", List.of(), at, at);
         PostCache.ReactionInfo reactionInfo = new PostCache.ReactionInfo(10L, 5L, true);
 
         when(postCacheService.getPostDetail(postId)).thenReturn(cachedPost);
-        when(postReactionService.getReactionInfo(any(), eq(userId))).thenReturn(reactionInfo);
+        when(postReactionService.getReactionInfo(postId, userId)).thenReturn(reactionInfo);
 
         // When
         PostResponse.Detail result = postService.getPost(postId, userId);
