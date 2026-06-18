@@ -186,6 +186,16 @@ services:
     container_name: 6pm-aiops
     ports: ["8086:8086"]
 
+  auth-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: auth-service
+    profiles: ["apps", "all"]
+    container_name: 6pm-auth
+    ports: ["8087:8087"]
+
   # ---------------------------------------------------------------
   # 4. O11Y (관측성)
   # ---------------------------------------------------------------
