@@ -13,5 +13,7 @@ public interface UserNotificationTokenJpaRepository extends JpaRepository<UserNo
 
     List<UserNotificationToken> findAllByUserIdAndNotifiedTrue(UUID userId);
 
-    List<UserNotificationToken> findAllByUserId(UUID userId);
+    void deleteByDeviceToken(String deviceToken);
+
+    void deleteByUserId(UUID userId);
 }

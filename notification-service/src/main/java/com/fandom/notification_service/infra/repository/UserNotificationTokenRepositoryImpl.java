@@ -31,9 +31,12 @@ public class UserNotificationTokenRepositoryImpl implements UserNotificationToke
     }
 
     @Override
-    public void softDeleteAllByUserId(UUID userId) {
-        List<UserNotificationToken> tokens = jpaRepository.findAllByUserId(userId);
-        tokens.forEach(t -> t.softDelete(userId));
-        jpaRepository.saveAll(tokens);
+    public void deleteByDeviceToken(String deviceToken) {
+        jpaRepository.deleteByDeviceToken(deviceToken);
+    }
+
+    @Override
+    public void deleteByUserId(UUID userId) {
+        jpaRepository.deleteByUserId(userId);
     }
 }

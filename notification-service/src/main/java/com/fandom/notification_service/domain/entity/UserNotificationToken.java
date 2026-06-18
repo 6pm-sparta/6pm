@@ -6,7 +6,6 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.SQLRestriction;
 
 import java.util.UUID;
 
@@ -17,7 +16,6 @@ import java.util.UUID;
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@SQLRestriction("deleted_at IS NULL")
 public class UserNotificationToken extends BaseEntity {
 
     @Column(name = "user_id", nullable = false)
@@ -41,9 +39,11 @@ public class UserNotificationToken extends BaseEntity {
         this.notified = true;
     }
 
-    // 토큰 갱신
-    public void updateToken(String newToken) {
-        this.deviceToken = newToken;
+    // 등록시 기존 토큰 행의 소유자/타입 갱신, 수신 ON
+    public void reassign(UUID userId, DeviceType deviceType) {
+        this.userId = userId;
+        this.deviceType = deviceType;
+        this.notified = true;
     }
 
     // 알림 설정
