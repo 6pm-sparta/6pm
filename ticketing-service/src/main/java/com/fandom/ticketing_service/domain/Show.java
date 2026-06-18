@@ -27,6 +27,9 @@ public class Show extends BaseEntity {
 
     @Builder
     private Show(Performance performance, LocalDateTime startAt, LocalDateTime endAt) {
+        if (!endAt.isAfter(startAt)) {
+            throw new IllegalArgumentException("endAt must be after startAt");
+        }
         this.performance = performance;
         this.startAt = startAt;
         this.endAt = endAt;

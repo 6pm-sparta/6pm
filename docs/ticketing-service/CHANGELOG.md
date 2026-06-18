@@ -6,6 +6,14 @@
 
 ## 2026-06-18
 
+### 엔티티 생성 패턴: 빌더 채택
+- **방향**: 생성자 `private` + `@Builder`로 생성 경로 통일. 팩토리/혼합 대비 보일러플레이트 없이 가독성 확보.
+- **한계 인지**: 빌더 개방으로 잘못된 객체 생성 가능 → 코드 리뷰 + 필요 시 생성자 내 런타임 검증으로 보완.
+- **상세**: [entity rules](../260618%20entity%20rules.md)
+
+---
+
+
 ### [공유 필요] Kafka 토픽명 변경: `ticketing.booking.completed` → `ticketing.seat.booked`
 - **대상**: order-service, notification-service 담당자
 - **이유**: order/payment 설계 문서와 토픽명 정렬. 기존 명칭은 예매 완료에 초점이 맞춰져 있어 좌석 확정 시점과 의미가 모호했음.
