@@ -18,6 +18,20 @@ public record CreatorSignUpRequest(
         @Size(min = 8, message = "비밀번호는 8자 이상이어야 합니다.")
         String password,
 
-        String agencyName
+        @NotBlank(message = "닉네임은 필수입니다.")
+        @Size(max = 30, message = "닉네임은 30자 이하여야 합니다.")
+        String nickname,
+
+        @Size(max = 50, message = "소속사명은 50자 이하여야 합니다.")
+        String agencyName,
+
+        @Size(max = 10, message = "우편번호는 10자 이하여야 합니다.")
+        String zipCode,
+
+        @Size(max = 255, message = "주소는 255자 이하여야 합니다.")
+        String address1,
+
+        @Size(max = 255, message = "상세주소는 255자 이하여야 합니다.")
+        String address2
 ) {
 }
