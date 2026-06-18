@@ -44,6 +44,12 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            // 🚨 [탐지기 추가] API 키가 깃허브에서 제대로 안 넘어왔다면 여기서 즉시 경고를 띄웁니다!
+            if (!process.env.GEMINI_API_KEY) {
+              console.error("🚨 [치명적 에러] GEMINI_API_KEY가 비어있습니다! GitHub Repository Secrets에 정확한 이름으로 등록되었는지, 공백은 없는지 확인해주세요.");
+              return;
+            }
+
             const fs = require('fs');
             const diff = fs.readFileSync('pr_diff.txt', 'utf8');
             
@@ -53,9 +59,7 @@ jobs:
             }
 
             const promptText = process.env.REVIEW_PROMPT + "\n" + diff;
-            
-            // 🚨 해결 완료: 구글 정식 API 버전(v1)과 정확한 최신 모델명(gemini-1.5-flash)으로 복구했습니다.
-            const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY;
+            const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY;
 
             const response = await fetch(url, {
               method: 'POST',
