@@ -54,8 +54,8 @@ jobs:
 
             const promptText = process.env.REVIEW_PROMPT + "\n" + diff;
             
-            // 🚨 가장 안정적이고 100% 작동하는 범용 모델 'gemini-pro'로 변경했습니다.
-            const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + process.env.GEMINI_API_KEY;
+            // 🚨 해결 완료: 구글 정식 API 버전(v1)과 정확한 최신 모델명(gemini-1.5-flash)으로 복구했습니다.
+            const url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY;
 
             const response = await fetch(url, {
               method: 'POST',
