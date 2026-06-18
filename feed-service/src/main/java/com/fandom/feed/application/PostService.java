@@ -2,9 +2,9 @@ package com.fandom.feed.application;
 
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.entity.Post;
+import com.fandom.feed.domain.repository.PostRepository;
+import com.fandom.feed.domain.repository.ImageRepository;
 import com.fandom.feed.infra.util.ImageUrlConverter;
-import com.fandom.feed.infra.repository.ImageRepository;
-import com.fandom.feed.infra.repository.PostRepository;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -1,9 +1,9 @@
 package com.fandom.feed.application;
 
 import com.fandom.feed.domain.entity.Post;
+import com.fandom.feed.domain.repository.PostRepository;
+import com.fandom.feed.domain.repository.ImageRepository;
 import com.fandom.feed.infra.util.ImageUrlConverter;
-import com.fandom.feed.infra.repository.ImageRepository;
-import com.fandom.feed.infra.repository.PostRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
