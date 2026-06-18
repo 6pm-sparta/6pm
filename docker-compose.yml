@@ -19,7 +19,7 @@ services:
   # 1. INFRA (DB & Middleware)
   # ---------------------------------------------------------------
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     profiles: ["infra", "all"]
     container_name: 6pm-postgres
     ports:
