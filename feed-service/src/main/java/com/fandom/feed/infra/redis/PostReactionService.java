@@ -30,6 +30,7 @@ public class PostReactionService {
     }
 
     private boolean isLiked(UUID id, UUID userId) {
+        if (userId == null) return false;
         return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + id, userId.toString()));
     }
 }

@@ -37,7 +37,8 @@ public class PostController {
             @PathVariable UUID id,
             @CurrentIdCard UserIdCard idCard
     ) {
-        PostResponse.Detail response = postService.getPost(id, idCard.getUserId());
+        UUID userId = idCard.isMaster() ? null : idCard.getUserId();
+        PostResponse.Detail response = postService.getPost(id, userId);
         return ApiResponse.success(response);
     }
 }
