@@ -97,6 +97,53 @@ public class NotificationDispatchService {
         publishRetryAfterCommit(notificationId, retryTokens);
     }
 
+    @Transactional
+    public void retry(UUID notificationId, String deviceToken) {
+        NotificationDelivery d = deliveryRepository
+                .findByNotificationIdAndDeviceToken(notificationId, deviceToken)
+                .orElse(null);
+        if (d == null) {
+            log.warn("재발송 delivery 없음 id={}, token={}", notificationId, deviceToken);
+            return;
+        }
+        if (d.getStatus() == NotificationSendStatus.SUCCESS) {
+            return; // 이미 성공
+        }
+        if (d.getAttemptCount() >= MAX_ATTEMPT) {
+            log.error("재발송 한계 도달, 포기 id={}, token={}", notificationId, deviceToken);
+            return;
+        }
+
+        Notification n = notificationRepository.findById(notificationId).orElse(null);
+        if (n == null) {
+            log.warn("재발송 대상 알림 없음 id={}", notificationId);
+            return;
+        }
+
+        try {
+            notificationSender.send(deviceToken, d.getDeviceType(), n.getTitle(), n.getBody());
+            d.markSuccess();
+            deliveryRepository.save(d);
+            recomputeAggregate(n); // 모든 기기 성공 -> 성공처리
+        } catch (Exception e) {
+            d.markFailed();
+            deliveryRepository.save(d);
+            if (d.getAttemptCount() < MAX_ATTEMPT) {
+                publishRetryAfterCommit(notificationId, List.of(deviceToken));
+            } else {
+                log.error("재발송 최종 실패(포기) id={}, token={}", notificationId, deviceToken, e);
+            }
+        }
+    }
+
+    private void recomputeAggregate(Notification n) {
+        boolean allSuccess = deliveryRepository.findAllByNotificationId(n.getId()).stream()
+                .allMatch(x -> x.getStatus() == NotificationSendStatus.SUCCESS);
+        if (allSuccess) {
+            n.markAsSuccess();
+            notificationRepository.save(n);
+        }
+    }
 
 
     // 트랜잭션 커밋 이후 push.failed 발행
