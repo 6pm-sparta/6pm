@@ -207,9 +207,9 @@ services:
       - "9090:9090"
     volumes:
       - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./infra/alert-rules.yml:/etc/prometheus/alert-rules.yml
-    depends_on:
-      - alertmanager
+#      - ./infra/alert-rules.yml:/etc/prometheus/alert-rules.yml
+#    depends_on:
+#      - alertmanager
 
   alertmanager:
     image: prom/alertmanager:latest
@@ -249,9 +249,11 @@ services:
     container_name: 6pm-grafana
     ports:
       - "3000:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - prometheus
-      - loki
+#      - loki
 
 volumes:
   postgres_data:
