@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/tickets/shows/{showId}")
+@RequestMapping("/api/v1/tickets/shows/{showId}")
 @RequiredArgsConstructor
 public class QueueController {
 
