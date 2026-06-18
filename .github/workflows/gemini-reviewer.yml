@@ -28,6 +28,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: gemini-2.5-flash      # 모델은 여기만 바꾸면 됨 (gemini-flash-latest 등)
           REVIEW_PROMPT: |
             너는 6pm Fandom SNS 프로젝트의 엄격한 Spring Boot MSA 수석 아키텍트야.
             아래 제공된 Git Diff 코드를 리뷰하고, 한국어로 친절하지만 단호하게 피드백을 남겨줘.
@@ -44,40 +45,47 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // 🚨 [탐지기 추가] API 키가 깃허브에서 제대로 안 넘어왔다면 여기서 즉시 경고를 띄웁니다!
-            if (!process.env.GEMINI_API_KEY) {
-              console.error("🚨 [치명적 에러] GEMINI_API_KEY가 비어있습니다! GitHub Repository Secrets에 정확한 이름으로 등록되었는지, 공백은 없는지 확인해주세요.");
-              return;
-            }
-
             const fs = require('fs');
             const diff = fs.readFileSync('pr_diff.txt', 'utf8');
             
             if (diff.trim().length < 10) {
-              console.log("리뷰할 코드가 부족합니다.");
+              console.log("리뷰할 코드가 부족합니다. (diff 없음)");
               return;
             }
-
+            
             const promptText = process.env.REVIEW_PROMPT + "\n" + diff;
-            const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + process.env.GEMINI_API_KEY;
-
+            const model = process.env.GEMINI_MODEL;
+            
+            // ✅ v1beta + 현재 모델. 키는 URL 쿼리스트링 대신 헤더로 전달(노출 최소화).
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+            
             const response = await fetch(url, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': process.env.GEMINI_API_KEY
+              },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: promptText }] }]
               })
             });
-
+            
+            // ❗ 실패하면 job을 빨간불로 (예전엔 return만 해서 ✅로 끝나 리뷰 안 달려도 성공처럼 보였음)
             if (!response.ok) {
               const errorText = await response.text();
-              console.error("Gemini API Error:", errorText);
+              core.setFailed("Gemini API Error (" + response.status + "): " + errorText);
               return;
             }
-
+            
             const result = await response.json();
-            const reviewComment = result.candidates[0].content.parts[0].text;
-
+            const reviewComment = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            // 안전필터 등으로 응답이 비면 방어
+            if (!reviewComment) {
+              core.setFailed("리뷰 텍스트가 비어있음: " + JSON.stringify(result));
+              return;
+            }
+            
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
