@@ -3,4 +3,16 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // 유레카 등록·발견(lb://)
     implementation 'org.springframework.cloud:spring-cloud-starter-config'                // config-server 에서 설정 가져오기
     implementation 'org.springframework.boot:spring-boot-starter-actuator'                // /actuator/gateway/routes 확인용
+
+    // common은 ApiResponse, UserIdCard, HmacUtils 사용을 위해 가져온다.
+    // 단, common이 끌고 오는 spring-boot-starter-web(MVC)은 Gateway의 WebFlux와 충돌하므로 제외한다.
+    // (Gateway에서 쓰는 common 클래스는 web에 의존하지 않는 순수 DTO/유틸이라 제외해도 영향 없음)
+    implementation(project(':common')) {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'
+    }
+
+    // JWT (Access Token 검증) - auth-service와 동일 버전/시크릿
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.12.6'
 }
