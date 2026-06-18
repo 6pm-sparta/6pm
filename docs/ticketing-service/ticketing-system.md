@@ -1,5 +1,8 @@
 # 티켓팅 시스템 설계 문서
 
+> **[주의]** 이 문서의 Order Service 관련 설계는 임의로 작성해둔 것이며 확정된 사항이 아닙니다.
+> 자세한 내용은 [Order/Payment 서비스 설계 문서](https://app.notion.com/p/teamsparta/order-payment-3822dc3ef51480608fd7cb333ea3ba34)를 참고해주세요.
+
 ## 0. 요약 및 문서 읽는 법
 
 **한 줄 요약:**
