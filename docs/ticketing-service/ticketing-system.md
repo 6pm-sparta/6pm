@@ -257,11 +257,11 @@ sequenceDiagram
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| POST | `/api/tickets/shows/{showId}/queue` | 대기열 등록 |
-| GET | `/api/tickets/shows/{showId}/queue/status` | 현재 순번 조회 |
-| GET | `/api/tickets/shows/{showId}/queue/stream` | SSE 연결 — 순번 실시간 수신 |
-| GET | `/api/tickets/shows/{showId}/seats` | 회차별 좌석 목록 + 상태 조회 |
-| POST | `/api/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 + 주문 생성 트리거 |
+| POST | `/queue/shows/{showId}/enter` | 대기열 등록 |
+| GET | `/queue/shows/{showId}/status` | 현재 순번 조회 |
+| GET | `/queue/shows/{showId}/stream` | SSE 연결 — 순번 실시간 수신 |
+| GET | `/shows/{showId}/seats` | 회차별 좌석 목록 + 상태 조회 |
+| POST | `/seats/{seatId}/hold` | 좌석 선점 + 주문 생성 트리거 |
 
 ### order-service
 

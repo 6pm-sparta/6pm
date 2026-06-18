@@ -13,26 +13,26 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/tickets/shows/{showId}")
+@RequestMapping("/queue")
 @RequiredArgsConstructor
 public class QueueController {
 
     private final QueueService queueService;
     private final QueueSseService queueSseService;
 
-    @PostMapping("/queue")
+    @PostMapping("/shows/{showId}/enter")
     public ResponseEntity<ApiResponse<Void>> enter(
             @PathVariable Long showId,
             @CurrentIdCard UserIdCard idCard
     ) {
         boolean entered = queueService.enter(showId, idCard.getUserId());
         if (!entered) {
-            return ResponseEntity.ok(ApiResponse.success(null));
+            return ResponseEntity.ok(ApiResponse.success(null)); // 이미 대기 중
         }
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @GetMapping("/queue/status")
+    @GetMapping("/shows/{showId}/status")
     public ResponseEntity<ApiResponse<QueueStatusResponse>> getStatus(
             @PathVariable Long showId,
             @CurrentIdCard UserIdCard idCard
@@ -41,7 +41,7 @@ public class QueueController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
-    @GetMapping(value = "/queue/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @GetMapping(value = "/shows/{showId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(
             @PathVariable Long showId,
             @CurrentIdCard UserIdCard idCard
