@@ -3,7 +3,6 @@ package com.fandom.ticketing_service.seat.service;
 import com.fandom.ticketing_service.kafka.event.SeatBookFailedEvent;
 import com.fandom.ticketing_service.kafka.event.SeatBookedEvent;
 import com.fandom.ticketing_service.kafka.producer.SeatEventProducer;
-import com.fandom.ticketing_service.seat.domain.entity.SeatStatus;
 import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
 import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -54,7 +53,7 @@ class SeatConfirmServiceTest {
             // given
             UUID orderId = UUID.randomUUID();
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
-            seat.hold(orderId);
+            seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
 
@@ -62,7 +61,6 @@ class SeatConfirmServiceTest {
             seatConfirmService.confirmSeat(orderId);
 
             // then
-            assertThat(seat.getStatus()).isEqualTo(SeatStatus.BOOKED);
             verify(redisTemplate).delete(anyString());
 
             ArgumentCaptor<SeatBookedEvent> captor = ArgumentCaptor.forClass(SeatBookedEvent.class);
@@ -98,7 +96,7 @@ class SeatConfirmServiceTest {
             // given
             UUID orderId = UUID.randomUUID();
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
-            seat.hold(orderId);
+            seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
@@ -107,7 +105,6 @@ class SeatConfirmServiceTest {
             seatConfirmService.releaseSeat(orderId);
 
             // then
-            assertThat(seat.getStatus()).isEqualTo(SeatStatus.AVAILABLE);
             assertThat(seat.getOrderId()).isNull();
             verify(redisTemplate).delete(anyString());
             verify(valueOperations).increment(anyString());

@@ -34,7 +34,6 @@ public class SeatConfirmService {
             ShowSeat seat = showSeatRepository.findByOrderId(orderId)
                     .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
             seatId = seat.getId();
-            seat.confirm();
             redisTemplate.delete(SEAT_KEY.formatted(seat.getShowId(), seatId));
             seatEventProducer.publishSeatBooked(new SeatBookedEvent(orderId, seatId));
         } catch (Exception e) {
@@ -49,7 +48,7 @@ public class SeatConfirmService {
             String seatKey = SEAT_KEY.formatted(seat.getShowId(), seat.getId());
             String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
 
-            seat.release();
+            seat.releaseOrder();
             redisTemplate.delete(seatKey);
             redisTemplate.opsForValue().increment(inventoryKey);
 

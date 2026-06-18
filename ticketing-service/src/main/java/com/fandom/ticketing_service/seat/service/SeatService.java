@@ -79,7 +79,7 @@ public class SeatService {
 
         try {
             var order = orderClient.create(new CreateOrderRequest(userId, seat.getShowId(), showSeatId, seat.getPrice()));
-            seat.hold(order.orderId());
+            seat.assignOrder(order.orderId());
             showSeatRepository.save(seat);
             return new HoldResponse(order.orderId());
         } catch (Exception e) {
