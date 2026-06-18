@@ -1,5 +1,6 @@
 # auth-service/src/main/resources/application.yml — 표준 와이어링 기반 (DB 미포함)
-# TODO: 포트 번호는 회의에서 서비스 구성 재논의 후 확정 (임시값 8087)
+# 포트 8087 / Gateway 경로 /api/auth/** (인프라 가이드 매핑표 기준)
+# auth-service는 자체 DB를 두지 않으며, refresh token은 추후 redis로 관리 예정
 server:
   port: 8087
 
