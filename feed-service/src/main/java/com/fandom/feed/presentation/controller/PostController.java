@@ -30,4 +30,14 @@ public class PostController {
         PostResponse.Create response = postService.createPost(request.content(), request.imageKeys(), idCard.getUserId());
         return ApiResponse.created(response);
     }
+
+    @GetMapping("/posts/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<PostResponse.Detail> getPost(
+            @PathVariable UUID id,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        PostResponse.Detail response = postService.getPost(id, idCard.getUserId());
+        return ApiResponse.success(response);
+    }
 }

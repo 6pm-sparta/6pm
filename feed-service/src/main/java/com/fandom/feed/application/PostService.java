@@ -5,6 +5,9 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.PostRepository;
 import com.fandom.feed.domain.repository.ImageRepository;
 import com.fandom.feed.infra.util.ImageUrlConverter;
+import com.fandom.feed.infra.redis.PostCacheService;
+import com.fandom.feed.infra.redis.PostReactionService;
+import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +23,8 @@ import java.util.stream.IntStream;
 public class PostService {
     private final PostRepository postRepository;
     private final ImageRepository imageRepository;
+    private final PostCacheService postCacheService;
+    private final PostReactionService postReactionService;
     private final ImageUrlConverter imageUrlConverter;
 
     @Transactional
@@ -30,6 +35,15 @@ public class PostService {
         saveImages(post.getId(), imageKeys);
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
+    }
+
+    public PostResponse.Detail getPost(UUID id, UUID userId) {
+        PostResponse.Detail postDetail = postCacheService.getPostDetail(id);
+        PostCache.ReactionInfo reactionInfo = postReactionService.getReactionInfo(
+                postDetail.postId(), userId, postDetail.commentCount()
+        );
+
+        return postDetail.withReaction(reactionInfo);
     }
 
     /**
