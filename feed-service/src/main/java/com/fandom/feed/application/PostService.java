@@ -57,7 +57,7 @@ public class PostService {
         List<Image> images = IntStream.range(0, imageKeys.size())
                 .mapToObj(i -> Image.builder()
                         .postId(postId)
-                        .order(i + 1)
+                        .orderIndex(i + 1)
                         .imageKey(imageKeys.get(i))
                         .build())
                 .toList();

@@ -27,7 +27,7 @@ public class PostCacheService {
     private final UserClient userClient;
 
     private static final String POST_DETAIL_KEY = "post:detail:";
-    
+
     private static final Duration POST_DETAIL_TTL = Duration.ofHours(1);
 
     public PostResponse.Detail getPostDetail(UUID id) {
@@ -37,7 +37,7 @@ public class PostCacheService {
         // 캐시 미스 발생
         if (cachedPost == null) {
             Post post = postReader.findById(id);
-            List<String> imageKeys = imageRepository.findAllByPostIdOrderByOrderAsc(id).stream().map(Image::getImageKey).toList();
+            List<String> imageKeys = imageRepository.findAllByPostIdOrderByOrderIndexAsc(id).stream().map(Image::getImageKey).toList();
             UserResponse author = userClient.getUser(post.getAuthorId()).getData();
 
             cachedPost = PostCache.Detail.of(post, imageUrlConverter.toImageUrls(imageKeys), author);

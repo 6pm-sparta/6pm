@@ -7,5 +7,5 @@ import java.util.List;
 import java.util.UUID;
 
 public interface JpaImageRepository extends JpaRepository<Image, UUID> {
-    List<Image> findAllByPostIdOrderByOrderAsc(UUID postId);
+    List<Image> findAllByPostIdOrderByOrderIndexAsc(UUID postId);
 }

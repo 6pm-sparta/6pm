@@ -16,7 +16,7 @@ public class ImageRepositoryImpl extends BaseRepositoryImpl<Image, UUID, JpaImag
     }
 
     @Override
-    public List<Image> findAllByPostIdOrderByOrderAsc(UUID postId) {
-        return ((JpaImageRepository) jpaRepository).findAllByPostIdOrderByOrderAsc(postId);
+    public List<Image> findAllByPostIdOrderByOrderIndexAsc(UUID postId) {
+        return jpaRepository.findAllByPostIdOrderByOrderIndexAsc(postId);
     }
 }
