@@ -18,7 +18,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -51,16 +53,20 @@ public class NotificationDispatchService {
             return;
         }
 
+        Map<String, NotificationDelivery> deliveryMap = deliveryRepository.findAllByNotificationId(notificationId).stream()
+                .collect(Collectors.toMap(NotificationDelivery::getDeviceToken, d -> d));
+
         boolean allOk = true;
         List<String> retryTokens = new ArrayList<>(); // 커밋 후 재발행할 실패 기기
         for (UserNotificationToken t : tokens) {
-            NotificationDelivery delivery = deliveryRepository
-                    .findByNotificationIdAndDeviceToken(notificationId, t.getDeviceToken())
-                    .orElseGet(() -> deliveryRepository.save(NotificationDelivery.builder()
-                            .notificationId(notificationId)
-                            .deviceToken(t.getDeviceToken())
-                            .deviceType(t.getDeviceType())
-                            .build()));
+            NotificationDelivery delivery = deliveryMap.get(t.getDeviceToken());
+            if (delivery == null) { // 최초 발송분만 insert
+                delivery = deliveryRepository.save(NotificationDelivery.builder()
+                        .notificationId(notificationId)
+                        .deviceToken(t.getDeviceToken())
+                        .deviceType(t.getDeviceType())
+                        .build());
+            }
 
             if (delivery.getStatus() == NotificationSendStatus.SUCCESS) {
                 continue; // 성공 처리 된 기기
