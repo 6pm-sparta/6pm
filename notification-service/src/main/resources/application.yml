@@ -21,8 +21,15 @@ spring:
     show-sql: true
   kafka:
     bootstrap-servers: localhost:9092
-    consumer: 
+    consumer:
       group-id: notification-service
+
+notification:
+  reconciler:
+    batch-size: 100
+    cutoff-minutes: 5
+    interval-ms: 300000
+
 eureka:
   client:
     service-url:

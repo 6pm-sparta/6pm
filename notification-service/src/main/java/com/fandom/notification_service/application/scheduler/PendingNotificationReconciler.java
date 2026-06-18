@@ -5,6 +5,7 @@ import com.fandom.notification_service.domain.entity.Notification;
 import com.fandom.notification_service.domain.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -16,18 +17,19 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PendingNotificationReconciler {
 
-    // 100개씩 5분마다 5분이상 지난 Pending 재발행
-    private static final int BATCH_SIZE = 100;
-    private static final long CUTOFF_MINUTES = 5;
-    private static final long INTERVAL_MS = 5 * 60 * 1000L;
+    // 기본 100개씩 5분마다 5분이상 지난 Pending 재발행
+    @Value("${notification.reconciler.batch-size:100}")
+    private int batchSize;
+    @Value("${notification.reconciler.cutoff-minutes:5}")
+    private long cutoffMinutes;
 
     private final NotificationRepository notificationRepository;
     private final PushDispatchPort pushDispatchPort;
 
-    @Scheduled(fixedDelay = INTERVAL_MS)
+    @Scheduled(fixedDelayString = "${notification.reconciler.interval-ms:300000}")
     public void reconcile() {
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(CUTOFF_MINUTES);
-        List<Notification> stuck = notificationRepository.findPendingCreatedBefore(cutoff, BATCH_SIZE);
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(cutoffMinutes);
+        List<Notification> stuck = notificationRepository.findPendingCreatedBefore(cutoff, batchSize);
         if (stuck.isEmpty()) {
             return;
         }
