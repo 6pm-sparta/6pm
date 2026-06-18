@@ -1,1 +1,24 @@
-spring.application.name=notification-service
+server:
+  port: 8085
+spring:
+  application:
+    name: notification-service
+  config:
+    import: "optional:configserver:http://localhost:8888"
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/fandom_db?currentSchema=notify_db
+    username: root
+    password: password
+  jpa:
+    hibernate: { ddl-auto: update }
+    properties: { hibernate: { default_schema: notify_db, format_sql: true } }
+    show-sql: true
+  kafka: { bootstrap-servers: localhost:9092, consumer: { group-id: notification-service } }
+eureka:
+  client: { service-url: { defaultZone: http://localhost:8761/eureka/ } }
+  instance: { prefer-ip-address: true, instance-id: "${spring.application.name}:${random.uuid}" }
+management:
+  endpoints: { web: { exposure: { include: health, info, prometheus } } }
+  tracing: { sampling: { probability: 1.0 } }
+  zipkin: { tracing: { endpoint: http://localhost:9411/api/v2/spans } }
