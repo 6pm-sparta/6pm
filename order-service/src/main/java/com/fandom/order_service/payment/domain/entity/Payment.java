@@ -2,6 +2,8 @@ package com.fandom.order_service.payment.domain.entity;
 
 import com.fandom.common.entity.BaseEntity;
 
+import com.fandom.common.exception.CommonErrorCode;
+import com.fandom.common.exception.CustomException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -70,6 +72,34 @@ public class Payment extends BaseEntity {
         this.pgTransactionId = pgTransactionId;
         this.idempotencyKey = idempotencyKey;
         this.refundAmount = refundAmount != null ? refundAmount : 0L;
+        this.failureReason = failureReason;
+    }
+
+    /**
+     * REQUESTED → APPROVED. PG 승인 응답을 받은 직후 호출한다.
+     *
+     * @throws CustomException REQUESTED가 아닌 상태에서 호출되면 발생. 정상 흐름에서는 절대 발생하지
+     *         않아야 하는 방어적 체크라(서비스 레이어가 항상 REQUESTED로 막 생성한 Payment에 대해서만
+     *         호출함) CommonErrorCode.INTERNAL_SERVER_ERROR로 처리한다(비즈니스 409가 아니라 서버 내부 불일치).
+     */
+    public void approve(String pgTransactionId) {
+
+        if (this.paymentStatus != PaymentStatus.REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.paymentStatus = PaymentStatus.APPROVED;
+        this.pgTransactionId = pgTransactionId;
+    }
+
+    /** REQUESTED → FAILED. PG 거절/오류 응답을 받은 직후 호출한다.*/
+    public void fail(String failureReason) {
+
+        if (this.paymentStatus != PaymentStatus.REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.paymentStatus = PaymentStatus.FAILED;
         this.failureReason = failureReason;
     }
 }

@@ -1,5 +1,7 @@
 package com.fandom.ticketing_service.seat.service;
 
+import com.fandom.common.exception.CustomException;
+import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.kafka.event.SeatBookFailedEvent;
 import com.fandom.ticketing_service.kafka.event.SeatBookedEvent;
 import com.fandom.ticketing_service.kafka.producer.SeatEventProducer;
@@ -20,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -69,11 +72,35 @@ class SeatConfirmServiceTest {
         }
 
         @Test
-        @DisplayName("좌석을 찾지 못하면 seat.book.failed 이벤트가 발행된다")
-        void confirmSeat_seatNotFound_publishesFailed() {
+        @DisplayName("좌석을 찾지 못하면 CustomException을 던지고 seatId=null인 실패 이벤트를 발행한다")
+        void confirmSeat_seatNotFound_throwsAndPublishesFailedWithNullSeatId() {
             // given
             UUID orderId = UUID.randomUUID();
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> seatConfirmService.confirmSeat(orderId))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_NOT_FOUND);
+
+            ArgumentCaptor<SeatBookFailedEvent> captor = ArgumentCaptor.forClass(SeatBookFailedEvent.class);
+            verify(seatEventProducer).publishSeatBookFailed(captor.capture());
+            assertThat(captor.getValue().orderId()).isEqualTo(orderId);
+            assertThat(captor.getValue().seatId()).isNull();
+            verify(seatEventProducer, never()).publishSeatBooked(any());
+        }
+
+        @Test
+        @DisplayName("좌석 확정 처리 중 예외가 발생하면 seatId가 채워진 seat.book.failed 이벤트가 발행된다")
+        void confirmSeat_failureAfterSeatFound_publishesFailedWithSeatId() {
+            // given
+            UUID orderId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            seat.assignOrder(orderId);
+
+            given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
+            doThrow(new RuntimeException("redis down")).when(redisTemplate).delete(anyString());
 
             // when
             seatConfirmService.confirmSeat(orderId);
@@ -82,7 +109,7 @@ class SeatConfirmServiceTest {
             ArgumentCaptor<SeatBookFailedEvent> captor = ArgumentCaptor.forClass(SeatBookFailedEvent.class);
             verify(seatEventProducer).publishSeatBookFailed(captor.capture());
             assertThat(captor.getValue().orderId()).isEqualTo(orderId);
-            verify(seatEventProducer, never()).publishSeatBooked(any());
+            assertThat(captor.getValue().seatId()).isEqualTo(seat.getId());
         }
     }
 

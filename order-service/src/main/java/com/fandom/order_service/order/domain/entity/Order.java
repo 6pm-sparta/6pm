@@ -2,6 +2,8 @@ package com.fandom.order_service.order.domain.entity;
 
 import com.fandom.common.entity.BaseEntity;
 
+import com.fandom.common.exception.CommonErrorCode;
+import com.fandom.common.exception.CustomException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;
@@ -71,5 +73,47 @@ public class Order extends BaseEntity {
                 .totalAmount(totalAmount)
                 .expiredAt(expiredAt)
                 .build();
+    }
+
+    /**
+     * PENDING → PAYMENT_REQUESTED. PG 호출 "전"에 먼저 반영해야 한다.
+     * 동시 요청 중 두 번째가 이 전이 이후 들어오면 status가 이미 PAYMENT_REQUESTED라 즉시 거부된다.
+     *
+     * @throws CustomException 호출 시점에 PENDING이 아니면 발생. 이 메서드는 항상 비관적 락으로
+     *         조회한 Order에 대해, 서비스 레이어(PaymentRequestWriter)가 PENDING 여부를 먼저 명시적으로
+     *         확인(PaymentErrorCode.INVALID_ORDER_STATUS로 409 응답)한 뒤 호출하는 것을 전제로 한다.
+     *         여기서 또 던지는 예외는 그 가드를 건너뛰고 직접 호출하는 실수를 막기 위한 방어적 체크라
+     *         정상 흐름에서는 발생하지 않으며, CommonErrorCode.INTERNAL_SERVER_ERROR(500)로 처리한다.
+     */
+    public void markPaymentRequested() {
+
+        if (this.status != OrderStatus.PENDING) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.PAYMENT_REQUESTED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /** PAYMENT_REQUESTED → PAID. PG 승인 응답을 받은 직후 호출한다.*/
+    public void markPaid() {
+
+        if (this.status != OrderStatus.PAYMENT_REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.PAID;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /** PAYMENT_REQUESTED → FAILED. PG 거절/오류 응답을 받은 직후 호출한다.*/
+    public void markFailed() {
+
+        if (this.status != OrderStatus.PAYMENT_REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.FAILED;
+        this.statusUpdatedAt = LocalDateTime.now();
     }
 }
