@@ -1,4 +1,4 @@
-package com.fandom.feed.domain.util;
+package com.fandom.feed.infra.util;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

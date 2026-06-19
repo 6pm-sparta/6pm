@@ -20,6 +20,10 @@ spring:
         default_schema: feed_db
         format_sql: true
     show-sql: true
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
 
 eureka:
   client:
