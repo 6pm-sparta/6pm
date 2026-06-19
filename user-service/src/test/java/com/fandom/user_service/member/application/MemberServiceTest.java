@@ -3,15 +3,20 @@ package com.fandom.user_service.member.application;
 import com.fandom.common.exception.CustomException;
 import com.fandom.user_service.member.domain.entity.Role;
 import com.fandom.user_service.member.domain.entity.Status;
+import com.fandom.user_service.member.domain.entity.Creator;
 import com.fandom.user_service.member.domain.entity.User;
 import com.fandom.user_service.member.domain.exception.MemberErrorCode;
 import com.fandom.user_service.member.domain.repository.CreatorRepository;
 import com.fandom.user_service.member.domain.repository.UserRepository;
 import com.fandom.user_service.member.presentation.dto.request.CreatorSignUpRequest;
+import com.fandom.user_service.member.presentation.dto.request.CreatorUpdateRequest;
+import com.fandom.user_service.member.presentation.dto.request.MemberUpdateRequest;
 import com.fandom.user_service.member.presentation.dto.request.SignUpRequest;
 import com.fandom.user_service.member.presentation.dto.response.CreatorSignUpResponse;
+import com.fandom.user_service.member.presentation.dto.response.CreatorUpdateResponse;
 import com.fandom.user_service.member.presentation.dto.response.InternalMemberResponse;
 import com.fandom.user_service.member.presentation.dto.response.MemberSignUpResponse;
+import com.fandom.user_service.member.presentation.dto.response.MemberUpdateResponse;
 import com.fandom.user_service.profile.application.ProfileService;
 import com.fandom.user_service.profile.domain.entity.Profile;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -148,6 +154,187 @@ class MemberServiceTest {
         verify(userRepository).save(any(User.class));
         verify(creatorRepository).save(any());
         verify(profileService).createInitialProfile(any(User.class), anyString());
+    }
+
+    @Test
+    @DisplayName("일반회원 정보 수정에 성공하면 이메일, 비밀번호, 주소가 변경된다")
+    void updateMember_success() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("old@example.com")
+                .password("old-password")
+                .role(Role.MEMBER)
+                .build();
+        MemberUpdateRequest request = new MemberUpdateRequest(
+                "newPassword123!",
+                "new@example.com",
+                "06235",
+                "서울특별시 강남구 역삼로 100",
+                "101호"
+        );
+
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(userRepository.existsByEmailAndIdNot(request.email(), user.getId())).willReturn(false);
+        given(passwordEncoder.encode(request.password())).willReturn("encoded-new-password");
+
+        // when
+        MemberUpdateResponse response = memberService.updateMember(userId, request);
+
+        // then
+        assertThat(response.email()).isEqualTo("new@example.com");
+        assertThat(user.getEmail()).isEqualTo("new@example.com");
+        assertThat(user.getPassword()).isEqualTo("encoded-new-password");
+        assertThat(user.getZipCode()).isEqualTo("06235");
+        verify(passwordEncoder).encode("newPassword123!");
+    }
+
+    @Test
+    @DisplayName("일반회원 정보 수정 시 기존 이메일과 같으면 중복 검사를 하지 않는다")
+    void updateMember_sameEmail() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("same@example.com")
+                .password("old-password")
+                .role(Role.MEMBER)
+                .build();
+        MemberUpdateRequest request = new MemberUpdateRequest(null, "same@example.com", null, null, null);
+
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when
+        MemberUpdateResponse response = memberService.updateMember(userId, request);
+
+        // then
+        assertThat(response.email()).isEqualTo("same@example.com");
+        verify(userRepository, never()).existsByEmailAndIdNot(anyString(), any(UUID.class));
+    }
+
+    @Test
+    @DisplayName("일반회원 정보 수정 시 이메일이 중복되면 DUPLICATE_EMAIL 예외가 발생한다")
+    void updateMember_duplicateEmail() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("old@example.com")
+                .password("old-password")
+                .role(Role.MEMBER)
+                .build();
+        MemberUpdateRequest request = new MemberUpdateRequest(null, "dup@example.com", null, null, null);
+
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(userRepository.existsByEmailAndIdNot(request.email(), user.getId())).willReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> memberService.updateMember(userId, request))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.DUPLICATE_EMAIL);
+    }
+
+    @Test
+    @DisplayName("일반회원 정보 수정 API에 크리에이터가 접근하면 FORBIDDEN_MEMBER_ACCESS 예외가 발생한다")
+    void updateMember_forbiddenRole() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("creator@example.com")
+                .password("password")
+                .role(Role.CREATOR)
+                .build();
+        MemberUpdateRequest request = new MemberUpdateRequest(null, "new@example.com", null, null, null);
+
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when & then
+        assertThatThrownBy(() -> memberService.updateMember(userId, request))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.FORBIDDEN_MEMBER_ACCESS);
+    }
+
+    @Test
+    @DisplayName("크리에이터 정보 수정에 성공하면 이메일, 비밀번호, 소속사명이 변경된다")
+    void updateCreator_success() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("old-creator@example.com")
+                .password("old-password")
+                .role(Role.CREATOR)
+                .build();
+        Creator creator = Creator.builder()
+                .user(user)
+                .agencyName("기존소속사")
+                .build();
+        CreatorUpdateRequest request = new CreatorUpdateRequest(
+                "newPassword123!",
+                "new-creator@example.com",
+                "새소속사",
+                null,
+                null,
+                null
+        );
+
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(creatorRepository.findByUserId(userId)).willReturn(Optional.of(creator));
+        given(userRepository.existsByEmailAndIdNot(request.email(), user.getId())).willReturn(false);
+        given(passwordEncoder.encode(request.password())).willReturn("encoded-new-password");
+
+        // when
+        CreatorUpdateResponse response = memberService.updateCreator(userId, request);
+
+        // then
+        assertThat(response.email()).isEqualTo("new-creator@example.com");
+        assertThat(response.agencyName()).isEqualTo("새소속사");
+        assertThat(user.getPassword()).isEqualTo("encoded-new-password");
+        assertThat(creator.getAgencyName()).isEqualTo("새소속사");
+    }
+
+    @Test
+    @DisplayName("크리에이터 정보 수정 API에 일반회원이 접근하면 FORBIDDEN_MEMBER_ACCESS 예외가 발생한다")
+    void updateCreator_forbiddenRole() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("member@example.com")
+                .password("password")
+                .role(Role.MEMBER)
+                .build();
+        CreatorUpdateRequest request = new CreatorUpdateRequest(null, null, "소속사", null, null, null);
+
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when & then
+        assertThatThrownBy(() -> memberService.updateCreator(userId, request))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.FORBIDDEN_MEMBER_ACCESS);
+
+        verify(creatorRepository, never()).findByUserId(any(UUID.class));
+    }
+
+    @Test
+    @DisplayName("크리에이터 정보 수정 시 Creator 정보가 없으면 CREATOR_NOT_FOUND 예외가 발생한다")
+    void updateCreator_notFound() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("creator@example.com")
+                .password("password")
+                .role(Role.CREATOR)
+                .build();
+        CreatorUpdateRequest request = new CreatorUpdateRequest(null, null, "소속사", null, null, null);
+
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+        given(creatorRepository.findByUserId(userId)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> memberService.updateCreator(userId, request))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(MemberErrorCode.CREATOR_NOT_FOUND);
     }
 
     @Test
