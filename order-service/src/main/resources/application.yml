@@ -26,6 +26,9 @@ spring:
       host: localhost
       port: 6379
       password: ${REDIS_PASSWORD:fandom_redis_pw}   # docker-compose redis requirepass와 동일
+      # redisson-spring-boot-starter가 spring.data.redis.* 값을 그대로 읽어 단일 서버 모드로
+      # RedissonClient를 자동 구성한다 (별도 redisson.yaml 불필요). 분산락 TTL 등 결제 요청
+      # 전용 옵션은 OrderProperties처럼 타입세이프 설정으로 결제 요청 서비스 작업 시 추가한다.
   sql:
     init:
       mode: always
