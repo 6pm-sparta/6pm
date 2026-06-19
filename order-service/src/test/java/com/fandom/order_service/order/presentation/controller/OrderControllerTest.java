@@ -4,12 +4,16 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.config.CommonAuthAutoConfiguration;
 import com.fandom.common.auth.filter.IdCardVerificationFilter;
 import com.fandom.common.exception.GlobalExceptionHandler;
+import com.fandom.order_service.order.application.OrderCancelService;
 import com.fandom.order_service.order.application.OrderQueryService;
+import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.exception.OrderErrorCode;
+import com.fandom.order_service.order.presentation.dto.response.OrderCancelResponse;
 import com.fandom.order_service.order.presentation.dto.response.OrderResponse;
 import com.fandom.order_service.order.presentation.dto.response.OrderSummaryResponse;
 import com.fandom.order_service.order.presentation.dto.response.PageResponse;
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +29,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,6 +54,9 @@ class OrderControllerTest {
 
     @MockitoBean
     private OrderQueryService orderQueryService;
+
+    @MockitoBean
+    private OrderCancelService orderCancelService;
 
     @Test
     @DisplayName("단건 조회 성공 시 200과 주문 정보를 반환한다")
@@ -141,5 +149,110 @@ class OrderControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.page").value(2))
                 .andExpect(jsonPath("$.data.size").value(5));
+    }
+
+    @Test
+    @DisplayName("PENDING 주문 취소는 200과 CANCELLED 상태를 반환하고 paymentId는 응답에 없다")
+    void cancelOrder_pending_returnsCancelled() throws Exception {
+        // given
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        OrderCancelResponse response = OrderCancelResponse.withoutRefund(
+                orderId, OrderStatus.CANCELLED, LocalDateTime.now());
+        given(orderCancelService.cancelOrder(eq(orderId), eq(userId))).willReturn(response);
+
+        // when & then
+        mockMvc.perform(delete("/api/v1/orders/{id}", orderId)
+                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.data.paymentId").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("PAID 주문 취소는 200과 REFUNDED 상태 + paymentId를 반환한다")
+    void cancelOrder_paid_returnsRefundedWithPaymentId() throws Exception {
+        // given
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        OrderCancelResponse response = OrderCancelResponse.refunded(
+                orderId, OrderStatus.REFUNDED, paymentId, LocalDateTime.now());
+        given(orderCancelService.cancelOrder(eq(orderId), eq(userId))).willReturn(response);
+
+        // when & then
+        mockMvc.perform(delete("/api/v1/orders/{id}", orderId)
+                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REFUNDED"))
+                .andExpect(jsonPath("$.data.paymentId").value(paymentId.toString()));
+    }
+
+    @Test
+    @DisplayName("취소 불가 상태면 409를 반환한다")
+    void cancelOrder_invalidStatus_returns409() throws Exception {
+        // given
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        given(orderCancelService.cancelOrder(eq(orderId), eq(userId)))
+                .willThrow(new CustomException(OrderErrorCode.INVALID_ORDER_STATUS));
+
+        // when & then
+        mockMvc.perform(delete("/api/v1/orders/{id}", orderId)
+                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("CONFIRMED 취소 가능 시간이 지났으면 409를 반환한다")
+    void cancelOrder_windowExpired_returns409() throws Exception {
+        // given
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        given(orderCancelService.cancelOrder(eq(orderId), eq(userId)))
+                .willThrow(new CustomException(OrderErrorCode.CANCELLATION_WINDOW_EXPIRED));
+
+        // when & then
+        mockMvc.perform(delete("/api/v1/orders/{id}", orderId)
+                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("PG 환불 실패 시 502를 반환한다")
+    void cancelOrder_pgError_returns502() throws Exception {
+        // given
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        given(orderCancelService.cancelOrder(eq(orderId), eq(userId)))
+                .willThrow(new CustomException(PaymentErrorCode.PG_ERROR));
+
+        // when & then
+        mockMvc.perform(delete("/api/v1/orders/{id}", orderId)
+                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
+                .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    @DisplayName("본인 주문이 아니면 취소 요청도 403을 반환한다")
+    void cancelOrder_notOwner_returns403() throws Exception {
+        // given
+        UUID orderId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        given(orderCancelService.cancelOrder(eq(orderId), eq(userId)))
+                .willThrow(new CustomException(OrderErrorCode.ORDER_ACCESS_DENIED));
+
+        // when & then
+        mockMvc.perform(delete("/api/v1/orders/{id}", orderId)
+                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("인증 정보 없이 취소 요청하면 401을 반환한다")
+    void cancelOrder_unauthorized_whenNoIdCard() throws Exception {
+        // when & then
+        mockMvc.perform(delete("/api/v1/orders/{id}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized());
     }
 }

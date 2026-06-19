@@ -55,7 +55,8 @@ class OrderCreationServiceTest {
     void setUp() {
         OrderProperties orderProperties = new OrderProperties(
                 new OrderProperties.Hold(30L, 600L), 10,
-                new OrderProperties.PaymentLockProperties(3L, 5L, 600L));
+                new OrderProperties.PaymentLockProperties(3L, 5L, 600L),
+                new OrderProperties.Cancellation(24L));
         orderCreationService = new OrderCreationService(
                 redisTemplate, orderRepository, orderCreationWriter, orderProperties);
 
