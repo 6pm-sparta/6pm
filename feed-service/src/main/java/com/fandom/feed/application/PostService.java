@@ -169,7 +169,7 @@ public class PostService {
         List<Image> images = IntStream.range(0, imageKeys.size())
                 .mapToObj(i -> Image.builder()
                         .postId(postId)
-                        .orderIndex(i + 1)
+                        .orderIndex(i)
                         .imageKey(imageKeys.get(i))
                         .build())
                 .toList();
