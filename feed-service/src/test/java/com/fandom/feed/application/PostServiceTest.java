@@ -165,6 +165,7 @@ class PostServiceTest {
             // then
             verify(postRepository).findByCursorForWarm(PostSort.LATEST);
             verify(postListCacheService, never()).getPostIds(any(), any());
+            verify(postListCacheService).expireCache(PostSort.LATEST);
         }
 
         @Test

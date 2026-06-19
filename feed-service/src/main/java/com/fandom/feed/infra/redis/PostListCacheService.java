@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -91,5 +92,16 @@ public class PostListCacheService {
      */
     private List<String> allKeys() {
         return List.of(POST_LIST_LATEST, POST_LIST_OLDEST);
+    }
+
+    /**
+     * 정렬순에 따라 TTL를 설정하는 메서드
+     */
+    public void expireCache(PostSort sort) {
+        Duration ttl = switch (sort) {
+            case LATEST -> Duration.ofMinutes(3);
+            case OLDEST -> Duration.ofMinutes(10);
+        };
+        redisTemplate.expire(resolveKey(sort), ttl);
     }
 }

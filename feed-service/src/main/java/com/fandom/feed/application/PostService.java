@@ -115,6 +115,8 @@ public class PostService {
 
         allPosts.forEach(post -> postListCacheService.addPost(post.getId(), sort));
 
+        postListCacheService.expireCache(sort);
+
         boolean hasMore = allPosts.size() > PAGE_SIZE;
         List<Post> page = hasMore ? allPosts.subList(0, PAGE_SIZE) : allPosts;
 
