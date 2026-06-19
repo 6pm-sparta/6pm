@@ -29,15 +29,18 @@ public class SeatConfirmService {
 
     @Transactional
     public void confirmSeat(UUID orderId) {
-        UUID seatId = null;
+        ShowSeat seat = showSeatRepository.findByOrderId(orderId).orElse(null);
+        if (seat == null) {
+            log.error("좌석 확정 실패: orderId={}에 매칭되는 좌석이 없음", orderId);
+            return;
+        }
+
+        UUID seatId = seat.getId();
         try {
-            ShowSeat seat = showSeatRepository.findByOrderId(orderId)
-                    .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
-            seatId = seat.getId();
             redisTemplate.delete(SEAT_KEY.formatted(seat.getShowId(), seatId));
             seatEventProducer.publishSeatBooked(new SeatBookedEvent(orderId, seatId));
         } catch (Exception e) {
-            log.error("좌석 확정 실패: orderId={}, reason={}", orderId, e.getMessage());
+            log.error("좌석 확정 실패: orderId={}, seatId={}, reason={}", orderId, seatId, e.getMessage());
             seatEventProducer.publishSeatBookFailed(new SeatBookFailedEvent(orderId, seatId, e.getMessage()));
         }
     }
