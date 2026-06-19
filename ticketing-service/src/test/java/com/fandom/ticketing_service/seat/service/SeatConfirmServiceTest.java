@@ -1,5 +1,7 @@
 package com.fandom.ticketing_service.seat.service;
 
+import com.fandom.common.exception.CustomException;
+import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.kafka.event.SeatBookFailedEvent;
 import com.fandom.ticketing_service.kafka.event.SeatBookedEvent;
 import com.fandom.ticketing_service.kafka.producer.SeatEventProducer;
@@ -20,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -69,18 +72,23 @@ class SeatConfirmServiceTest {
         }
 
         @Test
-        @DisplayName("좌석을 찾지 못하면 어떤 이벤트도 발행하지 않는다")
-        void confirmSeat_seatNotFound_publishesNothing() {
+        @DisplayName("좌석을 찾지 못하면 CustomException을 던지고 seatId=null인 실패 이벤트를 발행한다")
+        void confirmSeat_seatNotFound_throwsAndPublishesFailedWithNullSeatId() {
             // given
             UUID orderId = UUID.randomUUID();
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.empty());
 
-            // when
-            seatConfirmService.confirmSeat(orderId);
+            // when & then
+            assertThatThrownBy(() -> seatConfirmService.confirmSeat(orderId))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_NOT_FOUND);
 
-            // then
+            ArgumentCaptor<SeatBookFailedEvent> captor = ArgumentCaptor.forClass(SeatBookFailedEvent.class);
+            verify(seatEventProducer).publishSeatBookFailed(captor.capture());
+            assertThat(captor.getValue().orderId()).isEqualTo(orderId);
+            assertThat(captor.getValue().seatId()).isNull();
             verify(seatEventProducer, never()).publishSeatBooked(any());
-            verify(seatEventProducer, never()).publishSeatBookFailed(any());
         }
 
         @Test

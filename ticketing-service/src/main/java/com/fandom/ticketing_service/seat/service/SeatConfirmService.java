@@ -29,10 +29,15 @@ public class SeatConfirmService {
 
     @Transactional
     public void confirmSeat(UUID orderId) {
-        ShowSeat seat = showSeatRepository.findByOrderId(orderId).orElse(null);
-        if (seat == null) {
-            log.error("좌석 확정 실패: orderId={}에 매칭되는 좌석이 없음", orderId);
-            return;
+        ShowSeat seat;
+        try {
+            seat = showSeatRepository.findByOrderId(orderId)
+                    .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
+        } catch (CustomException e) {
+            // 좌석 자체가 없는 경우라 seatId를 채울 수 없음 → null이 정상값
+            log.error("좌석 확정 실패: orderId={}, reason={}", orderId, e.getMessage());
+            seatEventProducer.publishSeatBookFailed(new SeatBookFailedEvent(orderId, null, e.getMessage()));
+            throw e;
         }
 
         UUID seatId = seat.getId();
