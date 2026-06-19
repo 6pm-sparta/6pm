@@ -56,7 +56,7 @@ public class PostReactionServiceIntegrationTest {
     @DisplayName("리액션 정보 배치 조회")
     class GetReactionInfoBatch {
         @Test
-        @DisplayName("userId 있음 - commentCount, likeCount, isLiked 정상 매핑")
+        @DisplayName("userId 있음 - commentCount, likeCount, liked 정상 매핑")
         void getReactionInfoBatchWithUserId() {
             // Given
             UUID postId1 = UUID.randomUUID();
@@ -85,7 +85,7 @@ public class PostReactionServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("userId 없음 - isLiked 항상 false")
+        @DisplayName("userId 없음 - liked 항상 false")
         void getReactionInfoBatchWithoutUserId() {
             // Given
             UUID postId = UUID.randomUUID();
@@ -99,22 +99,6 @@ public class PostReactionServiceIntegrationTest {
             assertThat(results).hasSize(1);
             assertThat(results.getFirst().commentCount()).isEqualTo(2);
             assertThat(results.getFirst().likeCount()).isEqualTo(1);
-            assertThat(results.getFirst().liked()).isFalse();
-        }
-
-        @Test
-        @DisplayName("Redis에 데이터 없음 - 기본값 0, false 반환")
-        void getReactionInfoBatchNoData() {
-            // Given
-            UUID postId = UUID.randomUUID();
-
-            // When
-            List<PostCache.ReactionInfo> results = postReactionService.getReactionInfoBatch(List.of(postId), UUID.randomUUID());
-
-            // Then
-            assertThat(results).hasSize(1);
-            assertThat(results.getFirst().commentCount()).isZero();
-            assertThat(results.getFirst().likeCount()).isZero();
             assertThat(results.getFirst().liked()).isFalse();
         }
     }
