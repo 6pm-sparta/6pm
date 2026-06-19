@@ -98,4 +98,18 @@ public class SeatService {
             throw new CustomException(TicketingErrorCode.ORDER_CREATE_FAILED);
         }
     }
+
+    // seatKey가 DEL이 아닌 TTL 만료로 사라졌을 때만 호출됨(SeatHoldExpirationListener) → 결제 미완료 상태로 방치된 선점만 해제 대상
+    @Transactional
+    public void releaseExpiredHold(Long showId, UUID showSeatId) {
+        showSeatRepository.findById(showSeatId).ifPresentOrElse(seat -> {
+            if (seat.getOrderId() == null) {
+                return;
+            }
+
+            seat.releaseOrder();
+            redisTemplate.opsForValue().increment(INVENTORY_KEY.formatted(showId));
+            log.info("좌석 선점 만료, 자동 해제: showId={}, seatId={}", showId, showSeatId);
+        }, () -> log.warn("만료된 선점 좌석을 찾을 수 없음: showId={}, seatId={}", showId, showSeatId));
+    }
 }
