@@ -1,19 +1,18 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.feed.application.policy.PostSort;
-import com.fandom.feed.infra.redis.config.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import static com.fandom.feed.application.policy.PostPolicy.MAX_CACHE_SIZE;
 import static com.fandom.feed.application.policy.PostPolicy.PAGE_SIZE;
+import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_LIST_LATEST;
+import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_LIST_OLDEST;
 
 @Service
 @RequiredArgsConstructor
@@ -53,15 +52,20 @@ public class PostListCacheService {
     /**
      * 캐시에 게시글 ID를 추가하는 메서드
      */
-    public void addPost(UUID postId, LocalDateTime createdAt) {
-        double score = createdAt.toInstant(ZoneOffset.UTC).toEpochMilli();
+    public void addPost(UUID postId, PostSort sort) {
+        String key = resolveKey(sort);
         String member = postId.toString();
 
-        // 캐시에 추가하되, MAX_CACHE_SIZE 초과 시 가장 오래된 게시글 ID 제거
-        allKeys().forEach(key -> {
-            redisTemplate.opsForZSet().add(key, member, score);
+        // UUID v7의 timestamp 추출해서 score로 사용
+        long score = (postId.getMostSignificantBits() >>> 16);
+
+        redisTemplate.opsForZSet().add(key, member, score);
+
+        // MAX_CACHE_SIZE 초과 시 게시글 ID 제거
+        if (sort == PostSort.LATEST)
             redisTemplate.opsForZSet().removeRange(key, 0, -(MAX_CACHE_SIZE + 1));
-        });
+        else
+            redisTemplate.opsForZSet().removeRange(key, MAX_CACHE_SIZE, -1);
     }
 
     /**
@@ -77,8 +81,8 @@ public class PostListCacheService {
      */
     private String resolveKey(PostSort sort) {
         return switch (sort) {
-            case LATEST -> RedisKeyPrefix.POST_LIST_LATEST;
-            case OLDEST -> RedisKeyPrefix.POST_LIST_OLDEST;
+            case LATEST -> POST_LIST_LATEST;
+            case OLDEST -> POST_LIST_OLDEST;
         };
     }
 
@@ -86,6 +90,6 @@ public class PostListCacheService {
      * 목록 캐시에서 사용하는 모든 Redis 키를 반환하는 메서드
      */
     private List<String> allKeys() {
-        return List.of(RedisKeyPrefix.POST_LIST_LATEST, RedisKeyPrefix.POST_LIST_OLDEST);
+        return List.of(POST_LIST_LATEST, POST_LIST_OLDEST);
     }
 }

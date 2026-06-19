@@ -113,7 +113,7 @@ public class PostService {
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(PostSort sort, UUID userId) {
         List<Post> allPosts = postRepository.findByCursorForWarm(sort);
 
-        allPosts.forEach(post -> postListCacheService.addPost(post.getId(), post.getCreatedAt()));
+        allPosts.forEach(post -> postListCacheService.addPost(post.getId(), sort));
 
         boolean hasMore = allPosts.size() > PAGE_SIZE;
         List<Post> page = hasMore ? allPosts.subList(0, PAGE_SIZE) : allPosts;
