@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/tickets/shows/{showId}")
+@RequestMapping("/api/v1/tickets/shows/{showId}")
 @RequiredArgsConstructor
 public class SeatController {
 
