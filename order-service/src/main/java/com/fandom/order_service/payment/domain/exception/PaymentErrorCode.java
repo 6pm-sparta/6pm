@@ -16,6 +16,7 @@ public enum PaymentErrorCode implements ErrorCode {
     LOCK_ACQUISITION_FAILED(HttpStatus.CONFLICT, "다른 결제 요청이 처리 중입니다. 잠시 후 다시 시도해주세요."),
     PAYMENT_IN_PROGRESS(HttpStatus.CONFLICT, "동일한 결제 요청이 처리 중입니다."),
     PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 결제입니다."),
+    PAYMENT_ACCESS_DENIED(HttpStatus.FORBIDDEN, "본인의 주문만 결제할 수 있습니다."),
     PG_ERROR(HttpStatus.BAD_GATEWAY, "PG사 결제 처리 중 오류가 발생했습니다.");
 
     private final HttpStatus status;
