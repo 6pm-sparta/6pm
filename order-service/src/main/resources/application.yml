@@ -42,6 +42,10 @@ order:
     cache-ttl-seconds: 600     # {holdId:orderId} 최종 캐시 TTL — 임시값(10분).
     # TODO: Ticketing 좌석 선점 TTL과 반드시 맞춰야 함 (api 명세서 미확정 항목)
   expiration-minutes: 10      # 주문 PENDING → 타임아웃 취소 기준 (expired_at). P1 스케줄러 구현 전까지는 값만 저장됨
+  payment:
+    lock-wait-seconds: 3       # 분산락 획득 대기 시간 — 짧게 둬서 대기 중인 요청은 빠르게 409로 거부
+    lock-hold-seconds: 5       # 분산락 점유 시간 — PG 호출 전체가 아니라 상태 전이 구간만 감싸므로 짧아도 충분
+    idempotency-key-ttl-seconds: 600  # Idempotency-Key 캐시 TTL — expiration-minutes(10분)와 동일하게 맞춤
 
 eureka:
   client:
