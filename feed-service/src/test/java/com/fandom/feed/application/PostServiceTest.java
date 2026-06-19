@@ -49,7 +49,7 @@ class PostServiceTest {
     @DisplayName("게시글 생성")
     class CreatePost {
         @Test
-        @DisplayName("이미지 포함 - 이미지 저장 로직 실행")
+        @DisplayName("이미지 있음 - 이미지 저장 로직 실행")
         void createPostWithImages() {
             // given
             UUID userId = UUID.randomUUID();
@@ -66,7 +66,7 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("이미지 미포함 - 이미지 저장 로직 미실행")
+        @DisplayName("이미지 없음 - 이미지 저장 로직 미실행")
         void createPostWithoutImages() {
             // given
             UUID userId = UUID.randomUUID();

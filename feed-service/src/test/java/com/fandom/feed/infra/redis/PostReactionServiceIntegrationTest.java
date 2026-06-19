@@ -49,7 +49,7 @@ public class PostReactionServiceIntegrationTest {
     @AfterEach
     void tearDown() {
         Assertions.assertNotNull(redisTemplate.getConnectionFactory());
-        redisTemplate.getConnectionFactory().getConnection().serverCommands();
+        redisTemplate.getConnectionFactory().getConnection().serverCommands().flushAll();
     }
 
     @Nested
@@ -86,7 +86,7 @@ public class PostReactionServiceIntegrationTest {
 
         @Test
         @DisplayName("userId 없음 - isLiked 항상 false")
-        void getReactionInfoBatch_withoutUserId() {
+        void getReactionInfoBatchWithoutUserId() {
             // Given
             UUID postId = UUID.randomUUID();
             redisTemplate.opsForValue().set(COMMENT_COUNT + postId, "2");
@@ -104,7 +104,7 @@ public class PostReactionServiceIntegrationTest {
 
         @Test
         @DisplayName("Redis에 데이터 없음 - 기본값 0, false 반환")
-        void getReactionInfoBatch_noData() {
+        void getReactionInfoBatchNoData() {
             // Given
             UUID postId = UUID.randomUUID();
 
