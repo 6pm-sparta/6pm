@@ -18,7 +18,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record OrderProperties(
         Hold hold,
         int expirationMinutes,
-        PaymentLockProperties paymentLockProperties) {
+        PaymentLockProperties paymentLockProperties,
+        Cancellation cancellation) {
     public record Hold(
             long claimTtlSeconds,
             long cacheTtlSeconds

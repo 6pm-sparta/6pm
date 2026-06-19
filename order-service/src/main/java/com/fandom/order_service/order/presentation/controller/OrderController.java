@@ -3,16 +3,14 @@ package com.fandom.order_service.order.presentation.controller;
 import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
+import com.fandom.order_service.order.application.OrderCancelService;
 import com.fandom.order_service.order.application.OrderQueryService;
+import com.fandom.order_service.order.presentation.dto.response.OrderCancelResponse;
 import com.fandom.order_service.order.presentation.dto.response.OrderResponse;
 import com.fandom.order_service.order.presentation.dto.response.OrderSummaryResponse;
 import com.fandom.order_service.order.presentation.dto.response.PageResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
@@ -26,6 +24,7 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderQueryService orderQueryService;
+    private final OrderCancelService orderCancelService;
 
     /**
      * 주문 단건 조회. 본인 주문이 아니면 403, 존재하지 않으면 404.
@@ -50,6 +49,21 @@ public class OrderController {
             @RequestParam(defaultValue = "20") int size) {
 
         PageResponse<OrderSummaryResponse> response = orderQueryService.getOrders(idCard.getUserId(), page, size);
+
+        return ApiResponse.success(response);
+    }
+
+    /**
+     * 주문 취소. PENDING은 즉시 CANCELLED, PAID/CONFIRMED(취소 가능 시간 내)는 PG 환불까지
+     * 동기 처리 후 최종 상태(REFUNDED)로 응답한다. 이미 CANCELLED/REFUNDED인 주문은 멱등 응답
+     * (200 + 현재 상태 그대로).
+     */
+    @DeleteMapping("/orders/{id}")
+    public ApiResponse<OrderCancelResponse> cancelOrder(
+            @PathVariable("id") UUID orderId,
+            @CurrentIdCard UserIdCard idCard) {
+
+        OrderCancelResponse response = orderCancelService.cancelOrder(orderId, idCard.getUserId());
 
         return ApiResponse.success(response);
     }
