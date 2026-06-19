@@ -102,4 +102,17 @@ public class Payment extends BaseEntity {
         this.paymentStatus = PaymentStatus.FAILED;
         this.failureReason = failureReason;
     }
+
+    /**
+     * APPROVED → REFUNDED. PG 환불 성공 응답을 받은 직후 호출한다. 전액 환불만 지원한다(MVP, 부분 환불 없음).
+     */
+    public void refund() {
+
+        if (this.paymentStatus != PaymentStatus.APPROVED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.paymentStatus = PaymentStatus.REFUNDED;
+        this.refundAmount = this.amount;
+    }
 }
