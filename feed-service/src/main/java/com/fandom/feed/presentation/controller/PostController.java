@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-@RequestMapping("/api/feeds")
+@RequestMapping("/api/v1/feeds")
 @RestController
 @RequiredArgsConstructor
 public class PostController {
