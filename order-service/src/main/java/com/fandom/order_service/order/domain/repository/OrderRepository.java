@@ -2,15 +2,27 @@ package com.fandom.order_service.order.domain.repository;
 
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface OrderRepository extends JpaRepository<Order, UUID> {
+
+    /**
+     * 비관적 락(SELECT FOR UPDATE) 기준 주문 조회. 결제 요청 처리 중 상태 검증 + 전이 구간에서 사용한다
+     * Redis 분산락이 인스턴스 간 동시 요청을 막아주긴 하지만, DB 비관적 락은 그게 뚫렸을 때의 최종 방어선 역할을 한다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.id = :id")
+    Optional<Order> findByIdForUpdate(@Param("id") UUID id);
 
     /**
      * seatId + 진행중 상태(OrderStatus.ACTIVE) 조합으로 주문을 조회한다.
