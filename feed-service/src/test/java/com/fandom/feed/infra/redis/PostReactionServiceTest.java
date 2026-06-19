@@ -36,7 +36,7 @@ class PostReactionServiceTest {
 
     @Test
     @DisplayName("리액션 정보 조회")
-    void getReactionInfoTest() {
+    void getReactionInfo() {
         // Given
         UUID postId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();

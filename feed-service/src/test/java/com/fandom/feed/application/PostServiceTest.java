@@ -50,7 +50,7 @@ class PostServiceTest {
     class CreatePost {
         @Test
         @DisplayName("이미지 포함 - 이미지 저장 로직 실행")
-        void createPostWithImagesTest() {
+        void createPostWithImages() {
             // given
             UUID userId = UUID.randomUUID();
             String content = "테스트 게시글 내용";
@@ -67,7 +67,7 @@ class PostServiceTest {
 
         @Test
         @DisplayName("이미지 미포함 - 이미지 저장 로직 미실행")
-        void createPostWithoutImagesTest() {
+        void createPostWithoutImages() {
             // given
             UUID userId = UUID.randomUUID();
             String content = "이미지 없는 게시글";
@@ -83,8 +83,8 @@ class PostServiceTest {
     }
 
     @Test
-    @DisplayName("게시글 상세 조회 - 게시글 상세 + 리액션 정보")
-    void getPostTest() {
+    @DisplayName("게시글 상세 조회 - 게시글 정보 + 리액션 정보")
+    void getPost() {
         // Given
         UUID postId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();

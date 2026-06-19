@@ -40,7 +40,7 @@ class PostDetailCacheServiceTest {
 
     @Test
     @DisplayName("게시글 상세 조회")
-    void getPostDetailTest() {
+    void getPostDetail() {
         // Given
         UUID postId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
