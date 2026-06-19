@@ -155,6 +155,8 @@ services:
     profiles: ["apps", "all"]
     container_name: 6pm-ticketing
     ports: ["8083:8083"]
+    env_file:
+      - .env
 
   order-service:
     build:
