@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class PostCacheServiceTest {
+class PostDetailCacheServiceTest {
     @Mock
     private PostReader postReader;
 

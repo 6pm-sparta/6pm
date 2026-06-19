@@ -7,6 +7,7 @@ import com.fandom.feed.domain.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -14,7 +15,11 @@ import java.util.UUID;
 public class PostReader {
     private final PostRepository postRepository;
 
-    public Post findById(UUID id) {
-        return postRepository.findById(id).orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
+    public Post findById(UUID postId) {
+        return postRepository.findById(postId).orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
+    }
+
+    public List<Post> findAllByIds(List<UUID> postIds) {
+        return postRepository.findAllById(postIds);
     }
 }

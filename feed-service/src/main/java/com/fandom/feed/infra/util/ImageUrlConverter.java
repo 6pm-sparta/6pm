@@ -10,7 +10,11 @@ public class ImageUrlConverter {
     @Value("${s3.base-url}")
     private String baseUrl;
 
+    public String toImageUrl(String key) {
+        return baseUrl + key;
+    }
+
     public List<String> toImageUrls(List<String> keys) {
-        return keys.stream().map(key -> baseUrl + key).toList();
+        return keys.stream().map(this::toImageUrl).toList();
     }
 }

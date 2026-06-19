@@ -4,17 +4,26 @@ import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.ImageRepository;
-import com.fandom.feed.infra.redis.config.RedisKeyPrefix;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
 
 @Service
 @RequiredArgsConstructor
@@ -24,12 +33,64 @@ public class PostCacheService {
     private final ImageUrlConverter imageUrlConverter;
     private final UserClient userClient;
 
-    @Cacheable(value = RedisKeyPrefix.POST_DETAIL, key = "#id")
-    public PostCache.Detail getPostDetail(UUID id) {
-        Post post = postReader.findById(id);
-        List<String> imageKeys = imageRepository.findAllByPostIdOrderByOrderIndexAsc(id).stream().map(Image::getImageKey).toList();
+    private final CacheManager cacheManager;
+
+    @Cacheable(value = POST_DETAIL, key = "#postId")
+    public PostCache.Detail getPostDetail(UUID postId) {
+        Post post = postReader.findById(postId);
+        List<String> imageKeys = imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)
+                .stream().map(Image::getImageKey).toList();
         UserResponse author = userClient.getUser(post.getAuthorId()).getData();
 
         return PostCache.Detail.of(post, imageUrlConverter.toImageUrls(imageKeys), author);
+    }
+
+    public List<PostCache.Detail> getPostDetailBatch(List<UUID> postIds) {
+        Cache cache = cacheManager.getCache(POST_DETAIL);
+
+        // 1. 캐시 히트/미스 분류
+        Map<UUID, PostCache.Detail> cachedMap = new HashMap<>();
+        List<UUID> missIds = new ArrayList<>();
+
+        postIds.forEach(id -> {
+            PostCache.Detail cached = cache != null ? cache.get(id, PostCache.Detail.class) : null;
+            if (cached != null) cachedMap.put(id, cached);
+            else missIds.add(id);
+        });
+
+        // 2. 캐시 미스 배치 조회
+        if (!missIds.isEmpty()) {
+            Map<UUID, Post> postMap = postReader.findAllByIds(missIds)
+                    .stream().collect(Collectors.toMap(Post::getId, Function.identity()));
+
+            Map<UUID, List<String>> imageUrlsMap = imageRepository
+                    .findAllByPostIdInOrderByOrderIndexAsc(missIds)
+                    .stream()
+                    .collect(Collectors.groupingBy(
+                            Image::getPostId,
+                            Collectors.mapping(
+                                    image -> imageUrlConverter.toImageUrl(image.getImageKey()),
+                                    Collectors.toList()
+                            )
+                    ));
+
+            Set<UUID> authorIds = postMap.values().stream().map(Post::getAuthorId).collect(Collectors.toSet());
+            Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()
+                    .stream().collect(Collectors.toMap(UserResponse::userId, Function.identity()));
+
+            // 캐시에 저장하면서 cachedMap에 추가
+            missIds.forEach(id -> {
+                Post post = postMap.get(id);
+                PostCache.Detail detail = PostCache.Detail.of(
+                        post,
+                        imageUrlsMap.getOrDefault(id, List.of()),
+                        authorMap.get(post.getAuthorId())
+                );
+                if (cache != null) cache.put(id, detail);
+                cachedMap.put(id, detail);
+            });
+        }
+
+        return postIds.stream().map(cachedMap::get).toList();
     }
 }

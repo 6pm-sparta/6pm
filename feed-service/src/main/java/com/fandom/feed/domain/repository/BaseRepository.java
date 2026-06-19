@@ -7,4 +7,5 @@ public interface BaseRepository<T, ID> {
     T save(T entity);
     List<T> saveAll(Iterable<T> entities);
     Optional<T> findById(ID id);
+    List<T> findAllById(Iterable<ID> ids);
 }
