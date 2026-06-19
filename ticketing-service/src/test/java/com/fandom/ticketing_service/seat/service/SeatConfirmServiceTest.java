@@ -61,7 +61,7 @@ class SeatConfirmServiceTest {
             seatConfirmService.confirmSeat(orderId);
 
             // then
-            verify(redisTemplate).delete(anyString());
+            verify(redisTemplate, times(2)).delete(anyString());
 
             ArgumentCaptor<SeatBookedEvent> captor = ArgumentCaptor.forClass(SeatBookedEvent.class);
             verify(seatEventProducer).publishSeatBooked(captor.capture());
@@ -106,7 +106,7 @@ class SeatConfirmServiceTest {
 
             // then
             assertThat(seat.getOrderId()).isNull();
-            verify(redisTemplate).delete(anyString());
+            verify(redisTemplate, times(2)).delete(anyString());
             verify(valueOperations).increment(anyString());
         }
 

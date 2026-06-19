@@ -25,11 +25,12 @@ import java.util.stream.IntStream;
 public class SeatService {
 
     private static final String SEAT_KEY = "show:%d:seat:%s";
+    private static final String OWNER_KEY = "show:%d:seat:%s:owner";
     private static final String INVENTORY_KEY = "inventory:%d";
     private static final String PURCHASE_COUNT_KEY = "purchase-count:%s:%d";
     private static final int MAX_PER_USER = 2;
 
-    // Lua: (seatKey, inventoryKey, countKey) → 1:성공, 0:선점됨, -1:재고없음, -2:한도초과
+    // Lua: (seatKey, inventoryKey, countKey, ownerKey) → 1:성공, 0:선점됨, -1:재고없음, -2:한도초과
     private static final RedisScript<Long> HOLD_SCRIPT = RedisScript.of("""
             local inv = tonumber(redis.call('GET', KEYS[2]) or '0')
             if inv <= 0 then return -1 end
@@ -37,8 +38,21 @@ public class SeatService {
             if cnt >= tonumber(ARGV[1]) then return -2 end
             local ok = redis.call('SET', KEYS[1], 'HOLDING', 'NX', 'EX', '600')
             if not ok then return 0 end
+            redis.call('SET', KEYS[4], ARGV[2], 'EX', '600')
             redis.call('DECR', KEYS[2])
             redis.call('INCR', KEYS[3])
+            return 1
+            """, Long.class);
+
+    // Lua: (ownerKey, seatKey, inventoryKey, countKey) → 1:성공, -1:선점 없음/만료됨, -2:본인 선점 아님
+    private static final RedisScript<Long> RELEASE_SCRIPT = RedisScript.of("""
+            local owner = redis.call('GET', KEYS[1])
+            if not owner then return -1 end
+            if owner ~= ARGV[1] then return -2 end
+            redis.call('DEL', KEYS[1])
+            redis.call('DEL', KEYS[2])
+            redis.call('INCR', KEYS[3])
+            redis.call('DECR', KEYS[4])
             return 1
             """, Long.class);
 
@@ -69,12 +83,13 @@ public class SeatService {
                 .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
 
         String seatKey = SEAT_KEY.formatted(seat.getShowId(), showSeatId);
+        String ownerKey = OWNER_KEY.formatted(seat.getShowId(), showSeatId);
         String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
         String countKey = PURCHASE_COUNT_KEY.formatted(userId, seat.getShowId());
 
         Long result = redisTemplate.execute(HOLD_SCRIPT,
-                List.of(seatKey, inventoryKey, countKey),
-                String.valueOf(MAX_PER_USER));
+                List.of(seatKey, inventoryKey, countKey, ownerKey),
+                String.valueOf(MAX_PER_USER), userId.toString());
 
         switch ((result != null ? result.intValue() : 0)) {
             case 1 -> { /* 선점 성공 */ }
@@ -92,11 +107,36 @@ public class SeatService {
         } catch (Exception e) {
             // 주문 생성 실패 시 선점 해제
             redisTemplate.delete(seatKey);
+            redisTemplate.delete(ownerKey);
             redisTemplate.opsForValue().increment(inventoryKey);
             redisTemplate.opsForValue().decrement(countKey);
             log.error("주문 생성 실패, 선점 롤백: seatId={}, userId={}", showSeatId, userId);
             throw new CustomException(TicketingErrorCode.ORDER_CREATE_FAILED);
         }
+    }
+
+    @Transactional
+    public void releaseHold(UUID showSeatId, UUID userId) {
+        ShowSeat seat = showSeatRepository.findById(showSeatId)
+                .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
+
+        String ownerKey = OWNER_KEY.formatted(seat.getShowId(), showSeatId);
+        String seatKey = SEAT_KEY.formatted(seat.getShowId(), showSeatId);
+        String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
+        String countKey = PURCHASE_COUNT_KEY.formatted(userId, seat.getShowId());
+
+        Long result = redisTemplate.execute(RELEASE_SCRIPT,
+                List.of(ownerKey, seatKey, inventoryKey, countKey),
+                userId.toString());
+
+        switch (result != null ? result.intValue() : -1) {
+            case 1 -> { /* 해제 성공 */ }
+            case -2 -> throw new CustomException(TicketingErrorCode.SEAT_HOLD_FORBIDDEN);
+            default -> throw new CustomException(TicketingErrorCode.SEAT_NOT_HELD);
+        }
+
+        seat.releaseOrder();
+        log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
     }
 
     // seatKey가 DEL이 아닌 TTL 만료로 사라졌을 때만 호출됨(SeatHoldExpirationListener) → 결제 미완료 상태로 방치된 선점만 해제 대상

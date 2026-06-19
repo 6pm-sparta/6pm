@@ -3,6 +3,7 @@ package com.fandom.ticketing_service.config;
 import com.fandom.ticketing_service.seat.listener.SeatHoldExpirationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.PatternTopic;
@@ -28,7 +29,9 @@ public class RedisConfig {
     public RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             SeatHoldExpirationListener seatHoldExpirationListener) {
-        connectionFactory.getConnection().setConfig("notify-keyspace-events", "Ex");
+        try (RedisConnection connection = connectionFactory.getConnection()) {
+            connection.setConfig("notify-keyspace-events", "Ex");
+        }
 
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);

@@ -7,6 +7,7 @@ import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,13 +17,14 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class SeatHoldExpirationListener implements MessageListener {
 
-    private static final Pattern SEAT_KEY_PATTERN = Pattern.compile("^show:(\\d+):seat:(.+)$");
+    // show:{showId}:seat:{seatId}:owner 키는 매칭에서 제외 (UUID 형식만 허용)
+    private static final Pattern SEAT_KEY_PATTERN = Pattern.compile("^show:(\\d+):seat:([0-9a-fA-F-]+)$");
 
     private final SeatService seatService;
 
     @Override
     public void onMessage(Message message, byte[] pattern) {
-        String expiredKey = new String(message.getBody());
+        String expiredKey = new String(message.getBody(), StandardCharsets.UTF_8);
         Matcher matcher = SEAT_KEY_PATTERN.matcher(expiredKey);
         if (!matcher.matches()) {
             return;
