@@ -147,10 +147,10 @@ class PostListCacheServiceIntegrationTest {
     }
 
     @Nested
-    @DisplayName("캐시에 게시글 ID 추가")
+    @DisplayName("캐시에 postId 추가")
     class AddPost {
         @Test
-        @DisplayName("최신순 - LATEST 키에만 저장")
+        @DisplayName("sort = LATEST - LATEST 키에만 저장")
         void addPostLatest() {
             // Given
             UUID postId = UUID.randomUUID();
@@ -167,7 +167,7 @@ class PostListCacheServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("오래된순 - OLDEST 키에만 저장")
+        @DisplayName("sort = OLDEST - OLDEST 키에만 저장")
         void addPostOldest() {
             // Given
             UUID postId = UUID.randomUUID();
@@ -184,7 +184,7 @@ class PostListCacheServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("최신순일 때 MAX_CACHE_SIZE 초과 - 가장 오래된 게시글 ID 제거")
+        @DisplayName("sort = LATEST 일 때 MAX_CACHE_SIZE 초과 - 가장 오래된 게시글 ID 제거")
         void addPostLatestWhenExceedsMaxSize() {
             // Given
             UUID oldestPost = UUID.randomUUID();
@@ -205,7 +205,7 @@ class PostListCacheServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("오래된순일 때 MAX_CACHE_SIZE 초과 - 가장 최신 게시글 ID 제거")
+        @DisplayName("sort = OLDEST 일 때 MAX_CACHE_SIZE 초과 - 가장 최신 게시글 ID 제거")
         void addPostOldestWhenExceedsMaxSize() {
             // Given
             UUID newestPost = UUID.randomUUID();
