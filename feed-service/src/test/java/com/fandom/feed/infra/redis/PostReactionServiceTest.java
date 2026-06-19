@@ -21,9 +21,13 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PostReactionServiceTest {
     @Mock
-    private RedisTemplate<String, String> redisTemplate; // 혹은 사용하는 템플릿 타입
-    @Mock private ValueOperations<String, String> valueOperations;
-    @Mock private SetOperations<String, String> setOperations;
+    private RedisTemplate<String, String> redisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
+    @Mock
+    private SetOperations<String, String> setOperations;
 
     @InjectMocks
     private PostReactionService postReactionService;

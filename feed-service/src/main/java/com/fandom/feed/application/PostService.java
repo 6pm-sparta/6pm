@@ -128,8 +128,7 @@ public class PostService {
         List<UUID> postIds = page.stream().map(Post::getId).toList();
 
         // 1. 배치 조회
-        Map<UUID, List<String>> imageUrlsMap = imageRepository
-                .findAllByPostIdInOrderByOrderIndexAsc(postIds)
+        Map<UUID, List<String>> imageUrlsMap = imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)
                 .stream()
                 .collect(Collectors.groupingBy(
                         Image::getPostId,

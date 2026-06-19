@@ -28,9 +28,10 @@ public class PostReactionService {
         List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             ids.forEach(id -> {
                 String likeKey = LIKE_SET + id;
+                String commentKey = COMMENT_COUNT + id;
 
                 // 커맨드 순서: commentCount → likeCount → isLiked
-                connection.stringCommands().get((COMMENT_COUNT + id).getBytes());
+                connection.stringCommands().get(commentKey.getBytes());
                 connection.setCommands().sCard(likeKey.getBytes());
 
                 if (userId != null)

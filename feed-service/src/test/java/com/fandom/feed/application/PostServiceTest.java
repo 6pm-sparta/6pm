@@ -53,7 +53,7 @@ class PostServiceTest {
         void createPostWithImages() {
             // given
             UUID userId = UUID.randomUUID();
-            String content = "테스트 게시글 내용";
+            String content = "이미지 있는 게시글";
             List<String> imageKeys = List.of("key1", "key2");
 
             // when
