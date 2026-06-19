@@ -1,15 +1,11 @@
-package com.fandom.feed.domain.repository;
+package com.fandom.feed.infra.repository;
 
 import com.fandom.feed.domain.entity.Image;
-import com.fandom.feed.infra.repository.ImageRepositoryImpl;
-import com.fandom.feed.infra.repository.JpaImageRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.domain.EntityScan;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Import;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,11 +13,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
-@Import(ImageRepositoryImpl.class)
-class ImageRepositoryTest {
-    @Autowired
-    private ImageRepository imageRepository;
-
+class JpaImageRepositoryTest {
     @Autowired
     private JpaImageRepository jpaImageRepository;
 
@@ -36,7 +28,7 @@ class ImageRepositoryTest {
         jpaImageRepository.saveAll(List.of(img2, img1));
 
         // When
-        List<Image> results = imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId);
+        List<Image> results = jpaImageRepository.findAllByPostIdOrderByOrderIndexAsc(postId);
 
         // Then
         assertThat(results).hasSize(2);
@@ -63,7 +55,7 @@ class ImageRepositoryTest {
             jpaImageRepository.saveAll(List.of(img1_2, img1_1, img2_1, other));
 
             // When
-            List<Image> results = imageRepository.findAllByPostIdInOrderByOrderIndexAsc(List.of(postId1, postId2));
+            List<Image> results = jpaImageRepository.findAllByPostIdInOrderByOrderIndexAsc(List.of(postId1, postId2));
 
             // Then
             assertThat(results).hasSize(3);
@@ -83,7 +75,7 @@ class ImageRepositoryTest {
             UUID postId = UUID.randomUUID();
 
             // When
-            List<Image> results = imageRepository.findAllByPostIdInOrderByOrderIndexAsc(List.of(postId));
+            List<Image> results = jpaImageRepository.findAllByPostIdInOrderByOrderIndexAsc(List.of(postId));
 
             // Then
             assertThat(results).isEmpty();
