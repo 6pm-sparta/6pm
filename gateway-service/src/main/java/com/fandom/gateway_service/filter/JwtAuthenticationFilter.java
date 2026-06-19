@@ -7,6 +7,7 @@ import com.fandom.common.dto.ApiResponse;
 import com.fandom.gateway_service.jwt.JwtValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -65,7 +66,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             Claims claims = jwtValidator.parse(token);
             ServerHttpRequest mutatedRequest = withUserIdCard(request, claims);
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
+            // JwtException: 만료/서명불일치/형식오류 등 토큰 자체의 문제
+            // IllegalArgumentException: 빈 토큰 또는 subject(userId) UUID 변환 실패
+            // 그 외(NPE 등 서버 오류)는 잡지 않아 '유효하지 않은 토큰'으로 둔갑하지 않는다.
             return unauthorized(exchange, "유효하지 않은 토큰입니다.");
         }
     }
