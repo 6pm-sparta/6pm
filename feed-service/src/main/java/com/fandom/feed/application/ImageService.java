@@ -29,7 +29,7 @@ public class ImageService {
     }
 
     /**
-     * 게시글 ID 목록으로 이미지 목록을 조회한 후, Map으로 반환하는 메서드
+     * 게시글 ID 목록으로 이미지 목록을 조회한 후, URL로 변환해 Map으로 반환하는 메서드
      */
     public Map<UUID, List<String>> findAllByPostIds(List<UUID> postIds) {
         return imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)
