@@ -1,4 +1,4 @@
-package com.fandom.order_service.order.application;
+package com.fandom.order_service.order.application.cancellation;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.order.presentation.dto.response.OrderCancelResponse;

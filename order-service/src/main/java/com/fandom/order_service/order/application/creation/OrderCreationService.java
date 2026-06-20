@@ -1,4 +1,4 @@
-package com.fandom.order_service.order.application;
+package com.fandom.order_service.order.application.creation;
 
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
