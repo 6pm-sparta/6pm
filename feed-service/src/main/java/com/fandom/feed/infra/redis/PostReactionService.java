@@ -18,11 +18,18 @@ import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.LIKE_SET;
 public class PostReactionService {
     private final RedisTemplate<String, String> redisTemplate;
 
-    public PostCache.ReactionInfo getReactionInfo(UUID id, UUID userId) {
-        return new PostCache.ReactionInfo(getCommentCount(id), getLikeCount(id), isLiked(id, userId));
+    /**
+     * 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드<br>
+     * TODO: Comment, Like 도메인 연동 필요 [P1]
+     */
+    public PostCache.ReactionInfo getReactionInfo(UUID postId, UUID userId) {
+        return new PostCache.ReactionInfo(getCommentCount(postId), getLikeCount(postId), isLiked(postId, userId));
     }
 
-    // TODO: Comment, Like 도메인 연동 필요 [P1]
+    /**
+     * 게시글 ID로 캐시에서 게시글 리액션 정보를 배치 조회하는 메서드<br>
+     * TODO: Comment, Like 도메인 연동 필요 [P1]
+     */
     public List<PostCache.ReactionInfo> getReactionInfoBatch(List<UUID> ids, UUID userId) {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
         List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
@@ -57,13 +64,11 @@ public class PostReactionService {
         return reactionInfos;
     }
 
-    // TODO: Comment 도메인 연동 필요 [P1]
     private long getCommentCount(UUID id) {
         String count = redisTemplate.opsForValue().get(COMMENT_COUNT + id);
         return (count != null) ? Long.parseLong(count) : 0L;
     }
 
-    // TODO: Like 도메인 연동 필요 [P1]
     private long getLikeCount(UUID id) {
         Long size = redisTemplate.opsForSet().size(LIKE_SET + id);
         return (size != null) ? size : 0L;

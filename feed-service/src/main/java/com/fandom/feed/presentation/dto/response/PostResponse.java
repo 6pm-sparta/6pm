@@ -46,4 +46,16 @@ public class PostResponse {
             );
         }
     }
+
+    public record Update(UUID postId, String content, List<String> imageUrls, LocalDateTime updatedAt) {
+        public static Update of(Post post, List<String> imageUrls) {
+            return new Update(post.getId(), post.getContent(), imageUrls, post.getUpdatedAt());
+        }
+    }
+
+    public record Delete(UUID postId, LocalDateTime updatedAt) {
+        public static Delete from(Post post) {
+            return new Delete(post.getId(), post.getDeletedAt());
+        }
+    }
 }

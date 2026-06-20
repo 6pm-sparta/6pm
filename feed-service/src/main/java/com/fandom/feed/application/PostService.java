@@ -1,10 +1,10 @@
 package com.fandom.feed.application;
 
+import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.policy.PostSort;
-import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.entity.Post;
+import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.domain.repository.ImageRepository;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostCacheService;
@@ -15,6 +15,7 @@ import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,13 +28,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.fandom.feed.application.policy.PostPolicy.PAGE_SIZE;
+import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PostService {
+    private final PostReader postReader;
+    private final ImageService imageService;
     private final PostRepository postRepository;
-    private final ImageRepository imageRepository;
     private final PostCacheService postCacheService;
     private final PostListCacheService postListCacheService;
     private final PostReactionService postReactionService;
@@ -45,7 +48,7 @@ public class PostService {
         Post post = Post.builder().authorId(userId).content(content).build();
         postRepository.save(post);
 
-        saveImages(post.getId(), imageKeys);
+        imageService.saveImages(post.getId(), imageKeys);
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
     }
@@ -73,6 +76,41 @@ public class PostService {
             return getPostsFromDB(cursor, sort, null, null, userId);
 
         return buildCacheResponse(postIds, userId);
+    }
+
+    @Transactional
+    @CacheEvict(value = POST_DETAIL, key = "#postId")
+    public PostResponse.Update updatePost(UUID postId, String content, List<String> imageKeys, UUID userId) {
+        Post post = postReader.findById(postId);
+
+        // 작성자 검증
+        if (!userId.equals(post.getAuthorId()))
+            throw new CustomException(PostErrorCode.FORBIDDEN_POST_UPDATE);
+
+        post.update(content);
+
+        List<String> finalImageKeys = imageService.syncImages(postId, imageKeys);
+
+        return PostResponse.Update.of(post, imageUrlConverter.toImageUrls(finalImageKeys));
+    }
+
+    @Transactional
+    @CacheEvict(value = POST_DETAIL, key = "#postId")
+    public PostResponse.Delete deletePost(UUID postId, UUID userId, boolean isMaster) {
+        Post post = postReader.findById(postId);
+
+        // 작성자 및 관리자 검증
+        if (!userId.equals(post.getAuthorId()) && !isMaster)
+            throw new CustomException(PostErrorCode.FORBIDDEN_POST_DELETE);
+
+        List<String> imageKeys = imageService.findAllByPostId(postId);
+
+        post.softDelete(userId);
+
+        imageService.deleteAllByPostId(postId);
+        imageService.publishS3DeleteEvent(imageKeys);
+
+        return PostResponse.Delete.from(post);
     }
 
     /**
@@ -108,7 +146,7 @@ public class PostService {
     }
 
     /**
-     * DB에서 게시글 100개를 가져와 캐시에 저장한 뒤, 첫 페이지를 반환하는 메서드
+     * DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드
      */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(PostSort sort, UUID userId) {
         List<Post> allPosts = postRepository.findByCursorForWarm(sort);
@@ -129,16 +167,8 @@ public class PostService {
     private CursorPageResponse<PostResponse.Summary> buildDBResponse(List<Post> page, boolean hasMore, UUID userId) {
         List<UUID> postIds = page.stream().map(Post::getId).toList();
 
-        // 1. 배치 조회
-        Map<UUID, List<String>> imageUrlsMap = imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)
-                .stream()
-                .collect(Collectors.groupingBy(
-                        Image::getPostId,
-                        Collectors.mapping(
-                                image -> imageUrlConverter.toImageUrl(image.getImageKey()),
-                                Collectors.toList()
-                        )
-                ));
+        // 배치 조회
+        Map<UUID, List<String>> imageUrlsMap = imageService.findAllByPostIds(postIds);
 
         Set<UUID> authorIds = page.stream().map(Post::getAuthorId).collect(Collectors.toSet());
         Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()
@@ -146,7 +176,7 @@ public class PostService {
 
         List<PostCache.ReactionInfo> reactionInfos = postReactionService.getReactionInfoBatch(postIds, userId);
 
-        // 2. DTO 조립
+        // DTO 조립
         List<PostCache.Detail> details = page.stream()
                 .map(post -> PostCache.Detail.of(
                         post, imageUrlsMap.getOrDefault(post.getId(), List.of()), authorMap.get(post.getAuthorId())
@@ -159,21 +189,5 @@ public class PostService {
 
         UUID nextCursor = hasMore ? page.getLast().getId() : null;
         return CursorPageResponse.of(summaries, nextCursor, hasMore);
-    }
-
-    /**
-     * Image 객체를 생성한 후, 저장하는 메서드
-     */
-    private void saveImages(UUID postId, List<String> imageKeys) {
-        if (imageKeys.isEmpty()) return;
-
-        List<Image> images = IntStream.range(0, imageKeys.size())
-                .mapToObj(i -> Image.builder()
-                        .postId(postId)
-                        .orderIndex(i)
-                        .imageKey(imageKeys.get(i))
-                        .build())
-                .toList();
-        imageRepository.saveAll(images);
     }
 }

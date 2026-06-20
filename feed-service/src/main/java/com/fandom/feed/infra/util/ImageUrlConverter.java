@@ -7,7 +7,7 @@ import java.util.List;
 
 @Component
 public class ImageUrlConverter {
-    @Value("${s3.base-url}")
+    @Value("${cloud.aws.s3.base-url}")
     private String baseUrl;
 
     public String toImageUrl(String key) {

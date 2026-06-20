@@ -48,6 +48,13 @@ management:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
 
-s3:
-  base-url:
-    https://cdn.example.com/
+cloud:
+  aws:
+    credentials:
+      access-key: ${AWS_ACCESS_KEY}
+      secret-key: ${AWS_SECRET_KEY}
+    region:
+      static: ${AWS_REGION}
+    s3:
+      bucket: ${AWS_S3_BUCKET}
+      base-url: https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/

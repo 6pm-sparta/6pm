@@ -15,10 +15,16 @@ import java.util.UUID;
 public class PostReader {
     private final PostRepository postRepository;
 
+    /**
+     * 게시글 ID로 게시글을 조회하는 메서드
+     */
     public Post findById(UUID postId) {
         return postRepository.findById(postId).orElseThrow(() -> new CustomException(PostErrorCode.POST_NOT_FOUND));
     }
 
+    /**
+     * 게시글 ID 목록으로 게시글 목록을 조회하는 메서드
+     */
     public List<Post> findAllByIds(List<UUID> postIds) {
         return postRepository.findAllById(postIds);
     }
