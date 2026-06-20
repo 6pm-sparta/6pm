@@ -21,7 +21,8 @@ public class PostListCacheService {
     private final RedisTemplate<String, String> redisTemplate;
 
     /**
-     * 정렬 기준에 따라 게시글 ID 목록을 조회하는 메서드 (null 반환 시 DB 조회 필요)
+     * 정렬 기준에 따라 게시글 ID 목록을 조회하는 메서드<br>
+     * - 5페이지 초과 시 null 반환
      */
     public List<UUID> getPostIds(PostSort sort, UUID cursor) {
         String key = resolveKey(sort);

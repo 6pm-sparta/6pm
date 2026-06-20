@@ -1,9 +1,9 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.common.dto.ApiResponse;
+import com.fandom.feed.application.ImageService;
 import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
-import com.fandom.feed.domain.repository.ImageRepository;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.dto.PostCache;
@@ -19,6 +19,7 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -32,7 +33,7 @@ class PostCacheServiceTest {
     private PostReader postReader;
 
     @Mock
-    private ImageRepository imageRepository;
+    private ImageService imageService;
 
     @Mock
     private ImageUrlConverter imageUrlConverter;
@@ -60,7 +61,7 @@ class PostCacheServiceTest {
         ApiResponse<UserResponse> authorResponse = ApiResponse.success(new UserResponse(userId, "닉네임"));
 
         when(postReader.findById(postId)).thenReturn(post);
-        when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(List.of());
+        when(imageService.findAllByPostId(postId)).thenReturn(List.of());
         when(userClient.getUser(userId)).thenReturn(authorResponse);
         when(imageUrlConverter.toImageUrls(anyList())).thenReturn(List.of());
 
@@ -70,7 +71,7 @@ class PostCacheServiceTest {
         // Then
         assertThat(result.postId()).isEqualTo(post.getId());
         verify(postReader).findById(postId);
-        verify(imageRepository).findAllByPostIdOrderByOrderIndexAsc(postId);
+        verify(imageService).findAllByPostId(postId);
         verify(userClient).getUser(userId);
         verify(imageUrlConverter).toImageUrls(anyList());
     }
@@ -93,7 +94,7 @@ class PostCacheServiceTest {
 
             // Then
             assertThat(results).containsExactly(cached);
-            verifyNoInteractions(postReader, imageRepository, userClient);
+            verifyNoInteractions(postReader, imageService, userClient);
         }
 
         @Test
@@ -111,7 +112,7 @@ class PostCacheServiceTest {
             when(postReader.findAllByIds(List.of(id))).thenReturn(List.of(post));
             when(post.getId()).thenReturn(id);
             when(post.getAuthorId()).thenReturn(authorId);
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(List.of(id))).thenReturn(List.of());
+            when(imageService.findAllByPostIds(List.of(id))).thenReturn(Map.of());
             when(userClient.getUsers(Set.of(authorId))).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of(author));
             when(author.userId()).thenReturn(authorId);
@@ -142,7 +143,7 @@ class PostCacheServiceTest {
             when(postReader.findAllByIds(List.of(missId))).thenReturn(List.of(post));
             when(post.getId()).thenReturn(missId);
             when(post.getAuthorId()).thenReturn(authorId);
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(List.of(missId))).thenReturn(List.of());
+            when(imageService.findAllByPostIds(List.of(missId))).thenReturn(Map.of());
             when(userClient.getUsers(Set.of(authorId))).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
 

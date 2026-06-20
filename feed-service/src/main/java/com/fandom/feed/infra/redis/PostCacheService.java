@@ -1,9 +1,8 @@
 package com.fandom.feed.infra.redis;
 
+import com.fandom.feed.application.ImageService;
 import com.fandom.feed.application.PostReader;
-import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.entity.Post;
-import com.fandom.feed.domain.repository.ImageRepository;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
@@ -29,26 +28,33 @@ import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
 @RequiredArgsConstructor
 public class PostCacheService {
     private final PostReader postReader;
-    private final ImageRepository imageRepository;
+    private final ImageService imageService;
     private final ImageUrlConverter imageUrlConverter;
     private final UserClient userClient;
 
     private final CacheManager cacheManager;
 
+    /**
+     * 게시글 ID로 캐시에서 게시글 상세를 조회하는 메서드<br>
+     * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
+     */
     @Cacheable(value = POST_DETAIL, key = "#postId")
     public PostCache.Detail getPostDetail(UUID postId) {
         Post post = postReader.findById(postId);
-        List<String> imageKeys = imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)
-                .stream().map(Image::getImageKey).toList();
+        List<String> imageKeys = imageService.findAllByPostId(postId);
         UserResponse author = userClient.getUser(post.getAuthorId()).getData();
 
         return PostCache.Detail.of(post, imageUrlConverter.toImageUrls(imageKeys), author);
     }
 
+    /**
+     * 게시글 ID 목록으로 캐시에서 게시글 상세를 배치 조회하는 메서드
+     * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
+     */
     public List<PostCache.Detail> getPostDetailBatch(List<UUID> postIds) {
         Cache cache = cacheManager.getCache(POST_DETAIL);
 
-        // 1. 캐시 히트/미스 분류
+        // 캐시 히트/미스 분류
         Map<UUID, PostCache.Detail> cachedMap = new HashMap<>();
         List<UUID> missIds = new ArrayList<>();
 
@@ -58,21 +64,12 @@ public class PostCacheService {
             else missIds.add(id);
         });
 
-        // 2. 캐시 미스 배치 조회
+        // 캐시 미스 배치 조회
         if (!missIds.isEmpty()) {
             Map<UUID, Post> postMap = postReader.findAllByIds(missIds)
                     .stream().collect(Collectors.toMap(Post::getId, Function.identity()));
 
-            Map<UUID, List<String>> imageUrlsMap = imageRepository
-                    .findAllByPostIdInOrderByOrderIndexAsc(missIds)
-                    .stream()
-                    .collect(Collectors.groupingBy(
-                            Image::getPostId,
-                            Collectors.mapping(
-                                    image -> imageUrlConverter.toImageUrl(image.getImageKey()),
-                                    Collectors.toList()
-                            )
-                    ));
+            Map<UUID, List<String>> imageUrlsMap = imageService.findAllByPostIds(missIds);
 
             Set<UUID> authorIds = postMap.values().stream().map(Post::getAuthorId).collect(Collectors.toSet());
             Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()

@@ -19,8 +19,7 @@ import java.util.UUID;
         uniqueConstraints = @UniqueConstraint(name = "uk_post_order_index", columnNames = {"post_id", "order_index"})
 )
 @Check(constraints = "order_index BETWEEN 0 AND 3")
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Image extends BaseEntity {
     @Column(nullable = false)
     private UUID postId;

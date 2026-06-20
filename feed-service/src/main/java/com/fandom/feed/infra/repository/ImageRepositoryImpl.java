@@ -1,9 +1,7 @@
 package com.fandom.feed.infra.repository;
 
 import com.fandom.feed.domain.entity.Image;
-import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.ImageRepository;
-import com.fandom.feed.domain.repository.PostRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -23,5 +21,10 @@ public class ImageRepositoryImpl extends BaseRepositoryImpl<Image, UUID, JpaImag
     @Override
     public List<Image> findAllByPostIdInOrderByOrderIndexAsc(List<UUID> postIds) {
         return jpaRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds);
+    }
+
+    @Override
+    public void deleteAllByPostId(UUID postId) {
+        jpaRepository.deleteAllByPostId(postId);
     }
 }

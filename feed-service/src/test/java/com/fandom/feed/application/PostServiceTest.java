@@ -4,7 +4,6 @@ import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.policy.PostSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.domain.repository.ImageRepository;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostCacheService;
@@ -14,6 +13,7 @@ import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,9 +21,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -38,7 +40,7 @@ class PostServiceTest {
     private PostRepository postRepository;
 
     @Mock
-    private ImageRepository imageRepository;
+    private ImageService imageService;
 
     @Mock
     private ImageUrlConverter imageUrlConverter;
@@ -61,6 +63,15 @@ class PostServiceTest {
     @Nested
     @DisplayName("게시글 생성")
     class CreatePost {
+        @BeforeEach
+        void setUp() {
+            when(postRepository.save(any(Post.class))).thenAnswer(invocation -> {
+                Post p = invocation.getArgument(0);
+                ReflectionTestUtils.invokeMethod(p, "assignId");
+                return p;
+            });
+        }
+
         @Test
         @DisplayName("이미지 있음 - 이미지 저장 로직 실행")
         void createPostWithImages() {
@@ -73,9 +84,9 @@ class PostServiceTest {
             postService.createPost(content, imageKeys, userId);
 
             // then
-            verify(postRepository, times(1)).save(any(Post.class));
-            verify(imageRepository, times(1)).saveAll(any());
-            verify(imageUrlConverter, times(1)).toImageUrls(imageKeys);
+            verify(postRepository).save(any(Post.class));
+            verify(imageService).saveImages(any(UUID.class), eq(imageKeys));
+            verify(imageUrlConverter).toImageUrls(imageKeys);
         }
 
         @Test
@@ -90,8 +101,8 @@ class PostServiceTest {
             postService.createPost(content, imageKeys, userId);
 
             // then
-            verify(postRepository, times(1)).save(any(Post.class));
-            verify(imageRepository, never()).saveAll(any());
+            verify(postRepository).save(any(Post.class));
+            verify(imageService).saveImages(any(), eq(List.of()));
         }
     }
 
@@ -135,7 +146,7 @@ class PostServiceTest {
             when(postRepository.findByCursor(any(), any(), eq(authorId), any())).thenReturn(List.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
@@ -156,7 +167,7 @@ class PostServiceTest {
             when(postRepository.findByCursorForWarm(PostSort.LATEST)).thenReturn(List.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
@@ -173,14 +184,14 @@ class PostServiceTest {
         void getPostsCursorNotInCache() {
             // given
             UUID cursor = UUID.randomUUID();
-            ApiResponse<List<UserResponse>> apiResponse = mock(ApiResponse.class);
+            ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(true);
             when(postListCacheService.getPostIds(PostSort.LATEST, cursor)).thenReturn(null);
             when(postRepository.findByCursor(eq(cursor), any(), isNull(), isNull())).thenReturn(List.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
@@ -269,7 +280,7 @@ class PostServiceTest {
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(List.of(post));
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
@@ -293,7 +304,7 @@ class PostServiceTest {
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(userClient.getUsers(any()).getData()).thenReturn(List.of());
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PAGE_SIZE)
@@ -322,7 +333,7 @@ class PostServiceTest {
         when(post.getId()).thenReturn(postId);
         when(post.getAuthorId()).thenReturn(UUID.randomUUID());
         when(postRepository.findByCursorForWarm(PostSort.LATEST)).thenReturn(List.of(post));
-        when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+        when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
         when(userClient.getUsers(any())).thenReturn(apiResponse);
         when(apiResponse.getData()).thenReturn(List.of());
         when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
@@ -346,7 +357,7 @@ class PostServiceTest {
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)).thenReturn(List.of());
+            when(imageService.findAllByPostIds(postIds)).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
             when(postReactionService.getReactionInfoBatch(postIds, null))
@@ -360,7 +371,7 @@ class PostServiceTest {
             postService.getPosts(null, PostSort.LATEST, UUID.randomUUID(), null, null);
 
             // then
-            verify(imageRepository, times(1)).findAllByPostIdInOrderByOrderIndexAsc(any());
+            verify(imageService, times(1)).findAllByPostIds(any());
             verify(userClient, times(1)).getUsers(any());
             verify(postReactionService, times(1)).getReactionInfoBatch(any(), any());
         }
@@ -373,7 +384,7 @@ class PostServiceTest {
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
-            when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
+            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PAGE_SIZE)

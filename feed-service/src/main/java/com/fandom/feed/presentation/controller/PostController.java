@@ -12,9 +12,11 @@ import com.fandom.feed.presentation.dto.response.PostResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -64,8 +66,32 @@ public class PostController {
         return ApiResponse.success(response);
     }
 
+    @RequireRole({"CREATOR"})
+    @PutMapping("/posts/{postId}")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<PostResponse.Update> updatePost(
+            @PathVariable UUID postId,
+            @Valid PostRequest request,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        PostResponse.Update response = postService.updatePost(postId, request.content(), request.imageKeys(), idCard.getUserId());
+        return ApiResponse.success(response);
+    }
+
+    @RequireRole({"CREATOR"})
+    @DeleteMapping("/posts/{postId}")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<PostResponse.Delete> deletePost(
+            @PathVariable UUID postId,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        PostResponse.Delete response = postService.deletePost(postId, idCard.getUserId());
+        return ApiResponse.success(response);
+    }
+
     /**
-     * 좋아요 상태 조회가 필요한 경우에만 사용자 식별자를 반환하는 메서드 (Master 사용자인 경우, null 반환)
+     * 좋아요 상태 조회가 필요한 경우에만 사용자 ID를 반환하는 메서드<br>
+     * - Master 사용자인 경우, null 반환
      */
     private UUID extractLikeableUserId(UserIdCard idCard) {
         return idCard.isMaster() ? null : idCard.getUserId();
