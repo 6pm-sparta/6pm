@@ -15,6 +15,7 @@ import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.fandom.feed.application.policy.PostPolicy.PAGE_SIZE;
+import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
 
 @Service
 @RequiredArgsConstructor
@@ -77,6 +79,7 @@ public class PostService {
     }
 
     @Transactional
+    @CacheEvict(value = POST_DETAIL, key = "#postId")
     public PostResponse.Update updatePost(UUID postId, String content, List<String> imageKeys, UUID userId) {
         Post post = postReader.findById(postId);
 
@@ -92,6 +95,7 @@ public class PostService {
     }
 
     @Transactional
+    @CacheEvict(value = POST_DETAIL, key = "#postId")
     public PostResponse.Delete deletePost(UUID postId, UUID userId) {
         Post post = postReader.findById(postId);
 
