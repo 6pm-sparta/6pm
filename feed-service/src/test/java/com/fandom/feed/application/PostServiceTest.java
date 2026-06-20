@@ -484,7 +484,7 @@ class PostServiceTest {
             when(postReader.findById(postId)).thenReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> postService.deletePost(postId, userId))
+            assertThatThrownBy(() -> postService.deletePost(postId, userId, false))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.FORBIDDEN_POST_DELETE);
         }
@@ -502,7 +502,7 @@ class PostServiceTest {
             when(imageService.findAllByPostId(postId)).thenReturn(imageKeys);
 
             // when
-            postService.deletePost(postId, userId);
+            postService.deletePost(postId, userId, false);
 
             // then
             assertThat(post.isDeleted()).isTrue();
@@ -522,7 +522,26 @@ class PostServiceTest {
             when(imageService.findAllByPostId(postId)).thenReturn(List.of());
 
             // when
-            postService.deletePost(postId, userId);
+            postService.deletePost(postId, userId, false);
+
+            // then
+            verify(imageService).deleteAllByPostId(postId);
+            verify(imageService).publishS3DeleteEvent(List.of());
+        }
+
+        @Test
+        @DisplayName("Master 사용자 - 정상 삭제")
+        void deletePostIsMaster() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            Post post = Post.builder().authorId(UUID.randomUUID()).content("내용").build();
+
+            when(postReader.findById(postId)).thenReturn(post);
+            when(imageService.findAllByPostId(postId)).thenReturn(List.of());
+
+            // when
+            postService.deletePost(postId, userId, true);
 
             // then
             verify(imageService).deleteAllByPostId(postId);

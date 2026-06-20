@@ -79,14 +79,14 @@ public class PostController {
         return ApiResponse.success(response);
     }
 
-    @RequireRole({"CREATOR"})
+    @RequireRole({"CREATOR", "MASTER"})
     @DeleteMapping("/posts/{postId}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<PostResponse.Delete> deletePost(
             @PathVariable UUID postId,
             @CurrentIdCard UserIdCard idCard
     ) {
-        PostResponse.Delete response = postService.deletePost(postId, idCard.getUserId());
+        PostResponse.Delete response = postService.deletePost(postId, idCard.getUserId(), idCard.isMaster());
         return ApiResponse.success(response);
     }
 

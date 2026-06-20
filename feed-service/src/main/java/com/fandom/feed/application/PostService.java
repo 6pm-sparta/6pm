@@ -96,11 +96,11 @@ public class PostService {
 
     @Transactional
     @CacheEvict(value = POST_DETAIL, key = "#postId")
-    public PostResponse.Delete deletePost(UUID postId, UUID userId) {
+    public PostResponse.Delete deletePost(UUID postId, UUID userId, boolean isMaster) {
         Post post = postReader.findById(postId);
 
-        // 작성자 검증
-        if (!userId.equals(post.getAuthorId()))
+        // 작성자 및 관리자 검증
+        if (!userId.equals(post.getAuthorId()) && !isMaster)
             throw new CustomException(PostErrorCode.FORBIDDEN_POST_DELETE);
 
         List<String> imageKeys = imageService.findAllByPostId(postId);
