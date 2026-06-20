@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -34,7 +35,7 @@ public class PostController {
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<PostResponse.Create> createPost(
-            @Valid PostRequest request,
+            @RequestBody @Valid PostRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
         PostResponse.Create response = postService.createPost(request.content(), request.imageKeys(), idCard.getUserId());
@@ -71,7 +72,7 @@ public class PostController {
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<PostResponse.Update> updatePost(
             @PathVariable UUID postId,
-            @Valid PostRequest request,
+            @RequestBody @Valid PostRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
         PostResponse.Update response = postService.updatePost(postId, request.content(), request.imageKeys(), idCard.getUserId());
