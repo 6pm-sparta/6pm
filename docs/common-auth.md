@@ -129,6 +129,15 @@ Domain Service
 → 일치 → 신뢰 / 불일치 → 401 거부
 ```
 
+### 자동 설정 적용 범위
+
+`common-auth`의 `IdCardVerificationFilter`와 `@CurrentIdCard` ArgumentResolver는 Servlet MVC 기반 Domain Service에서 자동 등록된다.
+
+Gateway는 WebFlux 기반 서비스이며, `@CurrentIdCard`를 주입받는 대상이 아니다.
+Gateway는 Access Token을 검증한 뒤 `UserIdCard`를 생성하고 HMAC 서명하여 downstream으로 전달하는 역할만 수행한다.
+
+WebFlux 기반 Domain Service에서 `@CurrentIdCard`를 사용해야 하는 경우에는 별도의 WebFlux용 filter/resolver 구성이 필요하다.
+
 ---
 
 ## 5. 사용 방법
@@ -143,10 +152,15 @@ implementation project(':common')
 
 ### application.yml 설정
 
+개발/운영 공통 환경에서는 Config Server를 통해 HMAC 키를 중앙 관리한다.
+로컬에서는 각 서비스 `application.yml` 또는 환경변수로 HMAC 키를 설정할 수 있다.
+
 ```yaml
 hmac:
-  secret-key: local-dev-secret-key  # 로컬 개발용. 운영은 Config Server에서 관리.
+  secret-key: local-dev-secret-key
 ```
+
+환경변수로는 `HMAC_SECRET_KEY`를 사용할 수 있다.
 
 ### 컨트롤러에서 @CurrentIdCard 사용
 
@@ -168,6 +182,7 @@ public ResponseEntity<?> getMe(@CurrentIdCard UserIdCard idCard) {
 - `@CurrentIdCard`는 인증이 필요한 API에서만 사용한다.
 - 인증이 불필요한 API(회원가입, 로그인 등)는 파라미터에 `@CurrentIdCard`를 붙이지 않는다.
 - `X-Id-Card` 헤더가 없으면 필터가 통과시키므로, 인증 필요 여부는 `SecurityConfig`에서 경로별로 제어한다.
+- Gateway는 `@CurrentIdCard`를 사용하지 않는다. Gateway에서는 Access Token을 검증하고 `X-Id-Card`를 생성해 전달한다.
 
 ---
 
