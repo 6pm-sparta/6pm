@@ -2,6 +2,7 @@ package com.fandom.feed.application;
 
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.repository.ImageRepository;
+import com.fandom.feed.infra.s3.event.S3ImageDeleteEvent;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -11,6 +12,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Map;
@@ -30,6 +32,9 @@ class ImageServiceTest {
 
     @Mock
     private ImageUrlConverter imageUrlConverter;
+
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @Nested
     @DisplayName("게시글 ID로 이미지 키 목록 조회")
@@ -148,6 +153,96 @@ class ImageServiceTest {
 
             // then
             verifyNoInteractions(imageRepository);
+        }
+    }
+
+    @Nested
+    @DisplayName("이미지 동기화")
+    class SyncImages {
+        @Test
+        @DisplayName("이미지 변경 없음 - 기존 imageKeys 반환")
+        void syncImagesNoChange() {
+            // given
+            UUID postId = UUID.randomUUID();
+            List<String> imageKeys = List.of("key1", "key2");
+            List<Image> existingImages = List.of(
+                    Image.builder().postId(postId).orderIndex(0).imageKey("key1").build(),
+                    Image.builder().postId(postId).orderIndex(1).imageKey("key2").build()
+            );
+
+            when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(existingImages);
+
+            // when
+            List<String> result = imageService.syncImages(postId, imageKeys);
+
+            // then
+            assertThat(result).containsExactly("key1", "key2");
+            verify(imageRepository, never()).deleteAllByPostId(any());
+            verify(imageRepository, never()).saveAll(any());
+            verifyNoInteractions(applicationEventPublisher);
+        }
+
+        @Test
+        @DisplayName("이미지 변경 있음 - 전체 교체 후 제외된 이미지 S3 삭제 이벤트 발행")
+        void syncImagesWithChange() {
+            // given
+            UUID postId = UUID.randomUUID();
+            List<String> newImageKeys = List.of("key2", "key3");
+            List<Image> existingImages = List.of(
+                    Image.builder().postId(postId).orderIndex(0).imageKey("key1").build(),
+                    Image.builder().postId(postId).orderIndex(1).imageKey("key2").build()
+            );
+
+            when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(existingImages);
+
+            // when
+            List<String> result = imageService.syncImages(postId, newImageKeys);
+
+            // then
+            assertThat(result).containsExactly("key2", "key3");
+            verify(imageRepository).deleteAllByPostId(postId);
+            verify(imageRepository).saveAll(any());
+            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1"))); // key2는 유지, key1만 삭제
+        }
+
+        @Test
+        @DisplayName("모든 이미지 변경 - 전체 교체 후 전체 이미지 S3 삭제 이벤트 발행")
+        void syncImagesRemoveAll() {
+            // given
+            UUID postId = UUID.randomUUID();
+            List<Image> existingImages = List.of(
+                    Image.builder().postId(postId).orderIndex(0).imageKey("key1").build()
+            );
+
+            when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(existingImages);
+
+            // when
+            List<String> result = imageService.syncImages(postId, List.of());
+
+            // then
+            assertThat(result).isEmpty();
+            verify(imageRepository).deleteAllByPostId(postId);
+            verify(imageRepository, never()).saveAll(any()); // 새 이미지 없으니 saveAll 미호출
+            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1")));
+        }
+
+        @Test
+        @DisplayName("기존 이미지 없음 - 새 이미지만 저장")
+        void syncImagesAddNew() {
+            // given
+            UUID postId = UUID.randomUUID();
+            List<String> newImageKeys = List.of("key1", "key2");
+
+            when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(List.of());
+
+            // when
+            List<String> result = imageService.syncImages(postId, newImageKeys);
+
+            // then
+            assertThat(result).containsExactly("key1", "key2");
+            verify(imageRepository).deleteAllByPostId(postId);
+            verify(imageRepository).saveAll(any());
+            verifyNoInteractions(applicationEventPublisher); // 삭제할 키 없으니 이벤트 미발행
         }
     }
 }
