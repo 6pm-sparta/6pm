@@ -27,4 +27,9 @@ public class BaseRepositoryImpl<T, ID, R extends JpaRepository<T, ID>> implement
     public Optional<T> findById(ID id) {
         return jpaRepository.findById(id);
     }
+
+    @Override
+    public List<T> findAllById(Iterable<ID> ids) {
+        return jpaRepository.findAllById(ids);
+    }
 }

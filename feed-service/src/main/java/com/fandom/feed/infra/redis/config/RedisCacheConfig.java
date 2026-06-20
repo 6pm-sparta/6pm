@@ -11,6 +11,8 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
+
 @Configuration
 @EnableCaching
 public class RedisCacheConfig {
@@ -20,7 +22,7 @@ public class RedisCacheConfig {
                 .entryTtl(Duration.ofMinutes(10));
 
         Map<String, RedisCacheConfiguration> cacheConfigs = new HashMap<>();
-        cacheConfigs.put(RedisKeyPrefix.POST_DETAIL, RedisCacheConfiguration.defaultCacheConfig()
+        cacheConfigs.put(POST_DETAIL, RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(60)));
 
         return RedisCacheManager.builder(connectionFactory)

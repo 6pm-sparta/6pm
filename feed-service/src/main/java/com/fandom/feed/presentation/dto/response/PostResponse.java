@@ -27,4 +27,23 @@ public class PostResponse {
             );
         }
     }
+
+    public record Summary(
+            UUID postId, UserResponse author, String content, boolean hasMore, String imageUrl,
+            int imageCount, long commentCount, long likeCount, boolean liked, LocalDateTime createdAt
+    ) {
+        public static Summary of(PostCache.Detail cachedPost, PostCache.ReactionInfo reactionInfo) {
+            List<String> imageUrls = cachedPost.imageUrls();
+            String content = cachedPost.content();
+
+            boolean hasMore = content != null && content.length() > 150;
+            String summaryContent = hasMore ? content.substring(0, 150) : content;
+
+            return new Summary(
+                    cachedPost.postId(), cachedPost.author(), summaryContent, hasMore,
+                    imageUrls.isEmpty() ? null : imageUrls.getFirst(), imageUrls.size(),
+                    reactionInfo.commentCount(), reactionInfo.likeCount(), reactionInfo.liked(), cachedPost.createdAt()
+            );
+        }
+    }
 }
