@@ -1,8 +1,10 @@
 package com.fandom.feed.application;
 
 import com.fandom.common.dto.ApiResponse;
+import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.policy.PostSort;
 import com.fandom.feed.domain.entity.Post;
+import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
@@ -31,6 +33,7 @@ import java.util.stream.IntStream;
 
 import static com.fandom.feed.application.policy.PostPolicy.PAGE_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -38,6 +41,9 @@ import static org.mockito.Mockito.*;
 class PostServiceTest {
     @Mock
     private PostRepository postRepository;
+
+    @Mock
+    private PostReader postReader;
 
     @Mock
     private ImageService imageService;
@@ -399,6 +405,128 @@ class PostServiceTest {
             assertThat(result.hasMore()).isTrue();
             assertThat(result.nextCursor()).isNotNull();
             assertThat(result.content()).hasSize(PAGE_SIZE);
+        }
+    }
+
+    @Nested
+    @DisplayName("게시글 수정")
+    class UpdatePost {
+        @Test
+        @DisplayName("작성자 아님 - 예외 발생")
+        void updatePostNotAuthor() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            Post post = Post.builder().authorId(UUID.randomUUID()).content("기존 내용").build();
+
+            when(postReader.findById(postId)).thenReturn(post);
+
+            // when & then
+            assertThatThrownBy(() -> postService.updatePost(postId, "새 내용", List.of(), userId))
+                    .isInstanceOf(CustomException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.FORBIDDEN_POST_UPDATE);
+        }
+
+        @Test
+        @DisplayName("이미지 변경 있음 - syncImages가 변경된 imageKeys 반환")
+        void updatePostWithImageChange() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            List<String> newImageKeys = List.of("key1", "key2");
+            Post post = Post.builder().authorId(userId).content("기존 내용").build();
+
+            when(postReader.findById(postId)).thenReturn(post);
+            when(imageService.syncImages(postId, newImageKeys)).thenReturn(newImageKeys);
+            when(imageUrlConverter.toImageUrls(newImageKeys)).thenReturn(List.of("url1", "url2"));
+
+            // when
+            postService.updatePost(postId, "새 내용", newImageKeys, userId);
+
+            // then
+            verify(imageService).syncImages(postId, newImageKeys);
+            verify(imageUrlConverter).toImageUrls(newImageKeys);
+        }
+
+        @Test
+        @DisplayName("이미지 변경 없음 - syncImages가 기존 imageKeys 반환")
+        void updatePostWithoutImageChange() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            List<String> existingImageKeys = List.of("key1", "key2");
+            Post post = Post.builder().authorId(userId).content("기존 내용").build();
+
+            when(postReader.findById(postId)).thenReturn(post);
+            when(imageService.syncImages(postId, existingImageKeys)).thenReturn(existingImageKeys);
+            when(imageUrlConverter.toImageUrls(existingImageKeys)).thenReturn(List.of("url1", "url2"));
+
+            // when
+            postService.updatePost(postId, "새 내용", existingImageKeys, userId);
+
+            // then
+            verify(imageService).syncImages(postId, existingImageKeys);
+            verify(imageUrlConverter).toImageUrls(existingImageKeys);
+        }
+    }
+
+    @Nested
+    @DisplayName("게시글 삭제")
+    class DeletePost {
+        @Test
+        @DisplayName("작성자 아님 - 예외 발생")
+        void deletePostNotAuthor() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            Post post = Post.builder().authorId(UUID.randomUUID()).content("내용").build();
+
+            when(postReader.findById(postId)).thenReturn(post);
+
+            // when & then
+            assertThatThrownBy(() -> postService.deletePost(postId, userId))
+                    .isInstanceOf(CustomException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.FORBIDDEN_POST_DELETE);
+        }
+
+        @Test
+        @DisplayName("이미지 있음 - soft delete 및 이미지 삭제 처리")
+        void deletePostImagesInDB() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            List<String> imageKeys = List.of("key1", "key2");
+            Post post = Post.builder().authorId(userId).content("내용").build();
+
+            when(postReader.findById(postId)).thenReturn(post);
+            when(imageService.findAllByPostId(postId)).thenReturn(imageKeys);
+
+            // when
+            postService.deletePost(postId, userId);
+
+            // then
+            assertThat(post.isDeleted()).isTrue();
+            verify(imageService).deleteAllByPostId(postId);
+            verify(imageService).publishS3DeleteEvent(imageKeys);
+        }
+
+        @Test
+        @DisplayName("이미지 없음 - S3 삭제 이벤트 발행 안 함")
+        void deletePostImagesNotInDB() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            Post post = Post.builder().authorId(userId).content("내용").build();
+
+            when(postReader.findById(postId)).thenReturn(post);
+            when(imageService.findAllByPostId(postId)).thenReturn(List.of());
+
+            // when
+            postService.deletePost(postId, userId);
+
+            // then
+            verify(imageService).deleteAllByPostId(postId);
+            verify(imageService).publishS3DeleteEvent(List.of());
         }
     }
 
