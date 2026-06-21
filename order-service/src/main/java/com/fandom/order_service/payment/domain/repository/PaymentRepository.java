@@ -20,4 +20,9 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
      * 최신 시도가 먼저 보이도록 호출 측에서 정렬된 결과가 필요하면 별도 정렬 파라미터를 추가한다.
      */
     List<Payment> findByOrderId(UUID orderId);
+
+    /**
+     * 주문의 결제 시도 전체 목록(최신 시도 먼저). 주문별 결제 조회에서 사용.
+     */
+    List<Payment> findByOrderIdOrderByCreatedAtDescIdDesc(UUID orderId);
 }
