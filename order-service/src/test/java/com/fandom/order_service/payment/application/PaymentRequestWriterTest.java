@@ -7,6 +7,7 @@ import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
 import com.fandom.order_service.order.domain.exception.OrderErrorCode;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
 import com.fandom.order_service.order.domain.repository.OrderStatusHistoryRepository;
+import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
