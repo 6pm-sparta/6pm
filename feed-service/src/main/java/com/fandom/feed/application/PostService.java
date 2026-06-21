@@ -82,7 +82,7 @@ public class PostService {
     public PostResponse.Update updatePost(UUID postId, String content, List<String> imageKeys, UUID userId) {
         Post post = postReader.findById(postId);
 
-        // 작성자 검증
+        // 권한 검증
         if (!userId.equals(post.getAuthorId()))
             throw new CustomException(PostErrorCode.FORBIDDEN_POST_UPDATE);
 
@@ -98,7 +98,7 @@ public class PostService {
     public PostResponse.Delete deletePost(UUID postId, UUID userId, boolean isMaster) {
         Post post = postReader.findById(postId);
 
-        // 작성자 및 관리자 검증
+        // 권한 검증
         if (!userId.equals(post.getAuthorId()) && !isMaster)
             throw new CustomException(PostErrorCode.FORBIDDEN_POST_DELETE);
 

@@ -1,8 +1,8 @@
 package com.fandom.feed.application;
 
+import com.fandom.feed.application.event.Event;
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.repository.ImageRepository;
-import com.fandom.feed.infra.s3.event.S3ImageDeleteEvent;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -202,7 +202,7 @@ class ImageServiceTest {
             assertThat(result).containsExactly("key2", "key3");
             verify(imageRepository).deleteAllByPostId(postId);
             verify(imageRepository).saveAll(any());
-            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1")));
+            verify(applicationEventPublisher).publishEvent(new Event.S3ImageDelete(List.of("key1")));
         }
 
         @Test
@@ -223,7 +223,7 @@ class ImageServiceTest {
             assertThat(result).isEmpty();
             verify(imageRepository).deleteAllByPostId(postId);
             verify(imageRepository, never()).saveAll(any());
-            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1")));
+            verify(applicationEventPublisher).publishEvent(new Event.S3ImageDelete(List.of("key1")));
         }
 
         @Test
