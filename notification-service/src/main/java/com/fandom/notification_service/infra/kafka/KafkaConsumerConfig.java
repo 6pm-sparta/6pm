@@ -1,6 +1,6 @@
 package com.fandom.notification_service.infra.kafka;
 
-import com.fandom.notification_service.presentation.dto.NotificationSendMessage;
+import com.fandom.notification_service.presentation.dto.message.NotificationSendMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -43,7 +43,7 @@ public class KafkaConsumerConfig {
         props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
 
         props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, NotificationSendMessage.class.getName());
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.fandom.notification_service.presentation.dto");
+        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.fandom.notification_service.presentation.dto.message");
         props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
         return new DefaultKafkaConsumerFactory<>(props);

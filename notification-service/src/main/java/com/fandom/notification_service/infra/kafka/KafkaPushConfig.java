@@ -1,6 +1,6 @@
 package com.fandom.notification_service.infra.kafka;
 
-import com.fandom.notification_service.presentation.dto.PushFailedMessage;
+import com.fandom.notification_service.presentation.dto.message.PushFailedMessage;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -92,7 +92,7 @@ public class KafkaPushConfig {
         props.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
         props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
         props.put(JsonDeserializer.VALUE_DEFAULT_TYPE, PushFailedMessage.class.getName());
-        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.fandom.notification_service.presentation.dto");
+        props.put(JsonDeserializer.TRUSTED_PACKAGES, "com.fandom.notification_service.presentation.dto.message");
         props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
 
         ConcurrentKafkaListenerContainerFactory<String, PushFailedMessage> factory =
