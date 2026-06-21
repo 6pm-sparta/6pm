@@ -5,6 +5,7 @@ import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.PostService;
 import com.fandom.feed.global.annotation.RequireRole;
+import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.presentation.dto.request.PostRequest;
 import com.fandom.feed.application.policy.PostSort;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
@@ -31,7 +32,7 @@ import java.util.UUID;
 public class PostController {
     private final PostService postService;
 
-    @RequireRole({"CREATOR"})
+    @RequireRole({UserRole.CREATOR})
     @PostMapping("/posts")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<PostResponse.Create> createPost(
@@ -67,7 +68,7 @@ public class PostController {
         return ApiResponse.success(response);
     }
 
-    @RequireRole({"CREATOR"})
+    @RequireRole({UserRole.CREATOR})
     @PutMapping("/posts/{postId}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<PostResponse.Update> updatePost(
@@ -79,7 +80,7 @@ public class PostController {
         return ApiResponse.success(response);
     }
 
-    @RequireRole({"CREATOR", "MASTER"})
+    @RequireRole({UserRole.CREATOR, UserRole.MASTER})
     @DeleteMapping("/posts/{postId}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<PostResponse.Delete> deletePost(

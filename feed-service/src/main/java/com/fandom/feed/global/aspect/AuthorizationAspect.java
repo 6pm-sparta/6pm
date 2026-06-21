@@ -4,6 +4,7 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.global.annotation.RequireRole;
+import com.fandom.feed.global.constant.UserRole;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
@@ -22,11 +23,11 @@ public class AuthorizationAspect {
                 .findFirst()
                 .orElseThrow(() -> new CustomException(CommonErrorCode.UNAUTHORIZED));
 
-        String[] roles = requireRole.value();
-        boolean hasPermission = Arrays.stream(roles).anyMatch(role -> {
-            if (role.equals("CREATOR") && idCard.isCreator()) return true;
-            if (role.equals("MEMBER") && idCard.isMember()) return true;
-            return role.equals("MASTER") && idCard.isMaster();
+        UserRole[] roles = requireRole.value();
+        boolean hasPermission = Arrays.stream(roles).anyMatch(role -> switch (role) {
+            case MEMBER -> idCard.isMember();
+            case CREATOR -> idCard.isCreator();
+            case MASTER -> idCard.isMaster();
         });
 
         if (!hasPermission) throw new CustomException(CommonErrorCode.FORBIDDEN);

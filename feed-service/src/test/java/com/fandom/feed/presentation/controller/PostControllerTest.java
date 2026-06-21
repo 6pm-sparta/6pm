@@ -6,6 +6,7 @@ import com.fandom.common.auth.filter.IdCardVerificationFilter;
 import com.fandom.common.config.CommonAutoConfiguration;
 import com.fandom.feed.application.PostService;
 import com.fandom.feed.global.aspect.AuthorizationAspect;
+import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.presentation.dto.request.PostRequest;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,7 +50,7 @@ class PostControllerTest {
 
     @BeforeEach
     void setUp() {
-        creatorIdCard = UserIdCard.of(UUID.randomUUID(), "CREATOR");
+        creatorIdCard = UserIdCard.of(UUID.randomUUID(), UserRole.CREATOR.name());
     }
 
     private MockHttpServletRequestBuilder withIdCard(MockHttpServletRequestBuilder builder) {
