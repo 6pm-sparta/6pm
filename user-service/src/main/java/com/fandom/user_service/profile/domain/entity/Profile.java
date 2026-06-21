@@ -66,4 +66,24 @@ public class Profile extends BaseEntity {
         this.followerCount = (followerCount != null) ? followerCount : 0;
         this.followingCount = (followingCount != null) ? followingCount : 0;
     }
+
+    public void increaseFollowerCount() {
+        this.followerCount++;
+    }
+
+    public void decreaseFollowerCount() {
+        if (this.followerCount > 0) {
+            this.followerCount--;
+        }
+    }
+
+    public void increaseFollowingCount() {
+        this.followingCount++;
+    }
+
+    public void decreaseFollowingCount() {
+        if (this.followingCount > 0) {
+            this.followingCount--;
+        }
+    }
 }
