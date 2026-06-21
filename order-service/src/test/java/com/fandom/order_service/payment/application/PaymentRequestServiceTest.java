@@ -2,6 +2,7 @@ package com.fandom.order_service.payment.application;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
@@ -66,6 +67,9 @@ class PaymentRequestServiceTest {
     @Mock
     private PaymentGateway paymentGateway;
 
+    @Mock
+    private OrderEventProducer orderEventProducer;
+
     private PaymentRequestService paymentRequestService;
 
     private PaymentRequest request;
@@ -81,7 +85,7 @@ class PaymentRequestServiceTest {
 
         paymentRequestService = new PaymentRequestService(
                 redissonClient, redisTemplate, objectMapper, paymentRequestWriter,
-                paymentRepository, paymentGateway, orderProperties);
+                paymentRepository, paymentGateway, orderProperties, orderEventProducer);
 
         orderId = UUID.randomUUID();
         requesterId = UUID.randomUUID();
@@ -134,6 +138,7 @@ class PaymentRequestServiceTest {
         assertThat(result.payment().pgTransactionId()).isEqualTo("PG-9999");
         verify(lock).unlock();
         verify(valueOperations).set(anyString(), anyString(), any(Duration.class)); // 결과 캐싱됨
+        verify(orderEventProducer).publishPaymentCompleted(orderId);
     }
 
     @Test
@@ -154,6 +159,7 @@ class PaymentRequestServiceTest {
         assertThat(result.newlyProcessed()).isFalse();
         assertThat(result.payment().pgTransactionId()).isEqualTo("PG-1111");
         verify(redissonClient, never()).getLock(anyString());
+        verify(orderEventProducer, never()).publishPaymentCompleted(any());
     }
 
     @Test
@@ -223,6 +229,7 @@ class PaymentRequestServiceTest {
                 .isEqualTo(PaymentErrorCode.PG_ERROR);
 
         verify(paymentRequestWriter).applyFailure(orderId, paymentId, "잔액이 부족합니다.");
+        verify(orderEventProducer).publishPaymentFailed(orderId);
         verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class)); // 실패는 캐싱 안 함
     }
 }
