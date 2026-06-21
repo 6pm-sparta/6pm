@@ -23,11 +23,19 @@ class JpaPostRepositoryTest {
     private List<Post> savedPosts;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws InterruptedException {
         Post post1 = Post.builder().content("첫번째 게시글").authorId(UUID.randomUUID()).build();
+        jpaPostRepository.save(post1);
+        Thread.sleep(10);
+
         Post post2 = Post.builder().content("두번째 게시글").authorId(UUID.randomUUID()).build();
+        jpaPostRepository.save(post2);
+        Thread.sleep(10);
+
         Post post3 = Post.builder().content("세번째 게시글").authorId(UUID.randomUUID()).build();
-        savedPosts = jpaPostRepository.saveAll(List.of(post1, post2, post3));
+        jpaPostRepository.save(post3);
+
+        savedPosts = List.of(post1, post2, post3);
     }
 
     @Nested
