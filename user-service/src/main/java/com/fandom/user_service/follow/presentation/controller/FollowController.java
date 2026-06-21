@@ -43,12 +43,12 @@ public class FollowController {
     }
 
     @DeleteMapping("/follows/{creatorId}")
-    public ResponseEntity<Void> unfollow(
+    public ResponseEntity<ApiResponse<Void>> unfollow(
             @CurrentIdCard UserIdCard idCard,
             @PathVariable UUID creatorId
     ) {
         followService.unfollow(idCard.getUserId(), creatorId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success());
     }
 
     @GetMapping("/follows/{creatorId}/followers")

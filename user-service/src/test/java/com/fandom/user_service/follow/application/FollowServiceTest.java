@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -55,8 +56,6 @@ class FollowServiceTest {
         UUID creatorId = UUID.randomUUID();
         User follower = user(Role.MEMBER);
         User creator = user(Role.CREATOR);
-        Profile followerProfile = profile(follower, "member");
-        Profile creatorProfile = profile(creator, "creator");
         Follow savedFollow = Follow.builder()
                 .follower(follower)
                 .followee(creator)
@@ -65,16 +64,16 @@ class FollowServiceTest {
         given(userRepository.findById(followerId)).willReturn(Optional.of(follower));
         given(userRepository.findById(creatorId)).willReturn(Optional.of(creator));
         given(followRepository.existsByFollowerIdAndFolloweeId(followerId, creatorId)).willReturn(false);
-        given(followRepository.save(any(Follow.class))).willReturn(savedFollow);
-        given(profileRepository.findByUserId(followerId)).willReturn(Optional.of(followerProfile));
-        given(profileRepository.findByUserId(creatorId)).willReturn(Optional.of(creatorProfile));
+        given(followRepository.saveAndFlush(any(Follow.class))).willReturn(savedFollow);
+        given(profileRepository.increaseFollowingCountByUserId(followerId)).willReturn(1);
+        given(profileRepository.increaseFollowerCountByUserId(creatorId)).willReturn(1);
 
         Follow follow = followService.follow(followerId, creatorId);
 
         assertThat(follow).isEqualTo(savedFollow);
-        assertThat(followerProfile.getFollowingCount()).isEqualTo(1);
-        assertThat(creatorProfile.getFollowerCount()).isEqualTo(1);
-        verify(followRepository).save(any(Follow.class));
+        verify(followRepository).saveAndFlush(any(Follow.class));
+        verify(profileRepository).increaseFollowingCountByUserId(followerId);
+        verify(profileRepository).increaseFollowerCountByUserId(creatorId);
     }
 
     @Test
@@ -85,6 +84,23 @@ class FollowServiceTest {
         given(userRepository.findById(followerId)).willReturn(Optional.of(user(Role.MEMBER)));
         given(userRepository.findById(creatorId)).willReturn(Optional.of(user(Role.CREATOR)));
         given(followRepository.existsByFollowerIdAndFolloweeId(followerId, creatorId)).willReturn(true);
+
+        assertThatThrownBy(() -> followService.follow(followerId, creatorId))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(FollowErrorCode.DUPLICATE_FOLLOW);
+    }
+
+    @Test
+    @DisplayName("follow maps unique constraint violation to duplicate follow")
+    void follow_duplicateByUniqueConstraint() {
+        UUID followerId = UUID.randomUUID();
+        UUID creatorId = UUID.randomUUID();
+        given(userRepository.findById(followerId)).willReturn(Optional.of(user(Role.MEMBER)));
+        given(userRepository.findById(creatorId)).willReturn(Optional.of(user(Role.CREATOR)));
+        given(followRepository.existsByFollowerIdAndFolloweeId(followerId, creatorId)).willReturn(false);
+        given(followRepository.saveAndFlush(any(Follow.class)))
+                .willThrow(new DataIntegrityViolationException("duplicate follow"));
 
         assertThatThrownBy(() -> followService.follow(followerId, creatorId))
                 .isInstanceOf(CustomException.class)
@@ -140,8 +156,6 @@ class FollowServiceTest {
         UUID creatorId = UUID.randomUUID();
         User follower = user(Role.MEMBER);
         User creator = user(Role.CREATOR);
-        Profile followerProfile = profile(follower, "member", 0, 1);
-        Profile creatorProfile = profile(creator, "creator", 1, 0);
         Follow follow = Follow.builder()
                 .follower(follower)
                 .followee(creator)
@@ -150,14 +164,12 @@ class FollowServiceTest {
         given(userRepository.findById(followerId)).willReturn(Optional.of(follower));
         given(userRepository.findById(creatorId)).willReturn(Optional.of(creator));
         given(followRepository.findByFollowerIdAndFolloweeId(followerId, creatorId)).willReturn(Optional.of(follow));
-        given(profileRepository.findByUserId(followerId)).willReturn(Optional.of(followerProfile));
-        given(profileRepository.findByUserId(creatorId)).willReturn(Optional.of(creatorProfile));
 
         followService.unfollow(followerId, creatorId);
 
-        assertThat(followerProfile.getFollowingCount()).isZero();
-        assertThat(creatorProfile.getFollowerCount()).isZero();
         verify(followRepository).delete(follow);
+        verify(profileRepository).decreaseFollowingCountByUserId(followerId);
+        verify(profileRepository).decreaseFollowerCountByUserId(creatorId);
     }
 
     @Test

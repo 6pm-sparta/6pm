@@ -15,6 +15,7 @@ import com.fandom.user_service.follow.presentation.dto.response.FollowerResponse
 import com.fandom.user_service.follow.presentation.dto.response.FollowingResponse;
 import com.fandom.user_service.follow.presentation.dto.response.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -41,17 +42,10 @@ public class FollowService {
             throw new CustomException(FollowErrorCode.DUPLICATE_FOLLOW);
         }
 
-        Follow follow = followRepository.save(
-                Follow.builder()
-                        .follower(follower)
-                        .followee(followee)
-                        .build()
-        );
+        Follow follow = saveFollow(follower, followee);
 
-        Profile followerProfile = findProfileByUserId(followerId);
-        Profile followeeProfile = findProfileByUserId(creatorId);
-        followerProfile.increaseFollowingCount();
-        followeeProfile.increaseFollowerCount();
+        increaseFollowingCount(followerId);
+        increaseFollowerCount(creatorId);
 
         return follow;
     }
@@ -67,10 +61,8 @@ public class FollowService {
 
         followRepository.delete(follow);
 
-        Profile followerProfile = findProfileByUserId(followerId);
-        Profile followeeProfile = findProfileByUserId(creatorId);
-        followerProfile.decreaseFollowingCount();
-        followeeProfile.decreaseFollowerCount();
+        decreaseFollowingCount(followerId);
+        decreaseFollowerCount(creatorId);
     }
 
     public PageResponse<FollowerResponse> getFollowers(UUID creatorId, Pageable pageable) {
@@ -123,5 +115,40 @@ public class FollowService {
     private Profile findProfileByUserId(UUID userId) {
         return profileRepository.findByUserId(userId)
                 .orElseThrow(() -> new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND));
+    }
+
+    private Follow saveFollow(User follower, User followee) {
+        try {
+            return followRepository.saveAndFlush(
+                    Follow.builder()
+                            .follower(follower)
+                            .followee(followee)
+                            .build()
+            );
+        } catch (DataIntegrityViolationException e) {
+            throw new CustomException(FollowErrorCode.DUPLICATE_FOLLOW);
+        }
+    }
+
+    private void increaseFollowerCount(UUID userId) {
+        validateProfileUpdated(profileRepository.increaseFollowerCountByUserId(userId));
+    }
+
+    private void increaseFollowingCount(UUID userId) {
+        validateProfileUpdated(profileRepository.increaseFollowingCountByUserId(userId));
+    }
+
+    private void decreaseFollowerCount(UUID userId) {
+        profileRepository.decreaseFollowerCountByUserId(userId);
+    }
+
+    private void decreaseFollowingCount(UUID userId) {
+        profileRepository.decreaseFollowingCountByUserId(userId);
+    }
+
+    private void validateProfileUpdated(int updatedCount) {
+        if (updatedCount == 0) {
+            throw new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND);
+        }
     }
 }
