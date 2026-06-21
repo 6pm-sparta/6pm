@@ -1,11 +1,10 @@
-package com.fandom.order_service.order.kafka.producer;
+package com.fandom.order_service.kafka.producer;
 
 import com.fandom.order_service.kafka.KafkaTopics;
 import com.fandom.order_service.kafka.event.NotificationSendEvent;
 import com.fandom.order_service.kafka.event.PaymentCancelledEvent;
 import com.fandom.order_service.kafka.event.PaymentCompletedEvent;
 import com.fandom.order_service.kafka.event.PaymentFailedEvent;
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
