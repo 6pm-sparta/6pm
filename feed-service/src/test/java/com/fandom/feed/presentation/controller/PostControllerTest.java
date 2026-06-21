@@ -3,6 +3,7 @@ package com.fandom.feed.presentation.controller;
 import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.config.CommonAuthAutoConfiguration;
 import com.fandom.common.auth.filter.IdCardVerificationFilter;
+import com.fandom.common.config.CommonAutoConfiguration;
 import com.fandom.feed.application.PostService;
 import com.fandom.feed.global.aspect.AuthorizationAspect;
 import com.fandom.feed.presentation.dto.request.PostRequest;
@@ -33,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @EnableAspectJAutoProxy
 @WebMvcTest(PostController.class)
-@Import({AuthorizationAspect.class, CommonAuthAutoConfiguration.class})
+@Import({AuthorizationAspect.class, CommonAutoConfiguration.class, CommonAuthAutoConfiguration.class})
 class PostControllerTest {
     @Autowired
     private MockMvc mockMvc;
