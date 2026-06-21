@@ -51,9 +51,17 @@ public class IdCardVerificationFilter extends OncePerRequestFilter {
 
         // 검증 성공 시 UserIdCard를 request attribute에 저장
         UserIdCard idCard = hmacUtils.deserialize(idCardJson);
+        validateIdCard(idCard, request);
         request.setAttribute(ID_CARD_ATTRIBUTE, idCard);
         log.debug("[IdCardVerificationFilter] 검증 성공 - userId: {}, role: {}", idCard.getUserId(), idCard.getRole());
 
         filterChain.doFilter(request, response);
+    }
+
+    private void validateIdCard(UserIdCard idCard, HttpServletRequest request) {
+        if (idCard.getUserId() == null || idCard.getRole() == null || idCard.getRole().isBlank()) {
+            log.warn("[IdCardVerificationFilter] IdCard payload invalid - uri: {}", request.getRequestURI());
+            throw new CustomException(CommonErrorCode.INVALID_ID_CARD);
+        }
     }
 }

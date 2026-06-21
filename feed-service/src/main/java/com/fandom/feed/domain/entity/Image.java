@@ -9,30 +9,31 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
 
 import java.util.UUID;
 
 @Entity
 @Table(
         name = "images",
-        uniqueConstraints = @UniqueConstraint(name = "uk_post_order", columnNames = {"postId", "order"})
+        uniqueConstraints = @UniqueConstraint(name = "uk_post_order_index", columnNames = {"post_id", "order_index"})
 )
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Check(constraints = "order_index BETWEEN 0 AND 3")
+@Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Image extends BaseEntity {
     @Column(nullable = false)
     private UUID postId;
 
     @Column(nullable = false)
-    private Integer order;
+    private Integer orderIndex;
 
     @Column(nullable = false)
     private String imageKey;
 
     @Builder
-    public Image(UUID postId, Integer order, String imageKey) {
+    private Image(UUID postId, Integer orderIndex, String imageKey) {
         this.postId = postId;
-        this.order = order;
+        this.orderIndex = orderIndex;
         this.imageKey = imageKey;
     }
 }
