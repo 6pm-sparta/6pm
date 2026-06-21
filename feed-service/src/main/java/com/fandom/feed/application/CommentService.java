@@ -7,6 +7,8 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.CommentErrorCode;
 import com.fandom.feed.domain.repository.CommentRepository;
 import com.fandom.feed.presentation.dto.response.CommentResponse;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,19 @@ public class CommentService {
         applicationEventPublisher.publishEvent(new Event.CommentCreated(postId));
 
         return CommentResponse.Create.from(comment);
+    }
+
+    @Transactional
+    public CommentResponse.Update updateComment(UUID commentId, String content, UUID userId) {
+        Comment comment = findById(commentId);
+
+        // 권한 검증
+        if (!userId.equals(comment.getAuthorId()))
+            throw new CustomException(CommentErrorCode.FORBIDDEN_COMMENT_UPDATE);
+
+        comment.update(content);
+
+        return CommentResponse.Update.from(comment);
     }
 
     @Transactional

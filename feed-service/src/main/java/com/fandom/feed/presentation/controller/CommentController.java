@@ -38,6 +38,18 @@ public class CommentController {
         return ApiResponse.created(response);
     }
 
+    @RequireRole({UserRole.MEMBER, UserRole.CREATOR})
+    @PostMapping("/comments/{commentId}")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<CommentResponse.Update> updateComment(
+            @PathVariable UUID commentId,
+            @RequestBody @Valid CommentRequest request,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        CommentResponse.Update response = commentService.updateComment(commentId, request.content(), idCard.getUserId());
+        return ApiResponse.success(response);
+    }
+
     @PostMapping("/comments/{commentId}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<CommentResponse.Delete> deleteComment(
