@@ -3,6 +3,7 @@ package com.fandom.feed.infra.redis;
 import com.fandom.feed.application.ImageService;
 import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
+import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
@@ -22,8 +23,6 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
-
 @Service
 @RequiredArgsConstructor
 public class PostCacheService {
@@ -38,7 +37,7 @@ public class PostCacheService {
      * 게시글 ID로 캐시에서 게시글 상세를 조회하는 메서드<br>
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
-    @Cacheable(value = POST_DETAIL, key = "#postId")
+    @Cacheable(value = RedisKeyPrefix.POST_DETAIL, key = "#postId")
     public PostCache.Detail getPostDetail(UUID postId) {
         Post post = postReader.findById(postId);
         List<String> imageKeys = imageService.findAllByPostId(postId);
@@ -52,7 +51,7 @@ public class PostCacheService {
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     public List<PostCache.Detail> getPostDetailBatch(List<UUID> postIds) {
-        Cache cache = cacheManager.getCache(POST_DETAIL);
+        Cache cache = cacheManager.getCache(RedisKeyPrefix.POST_DETAIL);
 
         // 캐시 히트/미스 분류
         Map<UUID, PostCache.Detail> cachedMap = new HashMap<>();

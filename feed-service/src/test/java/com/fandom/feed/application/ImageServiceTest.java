@@ -202,7 +202,7 @@ class ImageServiceTest {
             assertThat(result).containsExactly("key2", "key3");
             verify(imageRepository).deleteAllByPostId(postId);
             verify(imageRepository).saveAll(any());
-            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1"))); // key2는 유지, key1만 삭제
+            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1")));
         }
 
         @Test
@@ -222,7 +222,7 @@ class ImageServiceTest {
             // then
             assertThat(result).isEmpty();
             verify(imageRepository).deleteAllByPostId(postId);
-            verify(imageRepository, never()).saveAll(any()); // 새 이미지 없으니 saveAll 미호출
+            verify(imageRepository, never()).saveAll(any());
             verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1")));
         }
 
@@ -242,7 +242,7 @@ class ImageServiceTest {
             assertThat(result).containsExactly("key1", "key2");
             verify(imageRepository).deleteAllByPostId(postId);
             verify(imageRepository).saveAll(any());
-            verifyNoInteractions(applicationEventPublisher); // 삭제할 키 없으니 이벤트 미발행
+            verifyNoInteractions(applicationEventPublisher);
         }
     }
 }

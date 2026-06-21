@@ -1,10 +1,12 @@
 package com.fandom.feed.application;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.feed.application.policy.PostPolicy;
 import com.fandom.feed.application.policy.PostSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
+import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostCacheService;
@@ -26,9 +28,6 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import static com.fandom.feed.application.policy.PostPolicy.PAGE_SIZE;
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
 
 @Service
 @RequiredArgsConstructor
@@ -79,7 +78,7 @@ public class PostService {
     }
 
     @Transactional
-    @CacheEvict(value = POST_DETAIL, key = "#postId")
+    @CacheEvict(value = RedisKeyPrefix.POST_DETAIL, key = "#postId")
     public PostResponse.Update updatePost(UUID postId, String content, List<String> imageKeys, UUID userId) {
         Post post = postReader.findById(postId);
 
@@ -95,7 +94,7 @@ public class PostService {
     }
 
     @Transactional
-    @CacheEvict(value = POST_DETAIL, key = "#postId")
+    @CacheEvict(value = RedisKeyPrefix.POST_DETAIL, key = "#postId")
     public PostResponse.Delete deletePost(UUID postId, UUID userId, boolean isMaster) {
         Post post = postReader.findById(postId);
 
@@ -117,8 +116,8 @@ public class PostService {
      * 캐시에서 가져온 게시글 ID 목록으로 응답을 구성하는 메서드
      */
     private CursorPageResponse<PostResponse.Summary> buildCacheResponse(List<UUID> postIds, UUID userId) {
-        boolean hasMore = postIds.size() > PAGE_SIZE;
-        List<UUID> pageIds = hasMore ? postIds.subList(0, PAGE_SIZE) : postIds;
+        boolean hasMore = postIds.size() > PostPolicy.PAGE_SIZE;
+        List<UUID> pageIds = hasMore ? postIds.subList(0, PostPolicy.PAGE_SIZE) : postIds;
 
         List<PostCache.Detail> posts = postCacheService.getPostDetailBatch(pageIds);
         List<PostCache.ReactionInfo> reactionInfos = postReactionService.getReactionInfoBatch(pageIds, userId);
@@ -139,8 +138,8 @@ public class PostService {
     ) {
         List<Post> posts = postRepository.findByCursor(cursor, sort, authorId, keyword);
 
-        boolean hasMore = posts.size() > PAGE_SIZE;
-        List<Post> page = hasMore ? posts.subList(0, PAGE_SIZE) : posts;
+        boolean hasMore = posts.size() > PostPolicy.PAGE_SIZE;
+        List<Post> page = hasMore ? posts.subList(0, PostPolicy.PAGE_SIZE) : posts;
 
         return buildDBResponse(page, hasMore, userId);
     }
@@ -155,8 +154,8 @@ public class PostService {
 
         postListCacheService.expireCache(sort);
 
-        boolean hasMore = allPosts.size() > PAGE_SIZE;
-        List<Post> page = hasMore ? allPosts.subList(0, PAGE_SIZE) : allPosts;
+        boolean hasMore = allPosts.size() > PostPolicy.PAGE_SIZE;
+        List<Post> page = hasMore ? allPosts.subList(0, PostPolicy.PAGE_SIZE) : allPosts;
 
         return buildDBResponse(page, hasMore, userId);
     }

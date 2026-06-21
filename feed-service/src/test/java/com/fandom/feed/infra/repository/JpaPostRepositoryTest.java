@@ -58,10 +58,7 @@ class JpaPostRepositoryTest {
         @DisplayName("cursor 있음 - cursor 이전 게시글 대상")
         void findLatestWithCursor() {
             // given
-            List<UUID> sortedIds = savedPosts.stream()
-                    .map(Post::getId)
-                    .sorted()
-                    .toList();
+            List<UUID> sortedIds = savedPosts.stream().map(Post::getId).sorted().toList();
             UUID cursor = sortedIds.get(1);
 
             // when
@@ -118,10 +115,7 @@ class JpaPostRepositoryTest {
         @DisplayName("cursor 있음 - cursor 이후 게시글 대상")
         void findOldestWithCursor() {
             // given
-            List<UUID> sortedIds = savedPosts.stream()
-                    .map(Post::getId)
-                    .sorted()
-                    .toList();
+            List<UUID> sortedIds = savedPosts.stream().map(Post::getId).sorted().toList();
             UUID cursor = sortedIds.get(1);
 
             // when

@@ -4,6 +4,7 @@ import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.ImageService;
 import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
+import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.dto.PostCache;
@@ -23,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_DETAIL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
@@ -86,7 +86,7 @@ class PostCacheServiceTest {
             UUID id = UUID.randomUUID();
             PostCache.Detail cached = mock(PostCache.Detail.class);
 
-            when(cacheManager.getCache(POST_DETAIL)).thenReturn(cache);
+            when(cacheManager.getCache(RedisKeyPrefix.POST_DETAIL)).thenReturn(cache);
             when(cache.get(id, PostCache.Detail.class)).thenReturn(cached);
 
             // When
@@ -107,8 +107,8 @@ class PostCacheServiceTest {
             UserResponse author = mock(UserResponse.class);
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
-            when(cacheManager.getCache(POST_DETAIL)).thenReturn(cache);
-            when(cache.get(id, PostCache.Detail.class)).thenReturn(null); // 캐시 미스
+            when(cacheManager.getCache(RedisKeyPrefix.POST_DETAIL)).thenReturn(cache);
+            when(cache.get(id, PostCache.Detail.class)).thenReturn(null);
             when(postReader.findAllByIds(List.of(id))).thenReturn(List.of(post));
             when(post.getId()).thenReturn(id);
             when(post.getAuthorId()).thenReturn(authorId);
@@ -137,7 +137,7 @@ class PostCacheServiceTest {
             UUID authorId = UUID.randomUUID();
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
-            when(cacheManager.getCache(POST_DETAIL)).thenReturn(cache);
+            when(cacheManager.getCache(RedisKeyPrefix.POST_DETAIL)).thenReturn(cache);
             when(cache.get(hitId, PostCache.Detail.class)).thenReturn(cached);
             when(cache.get(missId, PostCache.Detail.class)).thenReturn(null);
             when(postReader.findAllByIds(List.of(missId))).thenReturn(List.of(post));

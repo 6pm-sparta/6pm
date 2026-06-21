@@ -1,5 +1,6 @@
 package com.fandom.feed.infra.redis;
 
+import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisCallback;
@@ -9,9 +10,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.COMMENT_COUNT;
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.LIKE_SET;
 
 @Service
 @RequiredArgsConstructor
@@ -34,8 +32,8 @@ public class PostReactionService {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
         List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             ids.forEach(id -> {
-                String likeKey = LIKE_SET + id;
-                String commentKey = COMMENT_COUNT + id;
+                String commentKey = RedisKeyPrefix.COMMENT_COUNT + id;
+                String likeKey = RedisKeyPrefix.LIKE_SET + id;
 
                 // 커맨드 순서: commentCount → likeCount → isLiked
                 connection.stringCommands().get(commentKey.getBytes());
@@ -65,17 +63,17 @@ public class PostReactionService {
     }
 
     private long getCommentCount(UUID id) {
-        String count = redisTemplate.opsForValue().get(COMMENT_COUNT + id);
+        String count = redisTemplate.opsForValue().get(RedisKeyPrefix.COMMENT_COUNT + id);
         return (count != null) ? Long.parseLong(count) : 0L;
     }
 
     private long getLikeCount(UUID id) {
-        Long size = redisTemplate.opsForSet().size(LIKE_SET + id);
+        Long size = redisTemplate.opsForSet().size(RedisKeyPrefix.LIKE_SET + id);
         return (size != null) ? size : 0L;
     }
 
     private boolean isLiked(UUID id, UUID userId) {
         if (userId == null) return false;
-        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(LIKE_SET + id, userId.toString()));
+        return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + id, userId.toString()));
     }
 }
