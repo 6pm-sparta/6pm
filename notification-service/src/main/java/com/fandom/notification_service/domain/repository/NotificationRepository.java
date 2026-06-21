@@ -16,6 +16,9 @@ public interface NotificationRepository {
 
     List<Notification> findAllByUserId(UUID userId);
 
+    // 보관함 커서 조회
+    List<Notification> findInbox(UUID userId, UUID cursor, int limit);
+
     void softDeleteAllByUserId(UUID userId);
 
     // 멱등성 체크

@@ -17,6 +17,11 @@ import java.util.UUID;
 public interface NotificationJpaRepository extends JpaRepository<Notification, UUID> {
     List<Notification> findAllByUserIdOrderByCreatedAtDesc(UUID userId);
 
+    // 보관함 커서 페이지네이션
+    List<Notification> findByUserIdOrderByIdDesc(UUID userId, Pageable pageable);
+
+    List<Notification> findByUserIdAndIdLessThanOrderByIdDesc(UUID userId, UUID cursor, Pageable pageable);
+
     boolean existsByUserIdAndTypeAndReferenceId(UUID userId, NotificationType type, UUID referenceId);
 
     List<Notification> findBySendStatusAndCreatedAtBefore(
