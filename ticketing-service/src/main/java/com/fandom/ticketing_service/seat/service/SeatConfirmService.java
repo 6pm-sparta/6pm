@@ -21,6 +21,7 @@ import java.util.UUID;
 public class SeatConfirmService {
 
     private static final String SEAT_KEY = "show:%d:seat:%s";
+    private static final String OWNER_KEY = "show:%d:seat:%s:owner";
     private static final String INVENTORY_KEY = "inventory:%d";
 
     private final ShowSeatRepository showSeatRepository;
@@ -43,6 +44,7 @@ public class SeatConfirmService {
         UUID seatId = seat.getId();
         try {
             redisTemplate.delete(SEAT_KEY.formatted(seat.getShowId(), seatId));
+            redisTemplate.delete(OWNER_KEY.formatted(seat.getShowId(), seatId));
             seatEventProducer.publishSeatBooked(new SeatBookedEvent(orderId, seatId));
         } catch (Exception e) {
             log.error("좌석 확정 실패: orderId={}, seatId={}, reason={}", orderId, seatId, e.getMessage());
@@ -54,10 +56,12 @@ public class SeatConfirmService {
     public void releaseSeat(UUID orderId) {
         showSeatRepository.findByOrderId(orderId).ifPresentOrElse(seat -> {
             String seatKey = SEAT_KEY.formatted(seat.getShowId(), seat.getId());
+            String ownerKey = OWNER_KEY.formatted(seat.getShowId(), seat.getId());
             String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
 
             seat.releaseOrder();
             redisTemplate.delete(seatKey);
+            redisTemplate.delete(ownerKey);
             redisTemplate.opsForValue().increment(inventoryKey);
 
             log.info("좌석 해제 완료: orderId={}, seatId={}", orderId, seat.getId());

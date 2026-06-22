@@ -52,6 +52,7 @@ Orders               (주문 = 예약 + 확정 통합 단일 애그리게이트)
 | `waiting_queue:{show_id}` | Sorted Set | - | 대기열. score = 입장 요청 timestamp |
 | `purchase-token:{userId}` | String | 600초 | 좌석 선택 화면 진입 권한 토큰 |
 | `show:{show_id}:seat:{show_seat_id}` | String | 600초 | 좌석 상태: `AVAILABLE` / `HOLDING` / `BOOKED` |
+| `show:{show_id}:seat:{show_seat_id}:owner` | String | 600초 (seatKey와 동일) | 선점한 `{userId}:{status}`. status는 `PENDING`(주문 생성 중) / `CONFIRMED`(주문 생성 완료) |
 | `inventory:{show_id}` | String (Counter) | - | 남은 좌석 수 |
 | `purchase-count:{userId}:{showId}` | String (Counter) | - | 사용자별 구매 한도 체크 |
 
@@ -134,6 +135,22 @@ sequenceDiagram
 
 ---
 
+### 좌석 선점 해제 (hold release)
+
+선점은 세 가지 경로로 풀린다.
+
+| 경로 | 트리거 | 처리 |
+|---|---|---|
+| 결제 실패/취소 | Kafka `order.payment.failed`, `order.payment.cancelled` | `SeatConfirmService.releaseSeat()` — DB `orderId` 해제, Redis seat/owner 키 삭제, 재고 복구 |
+| TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우) |
+| 사용자 직접 취소 | `DELETE /api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | `SeatService.releaseHold()` — owner 본인 확인 후 Redis seat/owner 키 삭제, 재고 복구, DB `orderId` 해제 |
+
+**hold ↔ release 동시 호출 레이스 방지:** `hold()`가 주문 생성(`orderClient.create`, 외부 네트워크 호출)을 하는 동안 owner 키 상태를 `PENDING`으로 두고, 주문 생성이 끝나야 `CONFIRMED`로 바꾼다. `releaseHold()`는 `PENDING`인 동안은 무조건 `SEAT_HOLD_PROCESSING`(409)으로 거부한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
+
+> **알려진 제약:** order-service에 생성된 주문을 취소하는 API가 아직 없어서, `releaseHold()`/`releaseExpiredHold()`는 ticketing-service 쪽 상태만 정리한다. order-service의 주문은 별도로 만료/취소 처리가 필요하다 (TODO).
+
+---
+
 ## 6. API 명세
 
 ### ticketing-service
@@ -145,6 +162,7 @@ sequenceDiagram
 | GET | `/api/v1/tickets/shows/{showId}/queue/stream` | SSE 연결 — 순번 실시간 수신 |
 | GET | `/api/v1/tickets/shows/{showId}/seats` | 회차별 좌석 목록 + 상태 조회 |
 | POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 + 주문 생성 트리거 |
+| DELETE | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 해제 (본인 선점만 가능) |
 
 ---
 
@@ -176,3 +194,4 @@ sequenceDiagram
 | 항목 | 현황 | 결정 필요 사항 |
 |---|---|---|
 | `holdId` | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 사용할지 |
+| 주문 취소 연동 | 미구현 | `releaseHold`/`releaseExpiredHold` 시 order-service의 주문도 취소하는 API 연동 필요 (`OrderClient`에 취소 메서드 없음) |

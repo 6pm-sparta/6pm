@@ -33,4 +33,14 @@ public class SeatController {
     ) {
         return ResponseEntity.ok(ApiResponse.success(seatService.hold(seatId, idCard.getUserId())));
     }
+
+    @DeleteMapping("/seats/{seatId}/hold")
+    public ResponseEntity<ApiResponse<Void>> releaseHold(
+            @PathVariable Long showId,
+            @PathVariable UUID seatId,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        seatService.releaseHold(seatId, idCard.getUserId());
+        return ResponseEntity.ok(ApiResponse.success());
+    }
 }
