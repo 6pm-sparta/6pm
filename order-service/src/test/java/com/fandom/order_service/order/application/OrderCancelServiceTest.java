@@ -1,6 +1,7 @@
 package com.fandom.order_service.order.application;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.order.application.cancellation.OrderCancelDecision;
 import com.fandom.order_service.order.application.cancellation.OrderCancelService;
 import com.fandom.order_service.order.application.cancellation.OrderCancelWriter;
@@ -40,6 +41,9 @@ class OrderCancelServiceTest {
     @Mock
     private PaymentGateway paymentGateway;
 
+    @Mock
+    private OrderEventProducer orderEventProducer;
+
     private OrderCancelService orderCancelService;
 
     private UUID orderId;
@@ -47,7 +51,7 @@ class OrderCancelServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderCancelService = new OrderCancelService(orderCancelWriter, paymentGateway);
+        orderCancelService = new OrderCancelService(orderCancelWriter, paymentGateway, orderEventProducer);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
     }
@@ -80,6 +84,8 @@ class OrderCancelServiceTest {
         assertThat(response.status()).isEqualTo("CANCELLED");
         assertThat(response.paymentId()).isNull();
         verify(paymentGateway, never()).requestRefund(any(), any());
+        verify(orderEventProducer, never()).publishPaymentCancelled(any());
+        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
     }
 
     @Test
@@ -96,6 +102,8 @@ class OrderCancelServiceTest {
         // then
         assertThat(response.status()).isEqualTo("REFUNDED");
         verify(paymentGateway, never()).requestRefund(any(), any());
+        verify(orderEventProducer, never()).publishPaymentCancelled(any());
+        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
     }
 
     @Test
@@ -120,6 +128,8 @@ class OrderCancelServiceTest {
         assertThat(response.paymentId()).isEqualTo(payment.getId());
         verify(paymentGateway).requestRefund(payment.getPgTransactionId(), payment.getAmount());
         verify(orderCancelWriter).applyRefundSuccess(orderId, payment.getId());
+        verify(orderEventProducer).publishPaymentCancelled(orderId);
+        verify(orderEventProducer).publishOrderCancelledNotification(orderId, userId);
     }
 
     @Test
@@ -139,5 +149,7 @@ class OrderCancelServiceTest {
                 .isEqualTo(PaymentErrorCode.PG_ERROR);
 
         verify(orderCancelWriter, never()).applyRefundSuccess(any(), any());
+        verify(orderEventProducer, never()).publishPaymentCancelled(any());
+        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
     }
 }

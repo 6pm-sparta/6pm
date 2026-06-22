@@ -154,6 +154,17 @@ public class Order extends BaseEntity {
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
+    /** PAID → CONFIRMED. ticketing.seat.booked 수신(좌석 예매 확정 완료) 직후 호출한다.*/
+    public void markConfirmed() {
+
+        if (this.status != OrderStatus.PAID) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.CONFIRMED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
     /**
      * CONFIRMED 상태가 "취소 가능 시간" 내인지 확인한다. 확정 시각(statusUpdatedAt) 기준으로 판단한다.
      * todo : 취소 가능 시간에 대해 협의 해야 함

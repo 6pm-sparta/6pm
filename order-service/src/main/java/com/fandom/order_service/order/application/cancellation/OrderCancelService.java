@@ -1,6 +1,7 @@
 package com.fandom.order_service.order.application.cancellation;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.order.presentation.dto.response.OrderCancelResponse;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
@@ -18,6 +19,9 @@ import java.util.UUID;
  * 1. orders 비관적 락 + 본인 확인 + 상태 분기 + (필요 시) REFUND_REQUESTED 전이 — 짧은 트랜잭션(OrderCancelWriter.decide)
  * 2. 락 밖에서 PG 환불 호출 (PAID/CONFIRMED인 경우만, 동기, MVP)
  * 3. 환불 결과 반영 — 별도 트랜잭션(OrderCancelWriter.applyRefundSuccess)
+ * 4. 환불 완료(REFUNDED) 직후 order.payment.cancelled 발행(#87) — ticketing이 좌석을 해제한다.
+ *    동시에 notification.send(ORDER_CANCELED)도 발행해 유저에게 환불 완료를 알린다.
+ *    PENDING 즉시 취소(CANCELLED) 케이스의 좌석 반환은 이 이벤트로 다루지 않는다(별도 확인 필요).
  *
  * PG 호출을 락 밖에 두는 이유는 결제 요청과 동일하다 — 외부 API 호출 동안 DB 트랜잭션/커넥션을
  * 쥐고 있지 않기 위함. PG 호출이 진행되는 동안 들어오는 동시 취소 요청은 1번 단계에서 주문 상태가
@@ -30,6 +34,7 @@ public class OrderCancelService {
 
     private final OrderCancelWriter orderCancelWriter;
     private final PaymentGateway paymentGateway;
+    private final OrderEventProducer orderEventProducer;
 
     public OrderCancelResponse cancelOrder(UUID orderId, UUID requesterId) {
 
@@ -52,6 +57,8 @@ public class OrderCancelService {
         }
 
         OrderCancelDecision refunded = orderCancelWriter.applyRefundSuccess(decision.orderId(), payment.getId());
+        orderEventProducer.publishPaymentCancelled(refunded.orderId());
+        orderEventProducer.publishOrderCancelledNotification(refunded.orderId(), requesterId);
 
         return OrderCancelResponse.refunded(
                 refunded.orderId(), refunded.status(), refunded.refundedPaymentId(), refunded.updatedAt());
