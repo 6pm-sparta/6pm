@@ -56,6 +56,4 @@ docker_data/
 
 ## log
 **/logs/
-# logs (절대 커밋 금지)
-**/logs/
 *.log
