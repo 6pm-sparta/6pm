@@ -21,6 +21,15 @@ spring:
         format_sql: true
     show-sql: true
 
+logging:
+  file:
+    name: ./logs/aiops-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
+
 eureka:
   client:
     service-url:
