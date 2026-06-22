@@ -7,6 +7,7 @@ import com.fandom.user_service.member.domain.entity.User;
 import com.fandom.user_service.member.domain.exception.MemberErrorCode;
 import com.fandom.user_service.member.domain.repository.CreatorRepository;
 import com.fandom.user_service.member.domain.repository.UserRepository;
+import com.fandom.user_service.member.application.port.MemberWithdrawalEventPublisher;
 import com.fandom.user_service.member.presentation.dto.request.CreatorSignUpRequest;
 import com.fandom.user_service.member.presentation.dto.request.CreatorUpdateRequest;
 import com.fandom.user_service.member.presentation.dto.request.MemberUpdateRequest;
@@ -22,6 +23,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -34,6 +37,7 @@ public class MemberService {
     private final CreatorRepository creatorRepository;
     private final PasswordEncoder passwordEncoder;
     private final ProfileService profileService;
+    private final MemberWithdrawalEventPublisher memberWithdrawalEventPublisher;
 
     /**
      * 일반회원 가입. role=MEMBER, status는 기본 ACTIVE.
@@ -126,6 +130,23 @@ public class MemberService {
     }
 
     /**
+     * 회원 탈퇴. 계정은 soft delete + status=DELETED로 전환하고, 역할별 탈퇴 이벤트와 공통 삭제 이벤트를 발행한다.
+     * 이미 탈퇴된 계정은 멱등하게 성공 처리하며 이벤트를 재발행하지 않는다.
+     */
+    @Transactional
+    public void withdraw(UUID userId) {
+        User user = findUserById(userId);
+        Role role = user.getRole();
+
+        if (user.isWithdrawn()) {
+            return;
+        }
+
+        user.withdraw(userId);
+        publishWithdrawalEventAfterCommit(userId, role);
+    }
+
+    /**
      * 내부 회원 조회. (Auth Service의 로그인 검증용)
      * 비밀번호 해시를 포함하므로 내부 통신 전용이다.
      * 조회 전용 - 클래스 기본 @Transactional(readOnly = true) 적용.
@@ -176,5 +197,18 @@ public class MemberService {
             return null;
         }
         return passwordEncoder.encode(password);
+    }
+
+    private void publishWithdrawalEventAfterCommit(UUID userId, Role role) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            memberWithdrawalEventPublisher.publish(userId, role);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                memberWithdrawalEventPublisher.publish(userId, role);
+            }
+        });
     }
 }
