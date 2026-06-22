@@ -21,7 +21,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -69,12 +73,17 @@ public class FollowService {
         User creator = findUserById(creatorId);
         validateRole(creator, Role.CREATOR, FollowErrorCode.FOLLOWEE_MUST_BE_CREATOR);
 
-        Page<FollowerResponse> followers = followRepository.findByFolloweeId(creatorId, pageable)
-                .map(follow -> {
-                    User follower = follow.getFollower();
-                    Profile profile = findProfileByUserId(follower.getId());
-                    return FollowerResponse.from(follower, profile);
-                });
+        Page<Follow> followerPage = followRepository.findByFolloweeId(creatorId, pageable);
+        Map<UUID, Profile> profilesByUserId = findProfilesByUserIds(
+                followerPage.getContent().stream()
+                        .map(follow -> follow.getFollower().getId())
+                        .toList()
+        );
+        Page<FollowerResponse> followers = followerPage.map(follow -> {
+            User follower = follow.getFollower();
+            Profile profile = getProfile(profilesByUserId, follower.getId());
+            return FollowerResponse.from(follower, profile);
+        });
 
         return PageResponse.from(followers);
     }
@@ -83,12 +92,17 @@ public class FollowService {
         User member = findUserById(memberId);
         validateRole(member, Role.MEMBER, FollowErrorCode.FOLLOWER_MUST_BE_MEMBER);
 
-        Page<FollowingResponse> followings = followRepository.findByFollowerId(memberId, pageable)
-                .map(follow -> {
-                    User followee = follow.getFollowee();
-                    Profile profile = findProfileByUserId(followee.getId());
-                    return FollowingResponse.from(followee, profile);
-                });
+        Page<Follow> followingPage = followRepository.findByFollowerId(memberId, pageable);
+        Map<UUID, Profile> profilesByUserId = findProfilesByUserIds(
+                followingPage.getContent().stream()
+                        .map(follow -> follow.getFollowee().getId())
+                        .toList()
+        );
+        Page<FollowingResponse> followings = followingPage.map(follow -> {
+            User followee = follow.getFollowee();
+            Profile profile = getProfile(profilesByUserId, followee.getId());
+            return FollowingResponse.from(followee, profile);
+        });
 
         return PageResponse.from(followings);
     }
@@ -112,9 +126,17 @@ public class FollowService {
                 .orElseThrow(() -> new CustomException(MemberErrorCode.MEMBER_NOT_FOUND));
     }
 
-    private Profile findProfileByUserId(UUID userId) {
-        return profileRepository.findByUserId(userId)
-                .orElseThrow(() -> new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND));
+    private Map<UUID, Profile> findProfilesByUserIds(List<UUID> userIds) {
+        return profileRepository.findAllByUserIdIn(userIds).stream()
+                .collect(Collectors.toMap(profile -> profile.getUser().getId(), Function.identity()));
+    }
+
+    private Profile getProfile(Map<UUID, Profile> profilesByUserId, UUID userId) {
+        Profile profile = profilesByUserId.get(userId);
+        if (profile == null) {
+            throw new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND);
+        }
+        return profile;
     }
 
     private Follow saveFollow(User follower, User followee) {

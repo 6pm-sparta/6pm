@@ -203,7 +203,7 @@ class FollowServiceTest {
         given(userRepository.findById(creatorId)).willReturn(Optional.of(creator));
         given(followRepository.findByFolloweeId(creatorId, pageable))
                 .willReturn(new PageImpl<>(List.of(follow), pageable, 1));
-        given(profileRepository.findByUserId(follower.getId())).willReturn(Optional.of(followerProfile));
+        given(profileRepository.findAllByUserIdIn(List.of(follower.getId()))).willReturn(List.of(followerProfile));
 
         PageResponse<FollowerResponse> response = followService.getFollowers(creatorId, pageable);
 
@@ -228,7 +228,7 @@ class FollowServiceTest {
         given(userRepository.findById(memberId)).willReturn(Optional.of(member));
         given(followRepository.findByFollowerId(memberId, pageable))
                 .willReturn(new PageImpl<>(List.of(follow), pageable, 1));
-        given(profileRepository.findByUserId(creator.getId())).willReturn(Optional.of(creatorProfile));
+        given(profileRepository.findAllByUserIdIn(List.of(creator.getId()))).willReturn(List.of(creatorProfile));
 
         PageResponse<FollowingResponse> response = followService.getFollowings(memberId, pageable);
 
