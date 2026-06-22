@@ -13,13 +13,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * payment.lockWaitSeconds/lockHoldSeconds: 결제 요청 분산락(Redisson RLock) 대기/점유 시간.
  *   점유 시간은 "PENDING→PAYMENT_REQUESTED 전이 + 커밋"만 감싸는 짧은 구간 기준이며 PG 호출 전체를 포함하지 않는다.
  * payment.idempotencyKeyTtlSeconds: Idempotency-Key 멱등성 캐시 TTL. 주문 expirationMinutes와 맞춤.
+ * compensation.refundMaxAttempts/refundRetryBackoffMillis: SAGA 보상(#88) PG 환불 재시도 횟수/간격.
  */
 @ConfigurationProperties(prefix = "order")
 public record OrderProperties(
         Hold hold,
         int expirationMinutes,
         PaymentLockProperties paymentLockProperties,
-        Cancellation cancellation) {
+        Cancellation cancellation,
+        Compensation compensation) {
     public record Hold(
             long claimTtlSeconds,
             long cacheTtlSeconds
@@ -40,6 +42,16 @@ public record OrderProperties(
      */
     public record Cancellation(
             long cancellableWindowHours
+    ) {
+    }
+
+    /**
+     * refundMaxAttempts: SAGA 보상 트랜잭션에서 PG 환불을 시도할 최대 횟수. 3회로 결정.
+     * refundRetryBackoffMillis: 재시도 사이 대기 시간(ms). 1000ms로 결정.
+     */
+    public record Compensation(
+            int refundMaxAttempts,
+            long refundRetryBackoffMillis
     ) {
     }
 }
