@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -147,5 +148,55 @@ class JpaPostRepositoryTest {
         // then
         assertThat(results).hasSize(3);
         assertThat(results.get(0).getId()).isLessThan(results.get(1).getId());
+    }
+
+    @Nested
+    @DisplayName("댓글 수 1 증감")
+    class XxCrementCommentCount {
+        private Post post;
+
+        @BeforeEach
+        void setUp() {
+            post = Post.builder().authorId(UUID.randomUUID()).content("내용").build();
+            ReflectionTestUtils.setField(post, "commentCount", 5L);
+            jpaPostRepository.save(post);
+        }
+
+        @Test
+        @DisplayName("댓글 수 1 증가")
+        void incrementCommentCount() {
+            // when
+            jpaPostRepository.incrementCommentCount(post.getId());
+
+            // then
+            Post updated = jpaPostRepository.findById(post.getId()).orElseThrow();
+            assertThat(updated.getCommentCount()).isEqualTo(6L);
+        }
+
+        @Test
+        @DisplayName("댓글 수 1 감소")
+        void decrementCommentCount() {
+            // when
+            jpaPostRepository.decrementCommentCount(post.getId());
+
+            // then
+            Post updated = jpaPostRepository.findById(post.getId()).orElseThrow();
+            assertThat(updated.getCommentCount()).isEqualTo(4L);
+        }
+
+        @Test
+        @DisplayName("댓글 수가 0이면 0 미만으로 내려가지 않음")
+        void decrementCommentCountMinZero() {
+            // given
+            ReflectionTestUtils.setField(post, "commentCount", 0L);
+            jpaPostRepository.save(post);
+
+            // when
+            jpaPostRepository.decrementCommentCount(post.getId());
+
+            // then
+            Post updated = jpaPostRepository.findById(post.getId()).orElseThrow();
+            assertThat(updated.getCommentCount()).isEqualTo(0L);
+        }
     }
 }

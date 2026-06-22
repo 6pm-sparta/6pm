@@ -36,6 +36,9 @@ class CommentServiceTest {
     private PostReader postReader;
 
     @Mock
+    private PostUpdater postUpdater;
+
+    @Mock
     private ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks
@@ -81,6 +84,7 @@ class CommentServiceTest {
             assertThat(response.content()).isEqualTo("댓글 내용");
             verify(commentRepository).save(any(Comment.class));
             verify(applicationEventPublisher).publishEvent(any(Event.CommentCreated.class));
+            verify(postUpdater).incrementCommentCount(postId);
         }
 
         @Test
@@ -96,6 +100,7 @@ class CommentServiceTest {
 
             verify(commentRepository, never()).save(any());
             verify(applicationEventPublisher, never()).publishEvent(any());
+            verify(postUpdater, never()).incrementCommentCount(any());
         }
     }
 
@@ -182,6 +187,7 @@ class CommentServiceTest {
             // then
             assertThat(response.commentId()).isEqualTo(commentId);
             verify(applicationEventPublisher).publishEvent(any(Event.CommentDeleted.class));
+            verify(postUpdater).decrementCommentCount(postId);
         }
 
         @Test
@@ -197,6 +203,7 @@ class CommentServiceTest {
             // then
             assertThat(response.commentId()).isEqualTo(commentId);
             verify(applicationEventPublisher).publishEvent(any(Event.CommentDeleted.class));
+            verify(postUpdater).decrementCommentCount(postId);
         }
 
         @Test
@@ -213,6 +220,7 @@ class CommentServiceTest {
             // then
             assertThat(response.commentId()).isEqualTo(commentId);
             verify(applicationEventPublisher).publishEvent(any(Event.CommentDeleted.class));
+            verify(postUpdater).decrementCommentCount(postId);
         }
 
         @Test
@@ -229,6 +237,7 @@ class CommentServiceTest {
                     .hasFieldOrPropertyWithValue("errorCode", CommentErrorCode.FORBIDDEN_COMMENT_DELETE);
 
             verify(applicationEventPublisher, never()).publishEvent(any());
+            verify(postUpdater, never()).decrementCommentCount(any());
         }
 
         @Test
@@ -243,6 +252,7 @@ class CommentServiceTest {
                     .hasFieldOrPropertyWithValue("errorCode", CommentErrorCode.COMMENT_NOT_FOUND);
 
             verify(applicationEventPublisher, never()).publishEvent(any());
+            verify(postUpdater, never()).decrementCommentCount(any());
         }
     }
 }
