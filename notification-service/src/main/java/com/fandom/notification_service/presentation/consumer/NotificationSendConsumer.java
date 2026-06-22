@@ -3,7 +3,7 @@ package com.fandom.notification_service.presentation.consumer;
 import com.fandom.notification_service.application.dto.CreateNotificationCommand;
 import com.fandom.notification_service.application.service.NotificationCommandService;
 import com.fandom.notification_service.infra.kafka.KafkaTopics;
-import com.fandom.notification_service.presentation.dto.NotificationSendMessage;
+import com.fandom.notification_service.presentation.dto.message.NotificationSendMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;

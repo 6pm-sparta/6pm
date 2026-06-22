@@ -2,7 +2,7 @@ package com.fandom.notification_service.presentation.consumer;
 
 import com.fandom.notification_service.application.service.NotificationDispatchService;
 import com.fandom.notification_service.infra.kafka.KafkaTopics;
-import com.fandom.notification_service.presentation.dto.PushFailedMessage;
+import com.fandom.notification_service.presentation.dto.message.PushFailedMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;

@@ -29,4 +29,5 @@ public interface ProfileRepository extends JpaRepository<Profile, UUID> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update Profile p set p.followingCount = p.followingCount - 1 where p.user.id = :userId and p.followingCount > 0")
     int decreaseFollowingCountByUserId(UUID userId);
+    boolean existsByNicknameAndIdNot(String nickname, UUID id);
 }
