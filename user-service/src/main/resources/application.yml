@@ -46,3 +46,12 @@ management:
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
+
+logging:
+  file:
+    name: ./logs/user-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO

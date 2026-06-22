@@ -1,0 +1,52 @@
+# =====================================================================
+# Promtail — 호스트(IntelliJ) 서비스가 남긴 JSON 로그 "파일"을 수집해 Loki로 전송
+# =====================================================================
+# 왜 파일 기반인가?
+#   우리 6개 서비스는 도커가 아니라 IntelliJ(호스트)에서 실행됨.
+#   → 도커 컨테이너 로그(/var/lib/docker/containers)엔 안 잡힘.
+#   → 각 서비스가 ./logs/<service>.log 에 ECS JSON 로그를 쓰고,
+#     Promtail이 프로젝트 루트(/hostlogs)에 마운트된 그 파일들을 tail 한다.
+#
+# 로그 파일 경로 규칙(IntelliJ 작업디렉터리 = 프로젝트 루트 → 모든 서비스가 한곳에):
+#   6pm/logs/user-service.log
+#   6pm/logs/feed-service.log  ...
+#   → glob: /hostlogs/logs/*.log
+# (만약 모듈별로 6pm/<svc>/logs/ 에 생기면 /hostlogs/*/logs/*.log 로 바꾸면 됨)
+# =====================================================================
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: 6pm-spring-logs
+    static_configs:
+      - targets: ["localhost"]
+        labels:
+          job: 6pm
+          __path__: /hostlogs/logs/*.log
+    pipeline_stages:
+      # 1) ECS JSON 한 줄을 파싱.
+      #    Spring Boot ECS는 "중첩" 구조: { "service":{"name":...}, "log":{"level":...} }
+      #    → 중첩 경로는 따옴표 없이 점(.)으로 탐색. @timestamp만 평면키라 따옴표.
+      - json:
+          expressions:
+            service_name: service.name
+            level: log.level
+            logger: log.logger
+            ts: '"@timestamp"'
+      # 2) 검색에 쓸 라벨만 인덱싱 (카디널리티 낮은 것만 라벨로!)
+      - labels:
+          service_name:
+          level:
+      # 3) (시계 영구수정 후 주석 해제) 로그의 실제 시각을 사용
+      #    지금은 시계 9h 틀어짐 → Promtail 수신시각(=VM시계)으로 적재해야
+      #    Loki가 "미래 로그"라며 거부하지 않음. 클럭 고치면 아래 해제.
+      # - timestamp:
+      #     source: ts
+      #     format: RFC3339Nano
