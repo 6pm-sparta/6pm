@@ -1,0 +1,22 @@
+package com.fandom.chat_service.infra.repository;
+
+import com.fandom.chat_service.domain.entity.ChatRoomMember;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.UUID;
+
+public interface ChatRoomMemberJpaRepository extends JpaRepository<ChatRoomMember, UUID> {
+
+    boolean existsByRoomIdAndUserId(UUID roomId, UUID userId);
+
+    List<ChatRoomMember> findAllByUserId(UUID userId);
+
+    List<ChatRoomMember> findAllByRoomId(UUID roomId);
+
+    void deleteByRoomIdAndUserId(UUID roomId, UUID userId);
+
+    void deleteByRoomId(UUID roomId);
+
+    void deleteByUserId(UUID userId);
+}
