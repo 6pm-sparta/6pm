@@ -12,6 +12,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -40,11 +41,16 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private final JwtValidator jwtValidator;
     private final HmacUtils hmacUtils;
     private final ObjectMapper objectMapper;
+    private final ReactiveStringRedisTemplate redisTemplate;
 
-    public JwtAuthenticationFilter(JwtValidator jwtValidator, HmacUtils hmacUtils, ObjectMapper objectMapper) {
+    private static final String ACCESS_BLACKLIST_KEY_PREFIX = "blacklist:access:";
+
+    public JwtAuthenticationFilter(JwtValidator jwtValidator, HmacUtils hmacUtils,
+                                   ObjectMapper objectMapper, ReactiveStringRedisTemplate redisTemplate) {
         this.jwtValidator = jwtValidator;
         this.hmacUtils = hmacUtils;
         this.objectMapper = objectMapper;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -62,16 +68,28 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
 
         String token = authHeader.substring(7);
+        Claims claims;
         try {
-            Claims claims = jwtValidator.parse(token);
-            ServerHttpRequest mutatedRequest = withUserIdCard(request, claims);
-            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+            claims = jwtValidator.parse(token);
         } catch (JwtException | IllegalArgumentException e) {
             // JwtException: 만료/서명불일치/형식오류 등 토큰 자체의 문제
             // IllegalArgumentException: 빈 토큰 또는 subject(userId) UUID 변환 실패
             // 그 외(NPE 등 서버 오류)는 잡지 않아 '유효하지 않은 토큰'으로 둔갑하지 않는다.
             return unauthorized(exchange, "유효하지 않은 토큰입니다.");
         }
+
+        // 로그아웃된 토큰인지 blacklist 확인 (auth가 등록한 blacklist:access:{jti}).
+        // 존재하면 차단, 없으면 UserIdCard 전파 후 통과. (보안상 메시지는 동일)
+        String jti = claims.getId();
+        return redisTemplate.hasKey(ACCESS_BLACKLIST_KEY_PREFIX + jti)
+                .defaultIfEmpty(false)
+                .flatMap(blacklisted -> {
+                    if (Boolean.TRUE.equals(blacklisted)) {
+                        return unauthorized(exchange, "유효하지 않은 토큰입니다.");
+                    }
+                    ServerHttpRequest mutatedRequest = withUserIdCard(request, claims);
+                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                });
     }
 
     /**
@@ -116,6 +134,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         HttpMethod method = request.getMethod();
 
         if (path.equals("/api/v1/auth/login")) {
+            return true;
+        }
+        // 재발급은 access 토큰이 만료된 뒤 refresh로 새 access를 받는 경로이므로
+        // Gateway의 access 토큰 검증을 거치지 않는다. (refresh 검증은 auth-service가 수행)
+        if (path.equals("/api/v1/auth/reissue") && HttpMethod.POST.equals(method)) {
             return true;
         }
         boolean isSignUp = path.equals("/api/v1/members") || path.equals("/api/v1/creators");
