@@ -119,7 +119,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return true;
         }
         boolean isSignUp = path.equals("/api/v1/members") || path.equals("/api/v1/creators");
-        return isSignUp && HttpMethod.POST.equals(method);
+        boolean isProfileLookup = (path.matches("^/api/v1/members/[^/]+/profile$")
+                || path.matches("^/api/v1/creators/[^/]+/profile$"))
+                && HttpMethod.GET.equals(method);
+        return (isSignUp && HttpMethod.POST.equals(method)) || isProfileLookup;
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
