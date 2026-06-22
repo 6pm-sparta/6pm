@@ -4,11 +4,11 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 
 import java.util.Arrays;
 
-public enum PostSort {
+public enum ReactionSort {
     LATEST, OLDEST;
 
     @JsonCreator
-    public static PostSort from(String value) {
+    public static ReactionSort from(String value) {
         return Arrays.stream(values())
                 .filter(s -> s.name().equalsIgnoreCase(value))
                 .findFirst()

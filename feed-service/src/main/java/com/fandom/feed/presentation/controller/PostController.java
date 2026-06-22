@@ -4,10 +4,10 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.PostService;
+import com.fandom.feed.application.policy.ReactionSort;
 import com.fandom.feed.global.annotation.RequireRole;
 import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.presentation.dto.request.PostRequest;
-import com.fandom.feed.application.policy.PostSort;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import jakarta.validation.Valid;
@@ -58,7 +58,7 @@ public class PostController {
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<CursorPageResponse<PostResponse.Summary>> getPosts(
             @RequestParam(required = false) UUID cursor,
-            @RequestParam(defaultValue = "LATEST") PostSort sort,
+            @RequestParam(defaultValue = "LATEST") ReactionSort sort,
             @RequestParam(required = false) UUID authorId,
             @RequestParam(required = false) String keyword,
             @CurrentIdCard UserIdCard idCard

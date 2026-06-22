@@ -2,7 +2,7 @@ package com.fandom.feed.application;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.policy.PostPolicy;
-import com.fandom.feed.application.policy.PostSort;
+import com.fandom.feed.application.policy.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
@@ -59,7 +59,7 @@ public class PostService {
     }
 
     public CursorPageResponse<PostResponse.Summary> getPosts(
-            UUID cursor, PostSort sort, UUID authorId, String keyword, UUID userId
+            UUID cursor, ReactionSort sort, UUID authorId, String keyword, UUID userId
     ) {
         // 검색 조건이 있으면 DB 조회
         if (authorId != null || keyword != null)
@@ -134,7 +134,7 @@ public class PostService {
      * DB에서 게시글 목록을 가져오는 메서드
      */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDB(
-            UUID cursor, PostSort sort, UUID authorId, String keyword, UUID userId
+            UUID cursor, ReactionSort sort, UUID authorId, String keyword, UUID userId
     ) {
         List<Post> posts = postRepository.findByCursor(cursor, sort, authorId, keyword);
 
@@ -147,7 +147,7 @@ public class PostService {
     /**
      * DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드
      */
-    private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(PostSort sort, UUID userId) {
+    private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(ReactionSort sort, UUID userId) {
         List<Post> allPosts = postRepository.findByCursorForWarm(sort);
 
         allPosts.forEach(post -> postListCacheService.addPost(post.getId(), sort));

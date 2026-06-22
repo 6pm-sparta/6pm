@@ -1,9 +1,9 @@
 package com.fandom.feed.infra.repository;
 
 import com.fandom.feed.application.policy.PostPolicy;
+import com.fandom.feed.application.policy.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.application.policy.PostSort;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -18,7 +18,7 @@ public class PostRepositoryImpl extends BaseRepositoryImpl<Post, UUID, JpaPostRe
     }
 
     @Override
-    public List<Post> findByCursor(UUID cursor, PostSort sort, UUID authorId, String keyword) {
+    public List<Post> findByCursor(UUID cursor, ReactionSort sort, UUID authorId, String keyword) {
         Pageable pageable = PageRequest.of(0, PostPolicy.PAGE_SIZE + 1);
 
         return switch (sort) {
@@ -28,7 +28,7 @@ public class PostRepositoryImpl extends BaseRepositoryImpl<Post, UUID, JpaPostRe
     }
 
     @Override
-    public List<Post> findByCursorForWarm(PostSort sort) {
+    public List<Post> findByCursorForWarm(ReactionSort sort) {
         Pageable pageable = PageRequest.of(0, PostPolicy.MAX_CACHE_SIZE);
 
         return switch (sort) {
