@@ -2,8 +2,8 @@ package com.fandom.feed.application;
 
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
-import com.fandom.feed.application.policy.PostPolicy;
-import com.fandom.feed.application.policy.ReactionSort;
+import com.fandom.feed.global.constant.FeedPolicy;
+import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
@@ -256,13 +256,13 @@ class PostServiceTest {
         @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
         void hasMoreWhenExceedsPageSize() {
             // given
-            List<UUID> postIds = IntStream.range(0, PostPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
+            List<UUID> postIds = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
 
             when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
             when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(postIds);
-            when(postCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, PostPolicy.PAGE_SIZE)
+            when(postCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.Detail.class)).toList());
-            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PostPolicy.PAGE_SIZE)
+            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
@@ -272,8 +272,8 @@ class PostServiceTest {
 
             // then
             assertThat(result.hasMore()).isTrue();
-            assertThat(result.nextCursor()).isEqualTo(postIds.get(PostPolicy.PAGE_SIZE - 1));
-            assertThat(result.content()).hasSize(PostPolicy.PAGE_SIZE);
+            assertThat(result.nextCursor()).isEqualTo(postIds.get(FeedPolicy.PAGE_SIZE - 1));
+            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
     }
 
@@ -308,14 +308,14 @@ class PostServiceTest {
         @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
         void hasMoreWhenExceedsPageSize() {
             // given
-            List<Post> posts = IntStream.range(0, PostPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
+            List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(userClient.getUsers(any()).getData()).thenReturn(List.of());
-            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PostPolicy.PAGE_SIZE)
+            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
@@ -325,8 +325,8 @@ class PostServiceTest {
 
             // then
             assertThat(result.hasMore()).isTrue();
-            assertThat(result.nextCursor()).isEqualTo(posts.get(PostPolicy.PAGE_SIZE - 1).getId());
-            assertThat(result.content()).hasSize(PostPolicy.PAGE_SIZE);
+            assertThat(result.nextCursor()).isEqualTo(posts.get(FeedPolicy.PAGE_SIZE - 1).getId());
+            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
     }
 
@@ -388,14 +388,14 @@ class PostServiceTest {
         @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor 설정")
         void buildDBResponseWhenExceedsPageSize() {
             // given
-            List<Post> posts = IntStream.range(0, PostPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
+            List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PostPolicy.PAGE_SIZE)
+            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
@@ -406,7 +406,7 @@ class PostServiceTest {
             // then
             assertThat(result.hasMore()).isTrue();
             assertThat(result.nextCursor()).isNotNull();
-            assertThat(result.content()).hasSize(PostPolicy.PAGE_SIZE);
+            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
     }
 

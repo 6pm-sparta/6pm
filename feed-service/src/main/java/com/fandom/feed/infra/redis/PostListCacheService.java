@@ -1,7 +1,7 @@
 package com.fandom.feed.infra.redis;
 
-import com.fandom.feed.application.policy.PostPolicy;
-import com.fandom.feed.application.policy.ReactionSort;
+import com.fandom.feed.global.constant.FeedPolicy;
+import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -34,13 +34,13 @@ public class PostListCacheService {
                     .reverseRangeByScore(
                             key,
                             0, cursorScore != null ? cursorScore - 1 : Double.MAX_VALUE,
-                            0, PostPolicy.PAGE_SIZE + 1
+                            0, FeedPolicy.PAGE_SIZE + 1
                     );
             case OLDEST -> redisTemplate.opsForZSet()
                     .rangeByScore(
                             key,
                             cursorScore != null ? cursorScore + 1 : 0, Double.MAX_VALUE,
-                            0, PostPolicy.PAGE_SIZE + 1
+                            0, FeedPolicy.PAGE_SIZE + 1
                     );
         };
 
@@ -53,7 +53,7 @@ public class PostListCacheService {
      */
     public boolean isCacheReady(ReactionSort sort) {
         Long size = redisTemplate.opsForZSet().size(resolveKey(sort));
-        return size != null && size >= PostPolicy.PAGE_SIZE;
+        return size != null && size >= FeedPolicy.PAGE_SIZE;
     }
 
     /**
@@ -70,9 +70,9 @@ public class PostListCacheService {
 
         // MAX_CACHE_SIZE 초과 시 게시글 ID 제거
         if (sort == ReactionSort.LATEST)
-            redisTemplate.opsForZSet().removeRange(key, 0, -(PostPolicy.MAX_CACHE_SIZE + 1));
+            redisTemplate.opsForZSet().removeRange(key, 0, -(FeedPolicy.MAX_CACHE_SIZE + 1));
         else
-            redisTemplate.opsForZSet().removeRange(key, PostPolicy.MAX_CACHE_SIZE, -1);
+            redisTemplate.opsForZSet().removeRange(key, FeedPolicy.MAX_CACHE_SIZE, -1);
     }
 
     /**

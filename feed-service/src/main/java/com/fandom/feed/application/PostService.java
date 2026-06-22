@@ -1,8 +1,8 @@
 package com.fandom.feed.application;
 
 import com.fandom.common.exception.CustomException;
-import com.fandom.feed.application.policy.PostPolicy;
-import com.fandom.feed.application.policy.ReactionSort;
+import com.fandom.feed.global.constant.FeedPolicy;
+import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
@@ -116,8 +116,8 @@ public class PostService {
      * 캐시에서 가져온 게시글 ID 목록으로 응답을 구성하는 메서드
      */
     private CursorPageResponse<PostResponse.Summary> buildCacheResponse(List<UUID> postIds, UUID userId) {
-        boolean hasMore = postIds.size() > PostPolicy.PAGE_SIZE;
-        List<UUID> pageIds = hasMore ? postIds.subList(0, PostPolicy.PAGE_SIZE) : postIds;
+        boolean hasMore = postIds.size() > FeedPolicy.PAGE_SIZE;
+        List<UUID> pageIds = hasMore ? postIds.subList(0, FeedPolicy.PAGE_SIZE) : postIds;
 
         List<PostCache.Detail> posts = postCacheService.getPostDetailBatch(pageIds);
         List<PostCache.ReactionInfo> reactionInfos = postReactionService.getReactionInfoBatch(pageIds, userId);
@@ -138,8 +138,8 @@ public class PostService {
     ) {
         List<Post> posts = postRepository.findByCursor(cursor, sort, authorId, keyword);
 
-        boolean hasMore = posts.size() > PostPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? posts.subList(0, PostPolicy.PAGE_SIZE) : posts;
+        boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
         return buildDBResponse(page, hasMore, userId);
     }
@@ -154,8 +154,8 @@ public class PostService {
 
         postListCacheService.expireCache(sort);
 
-        boolean hasMore = allPosts.size() > PostPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? allPosts.subList(0, PostPolicy.PAGE_SIZE) : allPosts;
+        boolean hasMore = allPosts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasMore ? allPosts.subList(0, FeedPolicy.PAGE_SIZE) : allPosts;
 
         return buildDBResponse(page, hasMore, userId);
     }

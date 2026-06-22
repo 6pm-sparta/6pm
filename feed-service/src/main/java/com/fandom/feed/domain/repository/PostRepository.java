@@ -1,6 +1,6 @@
 package com.fandom.feed.domain.repository;
 
-import com.fandom.feed.application.policy.ReactionSort;
+import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 
 import java.util.List;

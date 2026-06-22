@@ -4,7 +4,7 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.PostService;
-import com.fandom.feed.application.policy.ReactionSort;
+import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.global.annotation.RequireRole;
 import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.presentation.dto.request.PostRequest;

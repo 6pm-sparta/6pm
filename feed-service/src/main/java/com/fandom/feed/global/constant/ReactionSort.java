@@ -1,4 +1,4 @@
-package com.fandom.feed.application.policy;
+package com.fandom.feed.global.constant;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 
