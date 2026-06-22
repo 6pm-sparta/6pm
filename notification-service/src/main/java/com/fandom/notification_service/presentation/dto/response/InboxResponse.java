@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record InboxResponse(
-        List<NotificationItemResponse> noties,
+        List<NotificationItemResponse> notifications,
         UUID nextCursor,
         boolean hasNext
 ) {

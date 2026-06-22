@@ -32,11 +32,11 @@ public class NotificationInboxService {
         boolean hasNext = rows.size() > limit;
         List<Notification> page = hasNext ? rows.subList(0, limit) : rows;
 
-        List<NotificationItemResponse> noties = page.stream()
+        List<NotificationItemResponse> notifications = page.stream()
                 .map(NotificationItemResponse::from)
                 .toList();
-        UUID nextCursor = hasNext ? page.get(page.size() - 1).getId() : null;
-        return new InboxResponse(noties, nextCursor, hasNext);
+        UUID nextCursor = hasNext ? page.getLast().getId() : null;
+        return new InboxResponse(notifications, nextCursor, hasNext);
     }
 
     // 읽음 처리
