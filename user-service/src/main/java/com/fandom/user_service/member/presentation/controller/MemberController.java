@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -80,5 +81,16 @@ public class MemberController {
         return ResponseEntity
                 .status(HttpStatus.OK)
                 .body(ApiResponse.success(response));
+    }
+
+    /**
+     * 본인 회원 탈퇴.
+     */
+    @DeleteMapping("/members/me")
+    public ResponseEntity<ApiResponse<Void>> withdraw(@CurrentIdCard UserIdCard idCard) {
+        memberService.withdraw(idCard.getUserId());
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(ApiResponse.success());
     }
 }

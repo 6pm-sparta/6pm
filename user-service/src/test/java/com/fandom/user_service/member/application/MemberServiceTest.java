@@ -8,6 +8,7 @@ import com.fandom.user_service.member.domain.entity.User;
 import com.fandom.user_service.member.domain.exception.MemberErrorCode;
 import com.fandom.user_service.member.domain.repository.CreatorRepository;
 import com.fandom.user_service.member.domain.repository.UserRepository;
+import com.fandom.user_service.member.application.port.MemberWithdrawalEventPublisher;
 import com.fandom.user_service.member.presentation.dto.request.CreatorSignUpRequest;
 import com.fandom.user_service.member.presentation.dto.request.CreatorUpdateRequest;
 import com.fandom.user_service.member.presentation.dto.request.MemberUpdateRequest;
@@ -53,6 +54,9 @@ class MemberServiceTest {
 
     @Mock
     private ProfileService profileService;
+
+    @Mock
+    private MemberWithdrawalEventPublisher memberWithdrawalEventPublisher;
 
     @InjectMocks
     private MemberService memberService;
@@ -335,6 +339,68 @@ class MemberServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode")
                 .isEqualTo(MemberErrorCode.CREATOR_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("일반회원 탈퇴에 성공하면 상태를 DELETED로 바꾸고 탈퇴 이벤트를 발행한다")
+    void withdraw_member_success() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("member@example.com")
+                .password("password")
+                .role(Role.MEMBER)
+                .build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when
+        memberService.withdraw(userId);
+
+        // then
+        assertThat(user.getStatus()).isEqualTo(Status.DELETED);
+        assertThat(user.isDeleted()).isTrue();
+        verify(memberWithdrawalEventPublisher).publish(userId, Role.MEMBER);
+    }
+
+    @Test
+    @DisplayName("크리에이터 탈퇴에 성공하면 상태를 DELETED로 바꾸고 크리에이터 탈퇴 이벤트를 발행한다")
+    void withdraw_creator_success() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("creator@example.com")
+                .password("password")
+                .role(Role.CREATOR)
+                .build();
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when
+        memberService.withdraw(userId);
+
+        // then
+        assertThat(user.getStatus()).isEqualTo(Status.DELETED);
+        assertThat(user.isDeleted()).isTrue();
+        verify(memberWithdrawalEventPublisher).publish(userId, Role.CREATOR);
+    }
+
+    @Test
+    @DisplayName("이미 탈퇴된 회원의 탈퇴 요청은 멱등하게 성공 처리하고 이벤트를 재발행하지 않는다")
+    void withdraw_alreadyWithdrawn_idempotent() {
+        // given
+        UUID userId = UUID.randomUUID();
+        User user = User.builder()
+                .email("deleted@example.com")
+                .password("password")
+                .role(Role.MEMBER)
+                .build();
+        user.withdraw(userId);
+        given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+        // when
+        memberService.withdraw(userId);
+
+        // then
+        verify(memberWithdrawalEventPublisher, never()).publish(any(UUID.class), any(Role.class));
     }
 
     @Test
