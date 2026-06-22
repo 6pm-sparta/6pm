@@ -18,6 +18,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -116,11 +117,11 @@ public class CommentService {
 
         // 모두 탈퇴 시 User 서비스 호출 생략
         Map<UUID, UserResponse> userMap = authorIds.isEmpty()
-                ? Map.of() : userClient.getUsers(authorIds).getData()
+                ? new HashMap<>() : userClient.getUsers(authorIds).getData()
                              .stream().collect(Collectors.toMap(UserResponse::userId, u -> u));
 
         List<CommentResponse.Detail> content = comments.stream()
-                .map(c -> CommentResponse.Detail.of(c, userMap.get(c.getAuthorId()))).toList();
+                .map(c -> CommentResponse.Detail.of(c, UserResponse.of(c.getAuthorId(), userMap))).toList();
 
         UUID nextCursor = hasMore ? comments.getLast().getId() : null;
         return CursorPageResponse.of(content, nextCursor, hasMore);
