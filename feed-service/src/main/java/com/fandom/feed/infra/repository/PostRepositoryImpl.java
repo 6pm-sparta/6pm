@@ -36,4 +36,14 @@ public class PostRepositoryImpl extends BaseRepositoryImpl<Post, UUID, JpaPostRe
             case OLDEST -> jpaRepository.findBottomForWarm(pageable);
         };
     }
+
+    @Override
+    public void incrementCommentCount(UUID postId) {
+        jpaRepository.incrementCommentCount(postId);
+    }
+
+    @Override
+    public void decrementCommentCount(UUID postId) {
+        jpaRepository.decrementCommentCount(postId);
+    }
 }

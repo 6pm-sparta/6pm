@@ -19,6 +19,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class CommentService {
     private final PostReader postReader;
+    private final PostUpdater postUpdater;
     private final CommentRepository commentRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
 
@@ -28,6 +29,8 @@ public class CommentService {
 
         Comment comment = Comment.builder().postId(postId).authorId(userId).content(content).build();
         commentRepository.save(comment);
+
+        postUpdater.incrementCommentCount(postId);
 
         applicationEventPublisher.publishEvent(new Event.CommentCreated(postId));
 
@@ -57,6 +60,8 @@ public class CommentService {
             throw new CustomException(CommentErrorCode.FORBIDDEN_COMMENT_DELETE);
 
         comment.softDelete(userId);
+
+        postUpdater.decrementCommentCount(post.getId());
 
         applicationEventPublisher.publishEvent(new Event.CommentDeleted(post.getId()));
 

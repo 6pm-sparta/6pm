@@ -3,6 +3,7 @@ package com.fandom.feed.infra.repository;
 import com.fandom.feed.domain.entity.Post;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -39,4 +40,12 @@ public interface JpaPostRepository extends JpaRepository<Post, UUID> {
 
     @Query("SELECT p FROM Post p ORDER BY p.id ASC")
     List<Post> findBottomForWarm(Pageable pageable);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Post p SET p.commentCount = p.commentCount + 1 WHERE p.id = :postId")
+    void incrementCommentCount(@Param("postId") UUID postId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Post p SET p.commentCount = GREATEST(p.commentCount - 1, 0) WHERE p.id = :postId")
+    void decrementCommentCount(@Param("postId") UUID postId);
 }
