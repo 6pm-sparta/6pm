@@ -41,13 +41,14 @@ class ImageServiceTest {
     class FindAllByPostId {
         @Test
         @DisplayName("이미지 있음 - imageKeys 목록 반환")
-        void findAllByPostIdImageInDB() {
+        void findAllByPostIdImagesInDB() {
             // given
             UUID postId = UUID.randomUUID();
             List<Image> images = List.of(
                     Image.builder().postId(postId).orderIndex(0).imageKey("key1").build(),
                     Image.builder().postId(postId).orderIndex(1).imageKey("key2").build()
             );
+
             when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(images);
 
             // when
@@ -59,7 +60,7 @@ class ImageServiceTest {
 
         @Test
         @DisplayName("이미지 없음 - 빈 목록 반환")
-        void findAllByPostIdImageNotInDB() {
+        void findAllByPostIdImagesNotInDB() {
             // given
             UUID postId = UUID.randomUUID();
             when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(List.of());
@@ -77,7 +78,7 @@ class ImageServiceTest {
     class FindAllByPostIds {
         @Test
         @DisplayName("이미지 있음 - postId 기준 URL 목록 Map 반환")
-        void findAllByPostIdsImageInDB() {
+        void findAllByPostIdsImagesInDB() {
             // given
             UUID postId1 = UUID.randomUUID();
             UUID postId2 = UUID.randomUUID();
@@ -102,7 +103,7 @@ class ImageServiceTest {
 
         @Test
         @DisplayName("이미지 없음 - 빈 Map 반환")
-        void findAllByPostIdsImageNotInDB() {
+        void findAllByPostIdsImagesNotInDB() {
             // given
             when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
 

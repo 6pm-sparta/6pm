@@ -42,10 +42,10 @@ class PostCacheServiceTest {
     private UserClient userClient;
 
     @Mock
-    CacheManager cacheManager;
+    private CacheManager cacheManager;
 
     @Mock
-    Cache cache;
+    private Cache cache;
 
     @InjectMocks
     private PostCacheService postCacheService;

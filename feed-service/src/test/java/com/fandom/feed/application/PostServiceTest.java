@@ -58,7 +58,7 @@ class PostServiceTest {
     private PostReactionService postReactionService;
 
     @Mock
-    PostListCacheService postListCacheService;
+    private PostListCacheService postListCacheService;
 
     @Mock
     private UserClient userClient;
@@ -212,6 +212,7 @@ class PostServiceTest {
         void getPostsCacheReady() {
             // given
             UUID postId = UUID.randomUUID();
+
             when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(true);
             when(postListCacheService.getPostIds(PostSort.LATEST, null)).thenReturn(List.of(postId));
             when(postCacheService.getPostDetailBatch(List.of(postId))).thenReturn(List.of(mock(PostCache.Detail.class)));
@@ -234,6 +235,7 @@ class PostServiceTest {
         void noHasMoreWhenUnderPageSize() {
             // given
             UUID postId = UUID.randomUUID();
+
             when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(true);
             when(postListCacheService.getPostIds(PostSort.LATEST, null)).thenReturn(List.of(postId));
             when(postCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostCache.Detail.class)));
