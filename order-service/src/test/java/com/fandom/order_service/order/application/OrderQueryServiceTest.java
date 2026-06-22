@@ -1,6 +1,7 @@
 package com.fandom.order_service.order.application;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.order.application.query.OrderQueryService;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.exception.OrderErrorCode;
 import com.fandom.order_service.order.domain.repository.OrderRepository;

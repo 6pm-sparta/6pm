@@ -46,6 +46,8 @@ order:
     lock-wait-seconds: 3       # 분산락 획득 대기 시간 — 짧게 둬서 대기 중인 요청은 빠르게 409로 거부
     lock-hold-seconds: 5       # 분산락 점유 시간 — PG 호출 전체가 아니라 상태 전이 구간만 감싸므로 짧아도 충분
     idempotency-key-ttl-seconds: 600  # Idempotency-Key 캐시 TTL — expiration-minutes(10분)와 동일하게 맞춤
+  cancellation:
+    cancellable-window-hours: 24  # CONFIRMED 취소 가능 시간(확정 시각 기준). 임의값 — 팀 협의 필요(api 명세서 미확정 항목)
 
 eureka:
   client:

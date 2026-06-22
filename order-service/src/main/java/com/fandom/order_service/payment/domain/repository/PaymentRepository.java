@@ -1,6 +1,7 @@
 package com.fandom.order_service.payment.domain.repository;
 
 import com.fandom.order_service.payment.domain.entity.Payment;
+import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -20,4 +21,9 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
      * 최신 시도가 먼저 보이도록 호출 측에서 정렬된 결과가 필요하면 별도 정렬 파라미터를 추가한다.
      */
     List<Payment> findByOrderId(UUID orderId);
+
+    /**
+     * 주문의 승인된 결제 건 조회. 주문 취소(환불) 시 pg_transaction_id를 얻기 위해 사용한다.
+     */
+    Optional<Payment> findByOrderIdAndPaymentStatus(UUID orderId, PaymentStatus paymentStatus);
 }
