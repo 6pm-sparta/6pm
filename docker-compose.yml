@@ -1,17 +1,18 @@
 # =====================================================================
-# 6pm MSA Docker Compose (보강판) — Profile 기반
+# 6pm MSA Docker Compose — Profile 기반
 # =====================================================================
-# 변경점 vs 기존:
-#   + postgres 에 init-db.sql 마운트(서비스별 스키마 자동 생성)
-#   + Loki / Promtail / Alertmanager 추가 (o11y 프로파일)
-#   + prometheus 가 alertmanager 와 연동되도록 alertmanager.yml 추가
-#   + gateway 포트 8080 으로 통일
-#   + [신규] core/apps 9개 서비스의 build 를 공통 멀티스테이지 Dockerfile 로 연결
-#           (멀티모듈이라 context 는 레포 루트, 모듈 구분은 args.SERVICE)
+# 리뷰 반영(2026-06-22):
+#   * postgres 17-alpine 유지(다운그레이드 아님)
+#   * DB/Redis 비밀번호를 .env 로 분리(하드코딩 제거)
+#   * kafka dual-listener(INTERNAL kafka:29092 / EXTERNAL localhost:9092) 복구
+#     → kafka-ui 가 kafka:29092 로 접속(단일 리스너면 ui 연결 실패)
+#   * auth-service 복구 (chat-service 는 레포 모듈 유무 확인 후 처리 — 아래 주석)
+#   * o11y(prometheus/alertmanager/loki/promtail/grafana) 유지
 # 사용법:
 #   인프라만:        docker compose --profile infra up -d
 #   인프라+관측:     docker compose --profile infra --profile o11y up -d
 #   전체:            docker compose --profile all up -d --build
+# 비밀번호 등 비밀값은 같은 폴더의 .env 에 둔다(레포엔 .env.example 만 커밋).
 # =====================================================================
 
 services:
@@ -19,15 +20,15 @@ services:
   # 1. INFRA (DB & Middleware)
   # ---------------------------------------------------------------
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     profiles: ["infra", "all"]
     container_name: 6pm-postgres
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: fandom_db
+      POSTGRES_USER: ${POSTGRES_USER:-root}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}   # .env 에서 주입
+      POSTGRES_DB: ${POSTGRES_DB:-fandom_db}
       TZ: Asia/Seoul
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -39,7 +40,7 @@ services:
     container_name: 6pm-redis
     ports:
       - "6379:6379"
-    command: redis-server --requirepass fandom_redis_pw
+    command: redis-server --requirepass ${REDIS_PASSWORD}   # .env 에서 주입
 
   kafka:
     image: apache/kafka:3.7.0
@@ -51,11 +52,12 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # dual-listener: 컨테이너 내부는 INTERNAL(kafka:29092), 호스트는 EXTERNAL(localhost:9092)
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -72,7 +74,7 @@ services:
       - "8090:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=6pm-local-cluster
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:29092
     depends_on:
       - kafka
 
@@ -126,6 +128,16 @@ services:
   # ---------------------------------------------------------------
   # 3. APPS (비즈니스 마이크로서비스)
   # ---------------------------------------------------------------
+  auth-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: auth-service
+    profiles: ["apps", "all"]
+    container_name: 6pm-auth
+    ports: ["8087:8087"]                # ← develop 값으로 맞추세요
+
   user-service:
     build:
       context: .
@@ -186,6 +198,10 @@ services:
     container_name: 6pm-aiops
     ports: ["8086:8086"]
 
+  # chat-service: 레포에 모듈이 있으면 위 auth-service 형식으로 복구(SERVICE/포트만 변경).
+  #   레포에 아직 없으면 compose에서 빼는 게 맞고, 리뷰어에는 "미구현 서비스라 제외"로 답변.
+  #   (develop 의 정의가 있으면 그걸 그대로 가져오는 게 가장 안전)
+
   # ---------------------------------------------------------------
   # 4. O11Y (관측성)
   # ---------------------------------------------------------------
@@ -227,8 +243,6 @@ services:
     container_name: 6pm-promtail
     volumes:
       - ./infra/promtail-config.yml:/etc/promtail/config.yml
-      # 프로젝트 루트를 마운트 → 서비스들이 ./logs/*.log 에 남긴 JSON 로그를 읽음
-      # (서비스가 IntelliJ/호스트에서 실행되므로 도커 로그가 아니라 파일을 tail)
       - .:/hostlogs:ro
     command: -config.file=/etc/promtail/config.yml
     depends_on:
@@ -240,6 +254,8 @@ services:
     container_name: 6pm-grafana
     ports:
       - "3000:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
     depends_on:
       - prometheus
       - loki
