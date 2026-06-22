@@ -1,14 +1,17 @@
 package com.fandom.auth_service.auth.application;
 
 import com.fandom.auth_service.auth.domain.exception.AuthErrorCode;
+import com.fandom.auth_service.auth.domain.repository.TokenRepository;
 import com.fandom.auth_service.auth.infrastructure.client.MemberLookupClient;
 import com.fandom.auth_service.auth.infrastructure.client.dto.MemberLookupResponse;
 import com.fandom.auth_service.auth.infrastructure.jwt.JwtProvider;
 import com.fandom.auth_service.auth.presentation.dto.request.LoginRequest;
 import com.fandom.auth_service.auth.presentation.dto.response.LoginResponse;
+import com.fandom.auth_service.auth.presentation.dto.response.ReissueResponse;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
 import feign.FeignException;
+import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,12 +20,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -39,6 +45,9 @@ class AuthServiceTest {
     @Mock
     private JwtProvider jwtProvider;
 
+    @Mock
+    private TokenRepository tokenRepository;
+
     @InjectMocks
     private AuthService authService;
 
@@ -46,9 +55,27 @@ class AuthServiceTest {
     private static final String EMAIL = "test@example.com";
     private static final String RAW_PASSWORD = "password123";
     private static final String ENCODED_PASSWORD = "encoded-password";
+    private static final String REFRESH_TOKEN_ID = "refresh-token-id";
+    private static final String ACCESS_TOKEN_ID = "access-token-id";
 
     private MemberLookupResponse memberOf(String status) {
         return new MemberLookupResponse(USER_ID, EMAIL, ENCODED_PASSWORD, "MEMBER", status);
+    }
+
+    private Claims refreshClaims() {
+        Claims claims = mock(Claims.class);
+        lenient().when(claims.getSubject()).thenReturn(USER_ID.toString());
+        lenient().when(claims.getId()).thenReturn(REFRESH_TOKEN_ID);
+        lenient().when(claims.get("role", String.class)).thenReturn("MEMBER");
+        lenient().when(claims.get("status", String.class)).thenReturn("ACTIVE");
+        return claims;
+    }
+
+    private Claims accessClaims() {
+        Claims claims = mock(Claims.class);
+        lenient().when(claims.getSubject()).thenReturn(USER_ID.toString());
+        lenient().when(claims.getId()).thenReturn(ACCESS_TOKEN_ID);
+        return claims;
     }
 
     @Test
@@ -56,21 +83,28 @@ class AuthServiceTest {
     void login_success() {
         // given
         LoginRequest request = new LoginRequest(EMAIL, RAW_PASSWORD);
+        Claims refreshClaims = refreshClaims();
         given(memberLookupClient.getMemberByEmail(EMAIL))
                 .willReturn(ApiResponse.success(memberOf("ACTIVE")));
         given(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).willReturn(true);
         given(jwtProvider.createAccessToken(USER_ID, "MEMBER", "ACTIVE")).willReturn("access-token");
+        given(jwtProvider.createRefreshToken(USER_ID, "MEMBER", "ACTIVE")).willReturn("refresh-token");
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
         given(jwtProvider.getAccessTokenExpiration()).willReturn(1800000L);
+        given(jwtProvider.getRefreshTokenExpiration()).willReturn(1209600000L);
 
         // when
         LoginResponse response = authService.login(request);
 
         // then
         assertThat(response.accessToken()).isEqualTo("access-token");
+        assertThat(response.refreshToken()).isEqualTo("refresh-token");
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.expiresIn()).isEqualTo(1800000L);
         // 토큰 Claim 구성에 userId/role/status가 전달되는지 검증
         verify(jwtProvider).createAccessToken(USER_ID, "MEMBER", "ACTIVE");
+        verify(tokenRepository).saveRefreshToken(USER_ID, REFRESH_TOKEN_ID, Duration.ofMillis(1209600000L));
     }
 
     @Test
@@ -87,6 +121,55 @@ class AuthServiceTest {
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode")
                 .isEqualTo(AuthErrorCode.LOGIN_FAILED);
+    }
+
+    @Test
+    @DisplayName("유효한 Refresh Token이면 Access Token을 재발급한다")
+    void reissue_success() {
+        Claims refreshClaims = refreshClaims();
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        given(tokenRepository.existsRefreshToken(USER_ID, REFRESH_TOKEN_ID)).willReturn(true);
+        given(jwtProvider.createAccessToken(USER_ID, "MEMBER", "ACTIVE")).willReturn("new-access-token");
+        given(jwtProvider.getAccessTokenExpiration()).willReturn(1800000L);
+
+        ReissueResponse response = authService.reissue("refresh-token");
+
+        assertThat(response.accessToken()).isEqualTo("new-access-token");
+        assertThat(response.tokenType()).isEqualTo("Bearer");
+        assertThat(response.expiresIn()).isEqualTo(1800000L);
+    }
+
+    @Test
+    @DisplayName("Redis에 없는 Refresh Token이면 재발급에 실패한다")
+    void reissue_missingRefreshToken() {
+        Claims refreshClaims = refreshClaims();
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        given(tokenRepository.existsRefreshToken(USER_ID, REFRESH_TOKEN_ID)).willReturn(false);
+
+        assertThatThrownBy(() -> authService.reissue("refresh-token"))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    @Test
+    @DisplayName("로그아웃하면 Refresh Token을 삭제하고 Access Token을 blacklist에 등록한다")
+    void logout_success() {
+        Claims accessClaims = accessClaims();
+        Claims refreshClaims = refreshClaims();
+        Duration accessTtl = Duration.ofMinutes(10);
+        given(jwtProvider.parse("access-token")).willReturn(accessClaims);
+        given(jwtProvider.isAccessToken(accessClaims)).willReturn(true);
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        given(jwtProvider.getRemainingTtl(accessClaims)).willReturn(accessTtl);
+
+        authService.logout("Bearer access-token", "refresh-token");
+
+        verify(tokenRepository).deleteRefreshToken(USER_ID, REFRESH_TOKEN_ID);
+        verify(tokenRepository).blacklistAccessToken(ACCESS_TOKEN_ID, accessTtl);
     }
 
     @Test

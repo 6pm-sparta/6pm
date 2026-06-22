@@ -9,6 +9,11 @@ spring:
     name: auth-service
   config:
     import: "optional:configserver:http://localhost:8888"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:fandom_redis_pw}
   # auth-service는 자체 DB를 두지 않으므로 datasource / jpa 설정 없음
 
 eureka:
@@ -39,3 +44,4 @@ management:
 jwt:
   secret: ${JWT_SECRET:6pm-fandom-sns-temporary-dev-secret-key-must-be-at-least-32-bytes-long}
   access-token-expiration: 1800000  # 30분 (ms)
+  refresh-token-expiration: 1209600000 # 14 days (ms)
