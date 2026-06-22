@@ -31,20 +31,17 @@ scrape_configs:
           job: 6pm
           __path__: /hostlogs/logs/*.log
     pipeline_stages:
-      # 1) ECS JSON 한 줄을 파싱.
-      #    Spring Boot ECS는 "중첩" 구조: { "service":{"name":...}, "log":{"level":...} }
-      #    → 중첩 경로는 따옴표 없이 점(.)으로 탐색. @timestamp만 평면키라 따옴표.
       - json:
           expressions:
             service_name: service.name
             level: log.level
             logger: log.logger
             ts: '"@timestamp"'
-      # 2) 검색에 쓸 라벨만 인덱싱 (카디널리티 낮은 것만 라벨로!)
       - labels:
           service_name:
           level:
-      # 3) (시계 영구수정 후 주석 해제) 로그의 실제 시각을 사용
+      # TODO
+      #  (시계 영구수정 후 주석 해제) 로그의 실제 시각을 사용
       #    지금은 시계 9h 틀어짐 → Promtail 수신시각(=VM시계)으로 적재해야
       #    Loki가 "미래 로그"라며 거부하지 않음. 클럭 고치면 아래 해제.
       # - timestamp:
