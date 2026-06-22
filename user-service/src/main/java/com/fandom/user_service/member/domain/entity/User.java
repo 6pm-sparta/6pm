@@ -59,4 +59,22 @@ public class User extends BaseEntity {
         this.address1 = address1;
         this.address2 = address2;
     }
+
+    public void updateAccount(String email, String password, String zipCode, String address1, String address2) {
+        if (email != null) {
+            this.email = email;
+        }
+        if (password != null) {
+            this.password = password;
+        }
+        if (zipCode != null) {
+            this.zipCode = zipCode;
+        }
+        if (address1 != null) {
+            this.address1 = address1;
+        }
+        if (address2 != null) {
+            this.address2 = address2;
+        }
+    }
 }

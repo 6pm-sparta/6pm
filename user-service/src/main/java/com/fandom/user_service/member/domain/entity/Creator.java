@@ -37,4 +37,8 @@ public class Creator extends BaseEntity {
         this.user = user;
         this.agencyName = agencyName;
     }
+
+    public void updateAgencyName(String agencyName) {
+        this.agencyName = agencyName;
+    }
 }

@@ -11,10 +11,11 @@ spring:
     driver-class-name: org.postgresql.Driver
     url: jdbc:postgresql://localhost:5432/fandom_db?currentSchema=order_db
     username: root
-    password: password
+    password: ${DB_PASSWORD:password}
   jpa:
     hibernate:
       ddl-auto: update
+    defer-datasource-initialization: true
     properties:
       hibernate:
         default_schema: order_db
@@ -24,7 +25,33 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: fandom_redis_pw
+      password: ${REDIS_PASSWORD:fandom_redis_pw}   # docker-compose redis requirepass와 동일
+      # redisson-spring-boot-starter가 spring.data.redis.* 값을 그대로 읽어 단일 서버 모드로
+      # RedissonClient를 자동 구성한다 (별도 redisson.yaml 불필요). 분산락 TTL 등 결제 요청
+      # 전용 옵션은 OrderProperties처럼 타입세이프 설정으로 결제 요청 서비스 작업 시 추가한다.
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: order-service
+  sql:
+    init:
+      mode: always
+      schema-locations:
+        - classpath:sql/manual_migrations.sql
+
+# 주문 생성 관련 커스텀 설정 (OrderProperties로 바인딩)
+order:
+  hold:
+    claim-ttl-seconds: 30      # SETNX 1차 클레임 TTL — INSERT 끝날 때까지만 버티면 되는 짧은 값
+    cache-ttl-seconds: 600     # {holdId:orderId} 최종 캐시 TTL — 임시값(10분).
+    # TODO: Ticketing 좌석 선점 TTL과 반드시 맞춰야 함 (api 명세서 미확정 항목)
+  expiration-minutes: 10      # 주문 PENDING → 타임아웃 취소 기준 (expired_at). P1 스케줄러 구현 전까지는 값만 저장됨
+  payment-lock-properties:
+    lock-wait-seconds: 3       # 분산락 획득 대기 시간 — 짧게 둬서 대기 중인 요청은 빠르게 409로 거부
+    lock-hold-seconds: 5       # 분산락 점유 시간 — PG 호출 전체가 아니라 상태 전이 구간만 감싸므로 짧아도 충분
+    idempotency-key-ttl-seconds: 600  # Idempotency-Key 캐시 TTL — expiration-minutes(10분)와 동일하게 맞춤
+  cancellation:
+    cancellable-window-hours: 24  # CONFIRMED 취소 가능 시간(확정 시각 기준). 임의값 — 팀 협의 필요(api 명세서 미확정 항목)
 
 eureka:
   client:

@@ -29,7 +29,7 @@ public class Post extends BaseEntity {
     private Long likeCount = 0L;
 
     @Builder
-    public Post(UUID authorId, String content) {
+    private Post(UUID authorId, String content) {
         this.authorId = authorId;
         this.content = content;
     }

@@ -196,6 +196,16 @@ services:
     container_name: 6pm-auth
     ports: ["8087:8087"]
 
+  chat-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: chat-service
+    profiles: ["apps", "all"]
+    container_name: 6pm-chat
+    ports: ["8088:8088"]
+
   # ---------------------------------------------------------------
   # 4. O11Y (관측성)
   # ---------------------------------------------------------------
