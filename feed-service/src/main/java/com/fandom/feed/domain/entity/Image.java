@@ -27,7 +27,7 @@ public class Image extends BaseEntity {
     @Column(nullable = false)
     private Integer orderIndex;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String imageKey;
 
     @Builder

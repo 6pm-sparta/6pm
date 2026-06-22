@@ -1,8 +1,8 @@
 package com.fandom.feed.application;
 
+import com.fandom.feed.application.event.Event;
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.repository.ImageRepository;
-import com.fandom.feed.infra.s3.event.S3ImageDeleteEvent;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -93,6 +93,6 @@ public class ImageService {
      */
     public void publishS3DeleteEvent(List<String> ImageKeysToDelete) {
         if (!ImageKeysToDelete.isEmpty())
-            applicationEventPublisher.publishEvent(new S3ImageDeleteEvent(ImageKeysToDelete));
+            applicationEventPublisher.publishEvent(new Event.S3ImageDelete(ImageKeysToDelete));
     }
 }

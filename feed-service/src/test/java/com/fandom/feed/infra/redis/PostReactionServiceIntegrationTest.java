@@ -1,5 +1,6 @@
 package com.fandom.feed.infra.redis;
 
+import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.config.RedisConfig;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import org.junit.jupiter.api.AfterEach;
@@ -22,8 +23,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.List;
 import java.util.UUID;
 
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.COMMENT_COUNT;
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.LIKE_SET;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
@@ -63,11 +62,11 @@ public class PostReactionServiceIntegrationTest {
             UUID postId2 = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            redisTemplate.opsForValue().set(COMMENT_COUNT + postId1, "3");
-            redisTemplate.opsForValue().set(COMMENT_COUNT + postId2, "5");
+            redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId1, "3");
+            redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId2, "5");
 
-            redisTemplate.opsForSet().add(LIKE_SET + postId1, userId.toString(), "other");
-            redisTemplate.opsForSet().add(LIKE_SET + postId2, "other");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId1, userId.toString(), "other");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId2, "other");
 
             // When
             List<PostCache.ReactionInfo> results = postReactionService.getReactionInfoBatch(List.of(postId1, postId2), userId);
@@ -89,8 +88,8 @@ public class PostReactionServiceIntegrationTest {
         void getReactionInfoBatchWithoutUserId() {
             // Given
             UUID postId = UUID.randomUUID();
-            redisTemplate.opsForValue().set(COMMENT_COUNT + postId, "2");
-            redisTemplate.opsForSet().add(LIKE_SET + postId, "someone");
+            redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId, "2");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
             List<PostCache.ReactionInfo> results = postReactionService.getReactionInfoBatch(List.of(postId), null);
