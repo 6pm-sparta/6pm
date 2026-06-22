@@ -2,6 +2,7 @@ package com.fandom.order_service.payment.application.request;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
 import com.fandom.order_service.payment.domain.repository.PaymentRepository;
@@ -32,7 +33,7 @@ import java.util.concurrent.TimeUnit;
  * 3-4. orders 비관적 락 + 상태 검증(PENDING) + PAYMENT_REQUESTED 전이 + 결제 시도 레코드 생성, 커밋
  * 5. 분산락 해제
  * 6. PG API 호출 (락 없이, 동기, MVP)
- * 7. 결과 반영(PAID/FAILED) — 별도 트랜잭션
+ * 7. 결과 반영(PAID/FAILED) — 별도 트랜잭션, 커밋 후 order.payment.completed/failed 발행(#87)
  *
  * 분산락은 PG 호출 전체를 감싸지 않는다. 4번에서 상태가 이미 PAYMENT_REQUESTED로 바뀌었으므로,
  * 락이 풀린 뒤 들어오는 동시 요청은 3번 단계의 상태 검증에서 자연히 거부된다(락은 1차 방어,
@@ -59,6 +60,7 @@ public class PaymentRequestService {
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
     private final OrderProperties orderProperties;
+    private final OrderEventProducer orderEventProducer;
 
     public PaymentRequestResult requestPayment(PaymentRequest request, UUID requesterId, String idempotencyKey) {
 
@@ -121,6 +123,7 @@ public class PaymentRequestService {
         if (!pgResult.isApproved()) {
             String reason = pgResult.failureReason() != null ? pgResult.failureReason() : "PG 응답 타임아웃";
             paymentRequestWriter.applyFailure(payment.getOrderId(), payment.getId(), reason);
+            orderEventProducer.publishPaymentFailed(payment.getOrderId());
 
             // DECLINED/TIMEOUT 모두 502로 처리.
             // 실패는 캐싱하지 않는다 — 멱등키 TTL 동안 같은 키로 재시도하면 PG를 다시 호출해야
@@ -130,6 +133,7 @@ public class PaymentRequestService {
         }
 
         paymentRequestWriter.applyApproval(payment.getOrderId(), payment.getId(), pgResult.pgTransactionId());
+        orderEventProducer.publishPaymentCompleted(payment.getOrderId());
 
         Payment approved = paymentRepository.findById(payment.getId()).orElse(payment);
         PaymentResponse response = PaymentResponse.from(approved);

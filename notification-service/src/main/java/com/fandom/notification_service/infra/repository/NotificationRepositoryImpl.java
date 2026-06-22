@@ -30,8 +30,11 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
-    public List<Notification> findAllByUserId(UUID userId) {
-        return jpaRepository.findAllByUserIdOrderByCreatedAtDesc(userId);
+    public List<Notification> findInbox(UUID userId, UUID cursor, int limit) {
+        PageRequest page = PageRequest.of(0, limit);
+        return cursor == null
+                ? jpaRepository.findByUserIdOrderByIdDesc(userId, page)
+                : jpaRepository.findByUserIdAndIdLessThanOrderByIdDesc(userId, cursor, page);
     }
 
     @Override

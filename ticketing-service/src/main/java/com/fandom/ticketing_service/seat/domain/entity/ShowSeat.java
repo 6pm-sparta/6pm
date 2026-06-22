@@ -44,6 +44,7 @@ public class ShowSeat extends BaseEntity {
         this.orderId = orderId;
     }
 
+    // 좌석은 재사용 자원이라 row를 soft delete하지 않고 orderId만 비운다
     public void releaseOrder() {
         this.orderId = null;
     }

@@ -116,4 +116,60 @@ public class Order extends BaseEntity {
         this.status = OrderStatus.FAILED;
         this.statusUpdatedAt = LocalDateTime.now();
     }
+
+    /** PENDING → CANCELLED. 결제 전 취소(유저 직접 또는 추후 타임아웃 P1)에 사용한다. */
+    public void markCancelled() {
+
+        if (this.status != OrderStatus.PENDING) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.CANCELLED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * PAID/CONFIRMED → REFUND_REQUESTED. PG 환불 호출 "전"에 먼저 반영해야 한다 — 결제 요청의
+     * PAYMENT_REQUESTED 전이와 동일한 이유. 동시 취소 요청의 두 번째가 이 전이 이후 들어오면
+     * 상태가 이미 REFUND_REQUESTED라 즉시 거부된다.
+     */
+    public void markRefundRequested() {
+
+        if (this.status != OrderStatus.PAID && this.status != OrderStatus.CONFIRMED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.REFUND_REQUESTED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /** REFUND_REQUESTED → REFUNDED. PG 환불 성공 응답을 받은 직후 호출한다.*/
+    public void markRefunded() {
+
+        if (this.status != OrderStatus.REFUND_REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.REFUNDED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /** PAID → CONFIRMED. ticketing.seat.booked 수신(좌석 예매 확정 완료) 직후 호출한다.*/
+    public void markConfirmed() {
+
+        if (this.status != OrderStatus.PAID) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.CONFIRMED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * CONFIRMED 상태가 "취소 가능 시간" 내인지 확인한다. 확정 시각(statusUpdatedAt) 기준으로 판단한다.
+     * todo : 취소 가능 시간에 대해 협의 해야 함
+     */
+    public boolean isWithinCancellationWindow(long windowHours) {
+        return this.statusUpdatedAt.plusHours(windowHours).isAfter(LocalDateTime.now());
+    }
 }

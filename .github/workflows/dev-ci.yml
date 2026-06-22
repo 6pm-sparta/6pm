@@ -31,6 +31,7 @@ jobs:
             ticketing-service: 'ticketing-service/**'
             order-service: 'order-service/**'
             notification-service: 'notification-service/**'
+            chat-service: 'chat-service/**'
 
       - id: set
         run: |

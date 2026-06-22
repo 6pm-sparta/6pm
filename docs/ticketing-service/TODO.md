@@ -1,0 +1,44 @@
+# TODO
+
+## 2026-06-18
+
+### 즉시 처리 필요
+
+- [ ] `domain/` 패키지 미사용 엔티티 삭제
+  - `Performance.java`, `Show.java`, `ShowSeat.java`, `Venue.java`, `VenueSeat.java`
+
+### 기능 미구현
+
+- [ ] `QueueScheduler.ACTIVE_SHOW_IDS` 동적 조회 구현
+  - 현재 `Set.of()`로 비어있어 스케줄러 미동작
+  - DB 또는 캐시에서 활성 공연 ID 조회하도록 구현 필요
+
+- [x] 좌석 선점 해제 API (`DELETE /api/v1/tickets/shows/{showId}/seats/{seatId}/hold`) (#56, 완료 2026-06-19)
+  - TTL 자연 만료 자동 해제(`SeatHoldExpirationListener`)도 함께 구현
+  - hold/release 동시 호출 레이스는 owner 키 `PENDING`/`CONFIRMED` 상태로 차단
+
+- [ ] 구매 토큰 발급 및 검증
+
+### 버그
+
+- [x] `SeatConfirmService.confirmSeat()` 좌석 조회 실패 시 `seatId = null`로 `SeatBookFailedEvent` 발행 (#58, 완료 2026-06-19)
+
+### 코드 품질
+
+- [ ] `SeatService.hold()` switch default 케이스 → `SEAT_ALREADY_HELD` 대신 `INTERNAL_SERVER_ERROR`로 변경
+
+---
+
+## 2026-06-19
+
+### 기능 미구현
+
+- [ ] order-service 주문 취소 연동
+  - `releaseHold()`/`releaseExpiredHold()`는 ticketing-service 쪽 상태(Redis/DB)만 정리하고, order-service에 생성된 주문은 그대로 남음
+  - `OrderClient`에 취소 메서드가 없어서 발생 (#56 작업 중 발견)
+
+### 알려진 제약 (낮은 우선순위)
+
+- [ ] `SeatService.hold()`에서 `assignOrder` 저장과 owner 키 `CONFIRMED` 갱신 사이의 트랜잭션 커밋 지연 윈도우
+  - `@Transactional` 커밋 전에 owner가 `CONFIRMED`로 바뀌어, 그 틈에 release가 들어오면 이론상 레이스가 재현될 수 있음
+  - 네트워크 호출 구간(수백ms)을 막은 것에 비해 윈도우가 매우 작아(로컬 DB 커밋 지연 수준) 우선순위 낮음

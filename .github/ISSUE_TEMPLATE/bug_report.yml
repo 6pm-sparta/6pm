@@ -21,6 +21,7 @@ body:
         - ticketing-service
         - order-service
         - notification-service
+        - chat-service
         - aiops-service
         - common
         - infra (docker/CI/CD/DB)

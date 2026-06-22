@@ -34,4 +34,4 @@ cloud:
       base-url: https://temp-bucket.s3.ap-northeast-2.amazonaws.com/
 
 hmac:
-  secret-key: test-secret-key
+  secret-key: local-dev-secret-key

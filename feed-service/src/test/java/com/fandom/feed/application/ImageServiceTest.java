@@ -1,8 +1,8 @@
 package com.fandom.feed.application;
 
+import com.fandom.feed.application.event.Event;
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.repository.ImageRepository;
-import com.fandom.feed.infra.s3.event.S3ImageDeleteEvent;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -41,13 +41,14 @@ class ImageServiceTest {
     class FindAllByPostId {
         @Test
         @DisplayName("이미지 있음 - imageKeys 목록 반환")
-        void findAllByPostIdImageInDB() {
+        void findAllByPostIdImagesInDB() {
             // given
             UUID postId = UUID.randomUUID();
             List<Image> images = List.of(
                     Image.builder().postId(postId).orderIndex(0).imageKey("key1").build(),
                     Image.builder().postId(postId).orderIndex(1).imageKey("key2").build()
             );
+
             when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(images);
 
             // when
@@ -59,7 +60,7 @@ class ImageServiceTest {
 
         @Test
         @DisplayName("이미지 없음 - 빈 목록 반환")
-        void findAllByPostIdImageNotInDB() {
+        void findAllByPostIdImagesNotInDB() {
             // given
             UUID postId = UUID.randomUUID();
             when(imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId)).thenReturn(List.of());
@@ -77,7 +78,7 @@ class ImageServiceTest {
     class FindAllByPostIds {
         @Test
         @DisplayName("이미지 있음 - postId 기준 URL 목록 Map 반환")
-        void findAllByPostIdsImageInDB() {
+        void findAllByPostIdsImagesInDB() {
             // given
             UUID postId1 = UUID.randomUUID();
             UUID postId2 = UUID.randomUUID();
@@ -102,7 +103,7 @@ class ImageServiceTest {
 
         @Test
         @DisplayName("이미지 없음 - 빈 Map 반환")
-        void findAllByPostIdsImageNotInDB() {
+        void findAllByPostIdsImagesNotInDB() {
             // given
             when(imageRepository.findAllByPostIdInOrderByOrderIndexAsc(any())).thenReturn(List.of());
 
@@ -202,7 +203,7 @@ class ImageServiceTest {
             assertThat(result).containsExactly("key2", "key3");
             verify(imageRepository).deleteAllByPostId(postId);
             verify(imageRepository).saveAll(any());
-            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1"))); // key2는 유지, key1만 삭제
+            verify(applicationEventPublisher).publishEvent(new Event.S3ImageDelete(List.of("key1")));
         }
 
         @Test
@@ -222,8 +223,8 @@ class ImageServiceTest {
             // then
             assertThat(result).isEmpty();
             verify(imageRepository).deleteAllByPostId(postId);
-            verify(imageRepository, never()).saveAll(any()); // 새 이미지 없으니 saveAll 미호출
-            verify(applicationEventPublisher).publishEvent(new S3ImageDeleteEvent(List.of("key1")));
+            verify(imageRepository, never()).saveAll(any());
+            verify(applicationEventPublisher).publishEvent(new Event.S3ImageDelete(List.of("key1")));
         }
 
         @Test
@@ -242,7 +243,7 @@ class ImageServiceTest {
             assertThat(result).containsExactly("key1", "key2");
             verify(imageRepository).deleteAllByPostId(postId);
             verify(imageRepository).saveAll(any());
-            verifyNoInteractions(applicationEventPublisher); // 삭제할 키 없으니 이벤트 미발행
+            verifyNoInteractions(applicationEventPublisher);
         }
     }
 }

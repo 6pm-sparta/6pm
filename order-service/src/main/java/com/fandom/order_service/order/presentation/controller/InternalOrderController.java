@@ -1,8 +1,8 @@
 package com.fandom.order_service.order.presentation.controller;
 
 import com.fandom.common.dto.ApiResponse;
-import com.fandom.order_service.order.application.OrderCreationResult;
-import com.fandom.order_service.order.application.OrderCreationService;
+import com.fandom.order_service.order.application.creation.OrderCreationResult;
+import com.fandom.order_service.order.application.creation.OrderCreationService;
 import com.fandom.order_service.order.presentation.dto.request.CreateOrderRequest;
 import com.fandom.order_service.order.presentation.dto.response.OrderResponse;
 import jakarta.validation.Valid;

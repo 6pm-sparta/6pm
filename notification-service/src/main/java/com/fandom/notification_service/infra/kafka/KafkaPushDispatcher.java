@@ -1,7 +1,7 @@
 package com.fandom.notification_service.infra.kafka;
 
 import com.fandom.notification_service.application.port.PushDispatchPort;
-import com.fandom.notification_service.presentation.dto.PushFailedMessage;
+import com.fandom.notification_service.presentation.dto.message.PushFailedMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;

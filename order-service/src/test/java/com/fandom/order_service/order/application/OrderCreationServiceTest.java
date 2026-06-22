@@ -1,6 +1,9 @@
 package com.fandom.order_service.order.application;
 
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.order.application.creation.OrderCreationResult;
+import com.fandom.order_service.order.application.creation.OrderCreationService;
+import com.fandom.order_service.order.application.creation.OrderCreationWriter;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
@@ -55,7 +58,8 @@ class OrderCreationServiceTest {
     void setUp() {
         OrderProperties orderProperties = new OrderProperties(
                 new OrderProperties.Hold(30L, 600L), 10,
-                new OrderProperties.PaymentLockProperties(3L, 5L, 600L));
+                new OrderProperties.PaymentLockProperties(3L, 5L, 600L),
+                new OrderProperties.Cancellation(24L));
         orderCreationService = new OrderCreationService(
                 redisTemplate, orderRepository, orderCreationWriter, orderProperties);
 

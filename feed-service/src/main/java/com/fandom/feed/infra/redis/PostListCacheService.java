@@ -1,6 +1,8 @@
 package com.fandom.feed.infra.redis;
 
+import com.fandom.feed.application.policy.PostPolicy;
 import com.fandom.feed.application.policy.PostSort;
+import com.fandom.feed.global.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -9,11 +11,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-
-import static com.fandom.feed.application.policy.PostPolicy.MAX_CACHE_SIZE;
-import static com.fandom.feed.application.policy.PostPolicy.PAGE_SIZE;
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_LIST_LATEST;
-import static com.fandom.feed.infra.redis.config.RedisKeyPrefix.POST_LIST_OLDEST;
 
 @Service
 @RequiredArgsConstructor
@@ -34,9 +31,17 @@ public class PostListCacheService {
 
         Set<String> ids = switch (sort) {
             case LATEST -> redisTemplate.opsForZSet()
-                    .reverseRangeByScore(key, 0, cursorScore != null ? cursorScore - 1 : Double.MAX_VALUE, 0, PAGE_SIZE + 1);
+                    .reverseRangeByScore(
+                            key,
+                            0, cursorScore != null ? cursorScore - 1 : Double.MAX_VALUE,
+                            0, PostPolicy.PAGE_SIZE + 1
+                    );
             case OLDEST -> redisTemplate.opsForZSet()
-                    .rangeByScore(key, cursorScore != null ? cursorScore + 1 : 0, Double.MAX_VALUE, 0, PAGE_SIZE + 1);
+                    .rangeByScore(
+                            key,
+                            cursorScore != null ? cursorScore + 1 : 0, Double.MAX_VALUE,
+                            0, PostPolicy.PAGE_SIZE + 1
+                    );
         };
 
         if (ids == null) return List.of();
@@ -48,7 +53,7 @@ public class PostListCacheService {
      */
     public boolean isCacheReady(PostSort sort) {
         Long size = redisTemplate.opsForZSet().size(resolveKey(sort));
-        return size != null && size >= PAGE_SIZE;
+        return size != null && size >= PostPolicy.PAGE_SIZE;
     }
 
     /**
@@ -65,9 +70,9 @@ public class PostListCacheService {
 
         // MAX_CACHE_SIZE 초과 시 게시글 ID 제거
         if (sort == PostSort.LATEST)
-            redisTemplate.opsForZSet().removeRange(key, 0, -(MAX_CACHE_SIZE + 1));
+            redisTemplate.opsForZSet().removeRange(key, 0, -(PostPolicy.MAX_CACHE_SIZE + 1));
         else
-            redisTemplate.opsForZSet().removeRange(key, MAX_CACHE_SIZE, -1);
+            redisTemplate.opsForZSet().removeRange(key, PostPolicy.MAX_CACHE_SIZE, -1);
     }
 
     /**
@@ -83,8 +88,8 @@ public class PostListCacheService {
      */
     private String resolveKey(PostSort sort) {
         return switch (sort) {
-            case LATEST -> POST_LIST_LATEST;
-            case OLDEST -> POST_LIST_OLDEST;
+            case LATEST -> RedisKeyPrefix.POST_LIST_LATEST;
+            case OLDEST -> RedisKeyPrefix.POST_LIST_OLDEST;
         };
     }
 
@@ -92,7 +97,7 @@ public class PostListCacheService {
      * 목록 캐시에서 사용하는 모든 Redis 키를 반환하는 메서드
      */
     private List<String> allKeys() {
-        return List.of(POST_LIST_LATEST, POST_LIST_OLDEST);
+        return List.of(RedisKeyPrefix.POST_LIST_LATEST, RedisKeyPrefix.POST_LIST_OLDEST);
     }
 
     /**

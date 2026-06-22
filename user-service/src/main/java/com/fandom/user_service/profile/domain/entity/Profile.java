@@ -66,4 +66,48 @@ public class Profile extends BaseEntity {
         this.followerCount = (followerCount != null) ? followerCount : 0;
         this.followingCount = (followingCount != null) ? followingCount : 0;
     }
+
+    public void increaseFollowerCount() {
+        this.followerCount++;
+    }
+
+    public void decreaseFollowerCount() {
+        if (this.followerCount > 0) {
+            this.followerCount--;
+        }
+    }
+
+    public void increaseFollowingCount() {
+        this.followingCount++;
+    }
+
+    public void decreaseFollowingCount() {
+        if (this.followingCount > 0) {
+            this.followingCount--;
+        }
+    }
+
+    public void update(String nickname, LocalDate birthday, String profileMessage,
+                       String profileImage, String bannerImage) {
+        if (nickname != null) {
+            this.nickname = nickname;
+        }
+        if (birthday != null) {
+            this.birthday = birthday;
+        }
+        if (profileMessage != null) {
+            this.profileMessage = profileMessage;
+        }
+        if (profileImage != null) {
+            this.profileImage = profileImage;
+        }
+        if (bannerImage != null) {
+            this.bannerImage = bannerImage;
+        }
+    }
+
+    public void updateWithoutBirthday(String nickname, String profileMessage,
+                                      String profileImage, String bannerImage) {
+        update(nickname, null, profileMessage, profileImage, bannerImage);
+    }
 }

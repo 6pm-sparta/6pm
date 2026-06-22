@@ -39,11 +39,13 @@ public class UserNotificationToken extends BaseEntity {
         this.notified = true;
     }
 
-    // 등록시 기존 토큰 행의 소유자/타입 갱신, 수신 ON
+    // 토큰 등록 - 재등록 시 설정 유지
     public void reassign(UUID userId, DeviceType deviceType) {
+        if (!this.userId.equals(userId)) {
+            this.notified = true;
+        }
         this.userId = userId;
         this.deviceType = deviceType;
-        this.notified = true;
     }
 
     // 알림 설정

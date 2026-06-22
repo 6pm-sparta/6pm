@@ -21,6 +21,11 @@ public class UserNotificationTokenRepositoryImpl implements UserNotificationToke
     }
 
     @Override
+    public Optional<UserNotificationToken> findById(UUID id) {
+        return jpaRepository.findById(id);
+    }
+
+    @Override
     public Optional<UserNotificationToken> findByDeviceToken(String deviceToken) {
         return jpaRepository.findByDeviceToken(deviceToken);
     }
@@ -28,6 +33,11 @@ public class UserNotificationTokenRepositoryImpl implements UserNotificationToke
     @Override
     public List<UserNotificationToken> findAllByUserIdAndNotifiedTrue(UUID userId) {
         return jpaRepository.findAllByUserIdAndNotifiedTrue(userId);
+    }
+
+    @Override
+    public void deleteById(UUID id) {
+        jpaRepository.deleteById(id);
     }
 
     @Override

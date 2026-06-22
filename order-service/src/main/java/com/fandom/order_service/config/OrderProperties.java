@@ -18,7 +18,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record OrderProperties(
         Hold hold,
         int expirationMinutes,
-        PaymentLockProperties paymentLockProperties) {
+        PaymentLockProperties paymentLockProperties,
+        Cancellation cancellation) {
     public record Hold(
             long claimTtlSeconds,
             long cacheTtlSeconds
@@ -29,6 +30,16 @@ public record OrderProperties(
             long lockWaitSeconds,
             long lockHoldSeconds,
             long idempotencyKeyTtlSeconds
+    ) {
+    }
+
+    /**
+     * cancellableWindowHours: CONFIRMED 상태 주문의 취소 가능 시간(시간 단위). 확정 시각
+     * (statusUpdatedAt) 기준으로 계산한다.
+     * 일단 임의값(24h)으로 설정.
+     */
+    public record Cancellation(
+            long cancellableWindowHours
     ) {
     }
 }
