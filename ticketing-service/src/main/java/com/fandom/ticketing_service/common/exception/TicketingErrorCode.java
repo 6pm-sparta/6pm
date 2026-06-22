@@ -11,6 +11,9 @@ public enum TicketingErrorCode implements ErrorCode {
 
     SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 좌석입니다."),
     SEAT_ALREADY_HELD(HttpStatus.CONFLICT, "이미 선점된 좌석입니다."),
+    SEAT_NOT_HELD(HttpStatus.CONFLICT, "선점 상태가 아닌 좌석입니다."),
+    SEAT_HOLD_FORBIDDEN(HttpStatus.FORBIDDEN, "본인이 선점한 좌석만 해제할 수 있습니다."),
+    SEAT_HOLD_PROCESSING(HttpStatus.CONFLICT, "선점 처리 중입니다. 잠시 후 다시 시도해주세요."),
     NO_INVENTORY(HttpStatus.CONFLICT, "잔여 좌석이 없습니다."),
     PURCHASE_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "구매 한도를 초과했습니다."),
     ORDER_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "주문 생성에 실패했습니다."),

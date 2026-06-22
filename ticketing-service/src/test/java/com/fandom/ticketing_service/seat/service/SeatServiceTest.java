@@ -117,7 +117,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(1L);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
             given(orderClient.create(any(CreateOrderRequest.class))).willReturn(new CreateOrderResponse(orderId));
 
             // when
@@ -148,7 +148,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(0L);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(0L);
 
             // when & then
             assertThatThrownBy(() -> seatService.hold(seatId, UUID.randomUUID()))
@@ -165,7 +165,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-1L);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-1L);
 
             // when & then
             assertThatThrownBy(() -> seatService.hold(seatId, UUID.randomUUID()))
@@ -182,7 +182,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-2L);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-2L);
 
             // when & then
             assertThatThrownBy(() -> seatService.hold(seatId, UUID.randomUUID()))
@@ -200,7 +200,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(1L);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
             given(orderClient.create(any())).willThrow(new RuntimeException("order-service 연결 실패"));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
 
@@ -210,9 +210,97 @@ class SeatServiceTest {
                     .extracting("errorCode")
                     .isEqualTo(TicketingErrorCode.ORDER_CREATE_FAILED);
 
-            verify(redisTemplate).delete(anyString());
+            verify(redisTemplate, times(2)).delete(anyString());
             verify(valueOperations).increment(anyString());
             verify(valueOperations).decrement(anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("좌석 선점 해제")
+    class ReleaseHold {
+
+        @Test
+        @DisplayName("선점 해제 성공 시 재고가 복구되고 DB orderId가 해제된다")
+        void releaseHold_success() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            seat.assignOrder(UUID.randomUUID());
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(1L);
+
+            // when
+            seatService.releaseHold(seatId, userId);
+
+            // then
+            assertThat(seat.getOrderId()).isNull();
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 좌석이면 SEAT_NOT_FOUND 예외가 발생한다")
+        void releaseHold_seatNotFound() {
+            // given
+            given(showSeatRepository.findById(any())).willReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> seatService.releaseHold(UUID.randomUUID(), UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("선점되어 있지 않으면 SEAT_NOT_HELD 예외가 발생한다")
+        void releaseHold_notHeld() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-1L);
+
+            // when & then
+            assertThatThrownBy(() -> seatService.releaseHold(seatId, UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_NOT_HELD);
+        }
+
+        @Test
+        @DisplayName("본인이 선점한 좌석이 아니면 SEAT_HOLD_FORBIDDEN 예외가 발생한다")
+        void releaseHold_forbidden() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-2L);
+
+            // when & then
+            assertThatThrownBy(() -> seatService.releaseHold(seatId, UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_HOLD_FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("주문 생성이 아직 진행 중이면 SEAT_HOLD_PROCESSING 예외가 발생한다")
+        void releaseHold_processing() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-3L);
+
+            // when & then
+            assertThatThrownBy(() -> seatService.releaseHold(seatId, UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_HOLD_PROCESSING);
         }
     }
 }
