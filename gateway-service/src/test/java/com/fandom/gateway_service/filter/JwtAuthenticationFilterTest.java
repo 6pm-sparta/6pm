@@ -49,9 +49,11 @@ class JwtAuthenticationFilterTest {
         filter = new JwtAuthenticationFilter(jwtValidator, hmacUtils, new ObjectMapper(), redisTemplate);
     }
 
+    private static final UUID USER_ID = UUID.randomUUID();
+
     private Claims claimsOf(String jti) {
         Claims claims = mock(Claims.class);
-        lenient().when(claims.getSubject()).thenReturn(UUID.randomUUID().toString());
+        lenient().when(claims.getSubject()).thenReturn(USER_ID.toString());
         lenient().when(claims.get("role", String.class)).thenReturn("MEMBER");
         lenient().when(claims.getId()).thenReturn(jti);
         return claims;
@@ -112,6 +114,7 @@ class JwtAuthenticationFilterTest {
         given(jwtValidator.parse(anyString())).willReturn(claims);
         given(hmacUtils.sign(any())).willReturn("sig");
         given(redisTemplate.hasKey("blacklist:access:jti-1")).willReturn(Mono.just(false));
+        given(redisTemplate.hasKey("blacklist:user:" + USER_ID)).willReturn(Mono.just(false));
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/v1/users/me")
                         .header("Authorization", "Bearer good-token").build());
@@ -127,9 +130,27 @@ class JwtAuthenticationFilterTest {
         Claims claims = claimsOf("jti-2");
         given(jwtValidator.parse(anyString())).willReturn(claims);
         given(redisTemplate.hasKey("blacklist:access:jti-2")).willReturn(Mono.just(true));
+        given(redisTemplate.hasKey("blacklist:user:" + USER_ID)).willReturn(Mono.just(false));
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/v1/users/me")
                         .header("Authorization", "Bearer logged-out-token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
+    @DisplayName("사용자 단위 blacklist에 있으면(탈퇴 회원 토큰) 401로 차단한다")
+    void validToken_userBlacklisted_unauthorized() {
+        Claims claims = claimsOf("jti-3");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        given(redisTemplate.hasKey("blacklist:access:jti-3")).willReturn(Mono.just(false));
+        given(redisTemplate.hasKey("blacklist:user:" + USER_ID)).willReturn(Mono.just(true));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer withdrawn-user-token").build());
 
         filter.filter(exchange, chain).block();
 

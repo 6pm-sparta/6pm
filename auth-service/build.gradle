@@ -16,6 +16,7 @@ dependencies {
 	// 요청 검증 (@Valid)
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.kafka:spring-kafka'
 
 	// 서비스 간 동기 호출 (user-service 내부 회원 조회 API 호출용)
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'

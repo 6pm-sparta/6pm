@@ -44,6 +44,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private final ReactiveStringRedisTemplate redisTemplate;
 
     private static final String ACCESS_BLACKLIST_KEY_PREFIX = "blacklist:access:";
+    private static final String USER_BLACKLIST_KEY_PREFIX = "blacklist:user:";
 
     public JwtAuthenticationFilter(JwtValidator jwtValidator, HmacUtils hmacUtils,
                                    ObjectMapper objectMapper, ReactiveStringRedisTemplate redisTemplate) {
@@ -79,12 +80,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         }
 
         // 로그아웃된 토큰인지 blacklist 확인 (auth가 등록한 blacklist:access:{jti}).
+        // 회원 탈퇴 등 user 단위 무효화도 blacklist:user:{userId}로 함께 확인한다.
         // 존재하면 차단, 없으면 UserIdCard 전파 후 통과. (보안상 메시지는 동일)
         String jti = claims.getId();
-        return redisTemplate.hasKey(ACCESS_BLACKLIST_KEY_PREFIX + jti)
-                .defaultIfEmpty(false)
-                .flatMap(blacklisted -> {
-                    if (Boolean.TRUE.equals(blacklisted)) {
+        String userId = claims.getSubject();
+        Mono<Boolean> accessBlacklisted = redisTemplate.hasKey(ACCESS_BLACKLIST_KEY_PREFIX + jti)
+                .defaultIfEmpty(false);
+        Mono<Boolean> userBlacklisted = redisTemplate.hasKey(USER_BLACKLIST_KEY_PREFIX + userId)
+                .defaultIfEmpty(false);
+        return Mono.zip(accessBlacklisted, userBlacklisted)
+                .flatMap(result -> {
+                    if (Boolean.TRUE.equals(result.getT1()) || Boolean.TRUE.equals(result.getT2())) {
                         return unauthorized(exchange, "유효하지 않은 토큰입니다.");
                     }
                     ServerHttpRequest mutatedRequest = withUserIdCard(request, claims);
