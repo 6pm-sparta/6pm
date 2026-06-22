@@ -173,6 +173,25 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("access\uc640 refresh\uc758 \uc18c\uc720\uc790(userId)\uac00 \ub2e4\ub974\uba74 \ub85c\uadf8\uc544\uc6c3\uc744 \uac70\ubd80\ud55c\ub2e4")
+    void logout_userIdMismatch() {
+        Claims accessClaims = accessClaims();
+        Claims refreshClaims = mock(Claims.class);
+        // refresh\uc758 subject\ub97c \ub2e4\ub978 userId\ub85c \ub454\ub2e4 (access\uc640 \ubd88\uc77c\uce58)
+        lenient().when(refreshClaims.getSubject()).thenReturn(UUID.randomUUID().toString());
+        lenient().when(refreshClaims.getId()).thenReturn(REFRESH_TOKEN_ID);
+        given(jwtProvider.parse("access-token")).willReturn(accessClaims);
+        given(jwtProvider.isAccessToken(accessClaims)).willReturn(true);
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+
+        assertThatThrownBy(() -> authService.logout("Bearer access-token", "refresh-token"))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(AuthErrorCode.INVALID_REFRESH_TOKEN);
+    }
+
+    @Test
     @DisplayName("존재하지 않는 회원이면(Feign 404) 계정 노출 없이 LOGIN_FAILED로 변환된다")
     void login_memberNotFound() {
         // given
