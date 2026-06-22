@@ -1,4 +1,4 @@
-package com.fandom.notification_service.presentation.dto;
+package com.fandom.notification_service.presentation.dto.message;
 
 import com.fandom.notification_service.domain.entity.NotificationType;
 import com.fasterxml.jackson.annotation.JsonProperty;
