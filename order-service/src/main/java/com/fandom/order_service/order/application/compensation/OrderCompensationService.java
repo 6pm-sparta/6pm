@@ -67,8 +67,10 @@ public class OrderCompensationService {
             log.warn("[SAGA 보상] 환불 재시도 {}/{} 실패. orderId={}, reason={}",
                     attempt, maxAttempts, orderId, pgResult.failureReason());
 
-            if (attempt < maxAttempts) {
-                sleep(backoffMillis);
+            // 인터럽트 시 재시도 없이 바로 빠져나온다.
+            if (!sleep(backoffMillis)) {
+                log.warn("[SAGA 보상] 재시도 중 인터럽트 발생 - 루프 중단. orderId={}, attempt={}", orderId, attempt);
+                break;
             }
         }
 
@@ -78,11 +80,13 @@ public class OrderCompensationService {
                 orderId, payment.getId(), payment.getPgTransactionId());
     }
 
-    private void sleep(long millis) {
+    private boolean sleep(long millis) {
         try {
             Thread.sleep(millis);
+            return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            return false;
         }
     }
 }
