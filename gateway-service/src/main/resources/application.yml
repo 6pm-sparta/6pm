@@ -6,6 +6,11 @@ spring:
     name: gateway-service
   config:
     import: "optional:configserver:http://localhost:8888"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:fandom_redis_pw}
   cloud:
     gateway:
       discovery:
@@ -22,7 +27,7 @@ spring:
           # NOTE(임시): 회원가입 경로가 /api/v1/members, /api/v1/creators 로 분리돼 있어 함께 라우팅한다.
           # 추후 user-service 경로를 /api/v1/users/** 로 통일하는 리팩터링 시 정리한다.
           predicates:
-            - Path=/api/v1/users/**,/api/v1/members/**,/api/v1/creators/**
+            - Path=/api/v1/users/**,/api/v1/members/**,/api/v1/creators/**,/api/v1/follows/**
         - id: feed-service
           uri: lb://FEED-SERVICE
           predicates:
