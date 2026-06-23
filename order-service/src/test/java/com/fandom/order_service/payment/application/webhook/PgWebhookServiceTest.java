@@ -2,9 +2,16 @@ package com.fandom.order_service.payment.application.webhook;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.kafka.producer.OrderEventProducer;
+import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
+import com.fandom.order_service.payment.domain.entity.Payment;
+import com.fandom.order_service.payment.domain.entity.PaymentMethod;
+import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
+import com.fandom.order_service.payment.domain.repository.PaymentRepository;
 import com.fandom.order_service.payment.infra.pg.PgWebhookHmacUtil;
 import com.fandom.order_service.payment.presentation.dto.request.PgWebhookRequest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,7 +20,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -36,24 +45,48 @@ class PgWebhookServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private PaymentRepository paymentRepository;
+
+    @Mock
+    private PaymentRequestWriter paymentRequestWriter;
+
+    @Mock
+    private OrderEventProducer orderEventProducer;
+
     private final OrderProperties orderProperties = new OrderProperties(
             null, 0, null, null, null,
             new OrderProperties.PgWebhook("secret", "http://localhost", 0L, 600L));
 
     private PgWebhookService pgWebhookService;
 
-    private final PgWebhookRequest request =
-            new PgWebhookRequest("PG-1234", UUID.randomUUID(), "APPROVED", 50_000L, null);
+    private final UUID orderId = UUID.randomUUID();
+    private final UUID paymentId = UUID.randomUUID();
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
-        pgWebhookService = new PgWebhookService(signatureVerifier, redisTemplate, orderProperties);
+        pgWebhookService = new PgWebhookService(
+                signatureVerifier, redisTemplate, orderProperties, paymentRepository, paymentRequestWriter, orderEventProducer);
+    }
+
+    private Payment requestedPaymentWithPgTransactionId(String pgTransactionId, Long amount) {
+        Payment payment = Payment.builder()
+                .orderId(orderId)
+                .amount(amount)
+                .paymentStatus(PaymentStatus.REQUESTED)
+                .paymentMethod(PaymentMethod.CARD)
+                .idempotencyKey("idem-key")
+                .build();
+        payment.recordPgTransactionId(pgTransactionId);
+        ReflectionTestUtils.setField(payment, "id", paymentId);
+        return payment;
     }
 
     @Test
     @DisplayName("서명 검증에 실패하면 INVALID_SIGNATURE 예외를 던진다")
     void receive_invalidSignature_throws() {
         // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "APPROVED", 50_000L, null);
         given(signatureVerifier.verify(request, "bad-signature")).willReturn(false);
 
         // when & then
@@ -62,39 +95,124 @@ class PgWebhookServiceTest {
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(PaymentErrorCode.INVALID_SIGNATURE);
 
-        verify(redisTemplate, never()).opsForValue();
+        verify(valueOperations, never()).setIfAbsent(any(), any(), any());
     }
 
     @Test
-    @DisplayName("서명 검증을 통과하고 신규 pgTransactionId면 정상 처리되고 예외가 없다")
-    void receive_validAndNew_completesWithoutError() {
+    @DisplayName("승인(APPROVED) 콜백을 받으면 applyApproval을 호출하고 결제완료 이벤트를 발행한다")
+    void receive_approved_dispatchesApprovalAndPublishesEvent() {
         // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "APPROVED", 50_000L, null);
         given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-1234"))
+                .willReturn(Optional.of(requestedPaymentWithPgTransactionId("PG-1234", 50_000L)));
+        given(paymentRequestWriter.applyApproval(orderId, paymentId)).willReturn(true);
 
-        // when & then
-        assertThatCode(() -> pgWebhookService.receive(request, "good-signature")).doesNotThrowAnyException();
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(paymentRequestWriter).applyApproval(orderId, paymentId);
+        verify(orderEventProducer).publishPaymentCompleted(orderId);
     }
 
     @Test
-    @DisplayName("이미 처리된 pgTransactionId(중복 수신)면 조용히 무시하고 예외가 없다")
+    @DisplayName("실패(FAILED) 콜백을 받으면 applyFailure를 호출하고 결제실패 이벤트를 발행한다")
+    void receive_failed_dispatchesFailureAndPublishesEvent() {
+        // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-5678", orderId, "FAILED", 50_000L, "잔액이 부족합니다.");
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-5678"))
+                .willReturn(Optional.of(requestedPaymentWithPgTransactionId("PG-5678", 50_000L)));
+        given(paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.")).willReturn(true);
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(paymentRequestWriter).applyFailure(orderId, paymentId, "잔액이 부족합니다.");
+        verify(orderEventProducer).publishPaymentFailed(orderId);
+    }
+
+    @Test
+    @DisplayName("이미 처리된 주문이면(Writer가 no-op으로 false 반환) 이벤트를 다시 발행하지 않는다")
+    void receive_alreadyProcessed_doesNotRepublishEvent() {
+        // given — Redis dedupe TTL이 만료된 뒤 같은 pgTransactionId로 재전송된 상황을 가정
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "APPROVED", 50_000L, null);
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-1234"))
+                .willReturn(Optional.of(requestedPaymentWithPgTransactionId("PG-1234", 50_000L)));
+        given(paymentRequestWriter.applyApproval(orderId, paymentId)).willReturn(false); // no-op
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(orderEventProducer, never()).publishPaymentCompleted(any());
+    }
+
+    @Test
+    @DisplayName("pgTransactionId에 해당하는 결제 건을 찾지 못하면 조용히 무시하고 예외가 없다")
+    void receive_unknownPgTransactionId_silentlyIgnored() {
+        // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-unknown", orderId, "APPROVED", 50_000L, null);
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-unknown")).willReturn(Optional.empty());
+
+        // when & then
+        assertThatCode(() -> pgWebhookService.receive(request, "good-signature")).doesNotThrowAnyException();
+        verify(paymentRequestWriter, never()).applyApproval(any(), any());
+    }
+
+    @Test
+    @DisplayName("amount가 결제 시도 금액과 다르면 적용하지 않는다")
+    void receive_amountMismatch_skipsApplication() {
+        // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "APPROVED", 999_999L, null);
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-1234"))
+                .willReturn(Optional.of(requestedPaymentWithPgTransactionId("PG-1234", 50_000L)));
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(paymentRequestWriter, never()).applyApproval(any(), any());
+        verify(orderEventProducer, never()).publishPaymentCompleted(any());
+    }
+
+    @Test
+    @DisplayName("이미 처리된 pgTransactionId(중복 수신, Redis dedupe)면 조용히 무시하고 예외가 없다")
     void receive_duplicatePgTransactionId_silentlyIgnored() {
         // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "APPROVED", 50_000L, null);
         given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(false); // 이미 누가 선점함
 
         // when & then
         assertThatCode(() -> pgWebhookService.receive(request, "good-signature")).doesNotThrowAnyException();
+        verify(paymentRepository, never()).findByPgTransactionId(any());
     }
 
     @Test
     @DisplayName("Redis 장애 시 중복수신 1차 방어를 건너뛰고 통과시킨다(예외를 던지지 않음)")
     void receive_redisDown_fallsThroughWithoutError() {
         // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "APPROVED", 50_000L, null);
         given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
         given(redisTemplate.opsForValue()).willThrow(new RedisConnectionFailureException("redis down"));
+        given(paymentRepository.findByPgTransactionId("PG-1234")).willReturn(Optional.empty());
 
         // when & then
         assertThatCode(() -> pgWebhookService.receive(request, "good-signature")).doesNotThrowAnyException();

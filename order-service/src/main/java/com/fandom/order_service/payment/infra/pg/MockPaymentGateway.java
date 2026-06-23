@@ -14,10 +14,10 @@ import java.util.UUID;
  * 시나리오는 임의(랜덤)가 아니라 idempotencyKey 접두사로 결정론적으로 트리거한다.
  * 랜덤 실패를 쓰면 테스트가 불안정(flaky)해지고, 특정 실패/타임아웃 경로를 재현하기도 어렵다.
  *
- * - idempotencyKey가 "FAIL_"로 시작 → DECLINED(동기) / 콜백 status=FAILED(비동기)
- * - idempotencyKey가 "TIMEOUT_"로 시작 → TIMEOUT(동기, PG 응답 없음 시뮬레이션) /
- *   콜백을 영영 보내지 않음(비동기, webhook 자체가 안 오는 상황 시뮬레이션 — #109 복구 정책 테스트용)
- * - 그 외 → APPROVED / 콜백 status=APPROVED
+ * - idempotencyKey가 "FAIL_"로 시작 → 콜백 status=FAILED
+ * - idempotencyKey가 "TIMEOUT_"로 시작 → 콜백을 영영 보내지 않음(webhook 자체가 안 오는 상황 시뮬레이션,
+ *   #109 PAYMENT_REQUESTED 좀비상태 정책 검증용)
+ * - 그 외 → 콜백 status=APPROVED
  *
  * 접두사 규칙은 테스트 코드와 (필요 시) Postman 시나리오에서 동일하게 사용한다.
  */
@@ -30,26 +30,6 @@ public class MockPaymentGateway implements PaymentGateway {
     private static final String TIMEOUT_PREFIX = "TIMEOUT_";
 
     private final PgWebhookCallbackSender callbackSender;
-
-    @Override
-    public PgApprovalResult requestApproval(String idempotencyKey, Long amount, PaymentMethod paymentMethod) {
-
-        if (idempotencyKey != null && idempotencyKey.startsWith(TIMEOUT_PREFIX)) {
-            log.warn("[MockPG] 타임아웃 시뮬레이션. idempotencyKey={}", idempotencyKey);
-            return PgApprovalResult.timeout();
-        }
-
-        if (idempotencyKey != null && idempotencyKey.startsWith(FAIL_PREFIX)) {
-            log.info("[MockPG] 결제 거절 시뮬레이션. idempotencyKey={}", idempotencyKey);
-            return PgApprovalResult.declined("잔액이 부족합니다.");
-        }
-
-        String pgTransactionId = "PG-" + UUID.randomUUID();
-        log.info("[MockPG] 결제 승인. amount={}, paymentMethod={}, pgTransactionId={}",
-                amount, paymentMethod, pgTransactionId);
-
-        return PgApprovalResult.approved(pgTransactionId);
-    }
 
     @Override
     public PgRefundResult requestRefund(String pgTransactionId, Long amount) {
@@ -97,7 +77,7 @@ public class MockPaymentGateway implements PaymentGateway {
             log.warn("[MockPG] pgTransactionId 없이 비동기 환불 요청이 들어왔습니다. 콜백을 보내지 않습니다.");
             return;
         }
-        
+
         log.info("[MockPG] 비동기 환불 요청 접수. orderId={}, pgTransactionId={}, amount={}",
                 orderId, pgTransactionId, amount);
         callbackSender.sendDelayed(new PgWebhookRequest(pgTransactionId, orderId, "REFUNDED", amount, null));
