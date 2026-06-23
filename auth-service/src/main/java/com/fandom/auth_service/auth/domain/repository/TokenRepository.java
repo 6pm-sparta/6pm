@@ -12,4 +12,6 @@ public interface TokenRepository {
     void deleteRefreshToken(UUID userId, String tokenId);
 
     void blacklistAccessToken(String tokenId, Duration ttl);
+
+    void revokeUserTokens(UUID userId, Duration accessTokenTtl);
 }
