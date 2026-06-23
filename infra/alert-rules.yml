@@ -51,3 +51,4 @@ groups:
         annotations:
           summary: "{{ $labels.job }} DOWN"
           description: "{{ $labels.job }} 가 1분 이상 응답 없음 (instance {{ $labels.instance }})"
+
