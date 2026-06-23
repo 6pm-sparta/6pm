@@ -30,7 +30,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.5-flash      # 모델은 여기만 바꾸면 됨 (gemini-flash-latest 등)
+          GEMINI_MODEL: gemini-3.1-flash-lite      # 모델은 여기만 바꾸면 됨 (gemini-flash-latest 등)
           REVIEW_PROMPT: |
             너는 6pm Fandom SNS 프로젝트의 엄격한 Spring Boot MSA 수석 아키텍트야.
             아래 제공된 Git Diff 코드를 리뷰하고, 한국어로 친절하지만 단호하게 피드백을 남겨줘.
