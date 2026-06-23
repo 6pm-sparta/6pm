@@ -11,6 +11,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 /**
  * 사용자(users) 엔티티.
  * 일반회원/크리에이터/마스터가 role로 구분되며, 공통 계정 정보를 담는다.
@@ -76,5 +78,17 @@ public class User extends BaseEntity {
         if (address2 != null) {
             this.address2 = address2;
         }
+    }
+
+    public void withdraw(UUID deletedBy) {
+        if (isWithdrawn()) {
+            return;
+        }
+        this.status = Status.DELETED;
+        softDelete(deletedBy);
+    }
+
+    public boolean isWithdrawn() {
+        return this.status == Status.DELETED || isDeleted();
     }
 }

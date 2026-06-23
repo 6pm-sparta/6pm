@@ -6,10 +6,11 @@ package com.fandom.auth_service.auth.presentation.dto.response;
  */
 public record LoginResponse(
         String accessToken,
+        String refreshToken,
         String tokenType,
         long expiresIn
 ) {
-    public static LoginResponse of(String accessToken, long expiresIn) {
-        return new LoginResponse(accessToken, "Bearer", expiresIn);
+    public static LoginResponse of(String accessToken, String refreshToken, long expiresIn) {
+        return new LoginResponse(accessToken, refreshToken, "Bearer", expiresIn);
     }
 }

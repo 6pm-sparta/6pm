@@ -1,4 +1,4 @@
-package com.fandom.order_service.payment.application;
+package com.fandom.order_service.payment.application.request;
 
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;

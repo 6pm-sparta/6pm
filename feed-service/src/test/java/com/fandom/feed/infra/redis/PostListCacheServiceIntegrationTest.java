@@ -1,7 +1,7 @@
 package com.fandom.feed.infra.redis;
 
-import com.fandom.feed.application.policy.PostPolicy;
-import com.fandom.feed.application.policy.PostSort;
+import com.fandom.feed.global.constant.FeedPolicy;
+import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.config.RedisConfig;
 import org.junit.jupiter.api.AfterEach;
@@ -68,7 +68,7 @@ class PostListCacheServiceIntegrationTest {
             redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_LATEST, post3.toString(), 3000);
 
             // When
-            List<UUID> result = postListCacheService.getPostIds(PostSort.LATEST, null);
+            List<UUID> result = postListCacheService.getPostIds(ReactionSort.LATEST, null);
 
             // Then
             assertThat(result).containsExactly(post3, post2, post1);
@@ -87,7 +87,7 @@ class PostListCacheServiceIntegrationTest {
             redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_OLDEST, post3.toString(), 3000);
 
             // When
-            List<UUID> result = postListCacheService.getPostIds(PostSort.OLDEST, null);
+            List<UUID> result = postListCacheService.getPostIds(ReactionSort.OLDEST, null);
 
             // Then
             assertThat(result).containsExactly(post1, post2, post3);
@@ -106,7 +106,7 @@ class PostListCacheServiceIntegrationTest {
             redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_LATEST, post3.toString(), 3000);
 
             // When
-            List<UUID> result = postListCacheService.getPostIds(PostSort.LATEST, post3);
+            List<UUID> result = postListCacheService.getPostIds(ReactionSort.LATEST, post3);
 
             // Then
             assertThat(result).containsExactly(post2, post1);
@@ -125,7 +125,7 @@ class PostListCacheServiceIntegrationTest {
             redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_OLDEST, post3.toString(), 3000);
 
             // When
-            List<UUID> result = postListCacheService.getPostIds(PostSort.OLDEST, post1);
+            List<UUID> result = postListCacheService.getPostIds(ReactionSort.OLDEST, post1);
 
             // Then
             assertThat(result).containsExactly(post2, post3);
@@ -138,7 +138,7 @@ class PostListCacheServiceIntegrationTest {
             UUID unknownCursor = UUID.randomUUID();
 
             // When
-            List<UUID> result = postListCacheService.getPostIds(PostSort.LATEST, unknownCursor);
+            List<UUID> result = postListCacheService.getPostIds(ReactionSort.LATEST, unknownCursor);
 
             // Then
             assertThat(result).isNull();
@@ -155,7 +155,7 @@ class PostListCacheServiceIntegrationTest {
             UUID postId = UUID.randomUUID();
 
             // When
-            postListCacheService.addPost(postId, PostSort.LATEST);
+            postListCacheService.addPost(postId, ReactionSort.LATEST);
 
             // Then
             Double latestScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_LATEST, postId.toString());
@@ -172,7 +172,7 @@ class PostListCacheServiceIntegrationTest {
             UUID postId = UUID.randomUUID();
 
             // When
-            postListCacheService.addPost(postId, PostSort.OLDEST);
+            postListCacheService.addPost(postId, ReactionSort.OLDEST);
 
             // Then
             Double latestScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_LATEST, postId.toString());
@@ -189,17 +189,17 @@ class PostListCacheServiceIntegrationTest {
             UUID oldestPost = UUID.randomUUID();
             redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_LATEST, oldestPost.toString(), 1);
 
-            for (int i = 2; i <= PostPolicy.MAX_CACHE_SIZE; i++)
+            for (int i = 2; i <= FeedPolicy.MAX_CACHE_SIZE; i++)
                 redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_LATEST, UUID.randomUUID().toString(), i);
 
             // When
-            postListCacheService.addPost(UUID.randomUUID(), PostSort.LATEST);
+            postListCacheService.addPost(UUID.randomUUID(), ReactionSort.LATEST);
 
             // Then
             Long size = redisTemplate.opsForZSet().size(RedisKeyPrefix.POST_LIST_LATEST);
             Double oldestScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_LATEST, oldestPost.toString());
 
-            assertThat(size).isEqualTo(PostPolicy.MAX_CACHE_SIZE);
+            assertThat(size).isEqualTo(FeedPolicy.MAX_CACHE_SIZE);
             assertThat(oldestScore).isNull();
         }
 
@@ -210,17 +210,17 @@ class PostListCacheServiceIntegrationTest {
             UUID newestPost = UUID.randomUUID();
             redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_OLDEST, newestPost.toString(), Long.MAX_VALUE);
 
-            for (int i = 1; i <= PostPolicy.MAX_CACHE_SIZE - 1; i++)
+            for (int i = 1; i <= FeedPolicy.MAX_CACHE_SIZE - 1; i++)
                 redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_OLDEST, UUID.randomUUID().toString(), i);
 
             // When
-            postListCacheService.addPost(UUID.randomUUID(), PostSort.OLDEST);
+            postListCacheService.addPost(UUID.randomUUID(), ReactionSort.OLDEST);
 
             // Then
             Long size = redisTemplate.opsForZSet().size(RedisKeyPrefix.POST_LIST_OLDEST);
             Double newestScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_OLDEST, newestPost.toString());
 
-            assertThat(size).isEqualTo(PostPolicy.MAX_CACHE_SIZE);
+            assertThat(size).isEqualTo(FeedPolicy.MAX_CACHE_SIZE);
             assertThat(newestScore).isNull();
         }
     }

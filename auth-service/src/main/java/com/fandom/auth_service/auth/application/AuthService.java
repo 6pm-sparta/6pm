@@ -1,17 +1,24 @@
 package com.fandom.auth_service.auth.application;
 
 import com.fandom.auth_service.auth.domain.exception.AuthErrorCode;
+import com.fandom.auth_service.auth.domain.repository.TokenRepository;
 import com.fandom.auth_service.auth.infrastructure.client.MemberLookupClient;
 import com.fandom.auth_service.auth.infrastructure.client.dto.MemberLookupResponse;
 import com.fandom.auth_service.auth.infrastructure.jwt.JwtProvider;
 import com.fandom.auth_service.auth.presentation.dto.request.LoginRequest;
 import com.fandom.auth_service.auth.presentation.dto.response.LoginResponse;
+import com.fandom.auth_service.auth.presentation.dto.response.ReissueResponse;
 import com.fandom.common.exception.CustomException;
 import feign.FeignException;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.UUID;
 
 /**
  * 로그인 처리 서비스.
@@ -27,6 +34,7 @@ public class AuthService {
     private final MemberLookupClient memberLookupClient;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final TokenRepository tokenRepository;
 
     public LoginResponse login(LoginRequest request) {
         MemberLookupResponse member = lookupMember(request.email());
@@ -42,7 +50,44 @@ public class AuthService {
         }
 
         String accessToken = jwtProvider.createAccessToken(member.userId(), member.role(), member.status());
-        return LoginResponse.of(accessToken, jwtProvider.getAccessTokenExpiration());
+        String refreshToken = jwtProvider.createRefreshToken(member.userId(), member.role(), member.status());
+        Claims refreshClaims = parseRefreshToken(refreshToken);
+        tokenRepository.saveRefreshToken(
+                member.userId(),
+                refreshClaims.getId(),
+                Duration.ofMillis(jwtProvider.getRefreshTokenExpiration())
+        );
+        return LoginResponse.of(accessToken, refreshToken, jwtProvider.getAccessTokenExpiration());
+    }
+
+    public ReissueResponse reissue(String refreshToken) {
+        Claims refreshClaims = parseRefreshToken(refreshToken);
+        UUID userId = UUID.fromString(refreshClaims.getSubject());
+        String refreshTokenId = refreshClaims.getId();
+
+        if (refreshTokenId == null || !tokenRepository.existsRefreshToken(userId, refreshTokenId)) {
+            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        String accessToken = jwtProvider.createAccessToken(
+                userId,
+                refreshClaims.get("role", String.class),
+                refreshClaims.get("status", String.class)
+        );
+        return ReissueResponse.of(accessToken, jwtProvider.getAccessTokenExpiration());
+    }
+
+    public void logout(String authorizationHeader, String refreshToken) {
+        Claims accessClaims = parseAccessToken(extractBearerToken(authorizationHeader));
+        Claims refreshClaims = parseRefreshToken(refreshToken);
+        UUID userId = UUID.fromString(accessClaims.getSubject());
+
+        if (!userId.toString().equals(refreshClaims.getSubject())) {
+            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        tokenRepository.deleteRefreshToken(userId, refreshClaims.getId());
+        tokenRepository.blacklistAccessToken(accessClaims.getId(), jwtProvider.getRemainingTtl(accessClaims));
     }
 
     /**
@@ -58,5 +103,36 @@ public class AuthService {
             log.error("[AuthService] 회원 조회 실패 - status: {}, message: {}", e.status(), e.getMessage());
             throw new CustomException(AuthErrorCode.MEMBER_LOOKUP_FAILED);
         }
+    }
+
+    private Claims parseRefreshToken(String token) {
+        try {
+            Claims claims = jwtProvider.parse(token);
+            if (!jwtProvider.isRefreshToken(claims) || claims.getId() == null) {
+                throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+            }
+            return claims;
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new CustomException(AuthErrorCode.INVALID_REFRESH_TOKEN);
+        }
+    }
+
+    private Claims parseAccessToken(String token) {
+        try {
+            Claims claims = jwtProvider.parse(token);
+            if (!jwtProvider.isAccessToken(claims) || claims.getId() == null) {
+                throw new CustomException(AuthErrorCode.INVALID_ACCESS_TOKEN);
+            }
+            return claims;
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new CustomException(AuthErrorCode.INVALID_ACCESS_TOKEN);
+        }
+    }
+
+    private String extractBearerToken(String authorizationHeader) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith("Bearer ")) {
+            throw new CustomException(AuthErrorCode.INVALID_ACCESS_TOKEN);
+        }
+        return authorizationHeader.substring(7);
     }
 }

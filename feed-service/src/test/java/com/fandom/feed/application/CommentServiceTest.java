@@ -1,5 +1,7 @@
 package com.fandom.feed.application;
 
+import com.fandom.common.dto.ApiResponse;
+import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.event.Event;
 import com.fandom.feed.domain.entity.Comment;
@@ -7,7 +9,12 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.CommentErrorCode;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.CommentRepository;
+import com.fandom.feed.global.constant.FeedPolicy;
+import com.fandom.feed.global.constant.ReactionSort;
+import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.presentation.dto.response.CommentResponse;
+import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -19,8 +26,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,6 +49,9 @@ class CommentServiceTest {
 
     @Mock
     private ApplicationEventPublisher applicationEventPublisher;
+
+    @Mock
+    private UserClient userClient;
 
     @InjectMocks
     private CommentService commentService;
@@ -101,6 +113,201 @@ class CommentServiceTest {
             verify(commentRepository, never()).save(any());
             verify(applicationEventPublisher, never()).publishEvent(any());
             verify(postUpdater, never()).incrementCommentCount(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("게시글 댓글 목록 조회")
+    class GetCommentsForPost {
+        private UUID postId;
+        private UUID authorId;
+        private Post post;
+        private List<Comment> comments;
+        private UserResponse userResponse;
+
+        @BeforeEach
+        void setUp() {
+            postId = UUID.randomUUID();
+            authorId = UUID.randomUUID();
+
+            post = Post.builder().authorId(authorId).content("게시글").build();
+            ReflectionTestUtils.setField(post, "id", postId);
+
+            Comment comment1 = Comment.builder().postId(postId).authorId(authorId).content("첫번째 댓글").build();
+            ReflectionTestUtils.setField(comment1, "id", UUID.randomUUID());
+
+            Comment comment2 = Comment.builder().postId(postId).authorId(authorId).content("두번째 댓글").build();
+            ReflectionTestUtils.setField(comment2, "id", UUID.randomUUID());
+
+            comments = List.of(comment1, comment2);
+            userResponse = new UserResponse(authorId, "작성자");
+        }
+
+        @Test
+        @DisplayName("게시글 있음 - 댓글 목록 반환")
+        void getCommentsForPostInDB() {
+            // given
+            when(postReader.findById(postId)).thenReturn(post);
+            when(commentRepository.findByCursorAndPostId(null, ReactionSort.LATEST, postId)).thenReturn(comments);
+            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+
+            // when
+            CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForPost(
+                    postId, null, ReactionSort.LATEST
+            );
+
+            // then
+            assertThat(response.content()).hasSize(2);
+            assertThat(response.hasMore()).isFalse();
+            assertThat(response.nextCursor()).isNull();
+
+            verify(postReader).findById(postId);
+            verify(commentRepository).findByCursorAndPostId(null, ReactionSort.LATEST, postId);
+            verify(userClient).getUsers(any());
+        }
+
+        @Test
+        @DisplayName("PAGE_SIZE 초과 - hasMore = true")
+        void getCommentsForPostWhenExceedsPageSize() {
+            // given
+            List<Comment> comments = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1)
+                    .mapToObj(i -> {
+                        Comment c = Comment.builder().postId(postId).authorId(authorId).content("댓글 " + i).build();
+                        ReflectionTestUtils.setField(c, "id", UUID.randomUUID());
+                        return c;
+                    }).toList();
+
+            when(postReader.findById(postId)).thenReturn(post);
+            when(commentRepository.findByCursorAndPostId(null, ReactionSort.LATEST, postId)).thenReturn(comments);
+            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+
+            // when
+            CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForPost(
+                    postId, null, ReactionSort.LATEST
+            );
+
+            // then
+            assertThat(response.content()).hasSize(FeedPolicy.PAGE_SIZE);
+            assertThat(response.hasMore()).isTrue();
+            assertThat(response.nextCursor()).isNotNull();
+
+            verify(postReader).findById(postId);
+            verify(commentRepository).findByCursorAndPostId(null, ReactionSort.LATEST, postId);
+            verify(userClient).getUsers(any());
+        }
+
+        @Test
+        @DisplayName("탈퇴 회원 댓글 포함 - '탈퇴한 사용자'로 표시")
+        void getCommentsForPostWithdrawnAuthor() {
+            // given
+            Comment comments = Comment.builder().postId(postId).authorId(null).content("탈퇴 회원 댓글").build();
+            ReflectionTestUtils.setField(comments, "id", UUID.randomUUID());
+
+            when(postReader.findById(postId)).thenReturn(post);
+            when(commentRepository.findByCursorAndPostId(null, ReactionSort.LATEST, postId)).thenReturn(List.of(comments));
+
+            // when
+            CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForPost(
+                    postId, null, ReactionSort.LATEST
+            );
+
+            // then
+            assertThat(response.content().getFirst().author().nickname()).isEqualTo("탈퇴한 사용자");
+
+            verify(postReader).findById(postId);
+            verify(commentRepository).findByCursorAndPostId(null, ReactionSort.LATEST, postId);
+            verifyNoInteractions(userClient);
+        }
+
+        @Test
+        @DisplayName("게시글 없음 - 예외 발생")
+        void getCommentsForPostNotInDB() {
+            // given
+            when(postReader.findById(postId)).thenThrow(new CustomException(PostErrorCode.POST_NOT_FOUND));
+
+            // when & then
+            assertThatThrownBy(() -> commentService.getCommentsForPost(postId, null, ReactionSort.LATEST))
+                    .isInstanceOf(CustomException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.POST_NOT_FOUND);
+
+            verify(postReader).findById(postId);
+            verifyNoInteractions(commentRepository, userClient);
+        }
+    }
+
+    @Nested
+    @DisplayName("사용자 댓글 목록 조회")
+    class GetCommentsForUser {
+        private UUID authorId;
+        private List<Comment> comments;
+        private UserResponse userResponse;
+
+        @BeforeEach
+        void setUp() {
+            UUID postId = UUID.randomUUID();
+            authorId = UUID.randomUUID();
+
+            Post post = Post.builder().authorId(authorId).content("게시글").build();
+            ReflectionTestUtils.setField(post, "id", postId);
+
+            Comment comment1 = Comment.builder().postId(postId).authorId(authorId).content("첫번째 댓글").build();
+            ReflectionTestUtils.setField(comment1, "id", UUID.randomUUID());
+
+            Comment comment2 = Comment.builder().postId(postId).authorId(authorId).content("두번째 댓글").build();
+            ReflectionTestUtils.setField(comment2, "id", UUID.randomUUID());
+
+            comments = List.of(comment1, comment2);
+            userResponse = new UserResponse(authorId, "작성자");
+        }
+
+        @Test
+        @DisplayName("본인 조회 - 댓글 목록 반환")
+        void getCommentsForUserIsMine() {
+            // given
+            when(commentRepository.findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId)).thenReturn(comments);
+            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+
+            // when
+            CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(
+                    null, ReactionSort.LATEST, authorId, true, false
+            );
+
+            // then
+            assertThat(response.content()).hasSize(2);
+            assertThat(response.hasMore()).isFalse();
+
+            verify(commentRepository).findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId);
+            verify(userClient).getUsers(any());
+        }
+
+        @Test
+        @DisplayName("MASTER 조회 - 댓글 목록 반환")
+        void getCommentsForUserIsMaster() {
+            // given
+            when(commentRepository.findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId)).thenReturn(comments);
+            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+
+            // when
+            CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(
+                    null, ReactionSort.LATEST, authorId, false, true
+            );
+
+            // then
+            assertThat(response.content()).hasSize(2);
+
+            verify(commentRepository).findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId);
+            verify(userClient).getUsers(any());
+        }
+
+        @Test
+        @DisplayName("권한 없음 - 예외 발생")
+        void getCommentsForUser_forbidden() {
+            // when & then
+            assertThatThrownBy(() -> commentService.getCommentsForUser(null, ReactionSort.LATEST, authorId, false, false))
+                    .isInstanceOf(CustomException.class)
+                    .hasFieldOrPropertyWithValue("errorCode", CommonErrorCode.FORBIDDEN);
+
+            verifyNoInteractions(commentRepository, userClient);
         }
     }
 
