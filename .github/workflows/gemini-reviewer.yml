@@ -2,7 +2,8 @@ name: 🤖 Gemini PR Code Reviewer
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    # PR 생성 초기에만 리뷰한다(커밋 push마다 재호출되던 synchronize 제거 → API 호출량 절감).
+    types: [opened, reopened]
     paths-ignore:
       - 'docs/**'
 
@@ -30,7 +31,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.5-flash      # 모델은 여기만 바꾸면 됨 (gemini-flash-latest 등)
+          GEMINI_MODEL: gemini-3.1-flash-lite   # 무료 한도 여유있는 모델(RPD 500). 2.5-flash는 RPD 20으로 429 빈발.
           REVIEW_PROMPT: |
             너는 6pm Fandom SNS 프로젝트의 엄격한 Spring Boot MSA 수석 아키텍트야.
             아래 제공된 Git Diff 코드를 리뷰하고, 한국어로 친절하지만 단호하게 피드백을 남겨줘.
@@ -61,18 +62,39 @@ jobs:
             // ✅ v1beta + 현재 모델. 키는 URL 쿼리스트링 대신 헤더로 전달(노출 최소화).
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-            const response = await fetch(url, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-goog-api-key': process.env.GEMINI_API_KEY
-              },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: promptText }] }]
-              })
-            });
+            // 일시적 오류(429 한도/503 과부하)는 지수 백오프로 재시도한다.
+            // 재시도로 흡수되지 않은 경우에만 아래에서 실패 처리한다.
+            const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+            const RETRYABLE = [429, 500, 502, 503, 504];
+            const MAX_ATTEMPTS = 4;
 
-            // ❗ 실패하면 job을 빨간불로 (예전엔 return만 해서 ✅로 끝나 리뷰 안 달려도 성공처럼 보였음)
+            const callGemini = async () => {
+              return await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-goog-api-key': process.env.GEMINI_API_KEY
+                },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: promptText }] }]
+                })
+              });
+            };
+
+            let response;
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+              response = await callGemini();
+              if (response.ok || !RETRYABLE.includes(response.status)) {
+                break; // 성공했거나, 재시도해도 소용없는 오류(4xx 등)면 중단
+              }
+              if (attempt < MAX_ATTEMPTS) {
+                const waitMs = 2000 * Math.pow(2, attempt - 1); // 2s, 4s, 8s
+                console.log(`Gemini ${response.status} 응답, ${waitMs}ms 후 재시도 (${attempt}/${MAX_ATTEMPTS - 1})`);
+                await sleep(waitMs);
+              }
+            }
+
+            // ❗ 재시도 후에도 실패하면 job을 빨간불로. (단, 브랜치 보호 규칙에서 required check 제외 → PR 머지는 막지 않음)
             if (!response.ok) {
               const errorText = await response.text();
               core.setFailed("Gemini API Error (" + response.status + "): " + errorText);
