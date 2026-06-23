@@ -454,8 +454,8 @@ class CommentServiceTest {
         }
 
         @Test
-        @DisplayName("실패 - 존재하지 않는 댓글이면 예외를 던진다")
-        void deleteComment_commentNotFound() {
+        @DisplayName("댓글 없음 - 예외 발생")
+        void deleteCommentNotInDB() {
             // given
             when(commentRepository.findById(commentId)).thenReturn(Optional.empty());
 

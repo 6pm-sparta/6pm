@@ -323,7 +323,7 @@ class PostServiceTest {
 
     @Test
     @DisplayName("DB에서 게시글 목록 조회 후 캐시 워밍업")
-    void getPostsFromDBAndWarm () {
+    void getPostsFromDBAndWarm() {
         // given
         UUID postId = UUID.randomUUID();
         Post post = mock(Post.class);
