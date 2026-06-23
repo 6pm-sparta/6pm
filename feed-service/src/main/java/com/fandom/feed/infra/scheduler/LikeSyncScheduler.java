@@ -1,8 +1,8 @@
 package com.fandom.feed.infra.scheduler;
 
 import com.fandom.feed.domain.entity.Like;
+import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.repository.JpaLikeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -20,10 +20,10 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class LikeSyncScheduler {
-    private final JpaLikeRepository likeRepository;
+    private final LikeRepository likeRepository;
     private final RedisTemplate<String, String> redisTemplate;
 
-    @Scheduled(fixedDelay = 300000)
+    @Scheduled(fixedDelayString = "${scheduler.like-sync.fixed-delay}")
     public void syncLikes() {
         Map<UUID, Set<UUID>> dbLikes = likeRepository.findAll()
                 .stream()

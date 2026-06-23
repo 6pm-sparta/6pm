@@ -36,4 +36,9 @@ public class LikeRepositoryImpl extends BaseRepositoryImpl<Like, UUID, JpaLikeRe
             case OLDEST -> jpaRepository.findOldestByUserId(cursor, userId, pageable);
         };
     }
+
+    @Override
+    public List<Like> findAll() {
+        return jpaRepository.findAll();
+    }
 }
