@@ -1,9 +1,9 @@
 server:
-  port: 8085
+  port: 8088
 
 spring:
   application:
-    name: notification-service
+    name: chat-service
   config:
     import: "optional:configserver:http://localhost:8888"
   datasource:
@@ -16,30 +16,9 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
-        default_schema: notify_db
+        default_schema: chat_db
         format_sql: true
     show-sql: true
-  kafka:
-    bootstrap-servers: localhost:9092
-    consumer:
-      group-id: notification-service
-
-logging:
-  file:
-    name: ./logs/notification-service.log
-  structured:
-    format:
-      file: ecs
-  level:
-    root: INFO
-
-notification:
-  reconciler:
-    batch-size: 100
-    cutoff-minutes: 5
-    interval-ms: 300000
-  dispatch:
-    max-attempt: 3
 
 eureka:
   client:
