@@ -1,4 +1,4 @@
-package com.fandom.feed.infra.s3.event;
+package com.fandom.feed.application.event;
 
 import com.fandom.feed.infra.s3.S3Service;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +12,7 @@ public class S3ImageDeleteEventListener {
     private final S3Service s3Service;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handleS3ImageDelete(S3ImageDeleteEvent event) {
+    public void handleS3ImageDelete(Event.S3ImageDelete event) {
         s3Service.deleteAll(event.imageKeys());
     }
 }

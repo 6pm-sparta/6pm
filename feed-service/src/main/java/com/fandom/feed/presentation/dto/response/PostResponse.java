@@ -53,7 +53,7 @@ public class PostResponse {
         }
     }
 
-    public record Delete(UUID postId, LocalDateTime updatedAt) {
+    public record Delete(UUID postId, LocalDateTime deletedAt) {
         public static Delete from(Post post) {
             return new Delete(post.getId(), post.getDeletedAt());
         }

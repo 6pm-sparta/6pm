@@ -39,6 +39,15 @@ spring:
       schema-locations:
         - classpath:sql/manual_migrations.sql
 
+logging:
+  file:
+    name: ./logs/order-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
+
 # 주문 생성 관련 커스텀 설정 (OrderProperties로 바인딩)
 order:
   hold:

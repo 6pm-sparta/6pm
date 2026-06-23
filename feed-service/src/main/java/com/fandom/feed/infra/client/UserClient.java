@@ -16,9 +16,9 @@ import java.util.UUID;
         fallbackFactory = UserClientFallbackFactory.class
 )
 public interface UserClient {
-    @GetMapping("/internal/users/{id}")
-    ApiResponse<UserResponse> getUser(@PathVariable UUID id);
+    @GetMapping("/internal/v1/users/{userId}")
+    ApiResponse<UserResponse> getUser(@PathVariable UUID userId);
 
-    @PostMapping("/internal/users")
-    ApiResponse<List<UserResponse>> getUsers(@RequestBody Set<UUID> ids);
+    @PostMapping("/internal/v1/users")
+    ApiResponse<List<UserResponse>> getUsers(@RequestBody Set<UUID> userIds);
 }

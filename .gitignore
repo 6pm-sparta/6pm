@@ -53,3 +53,7 @@ docker_data/
 
 # Local runtime artifacts
 *-bootrun.log
+
+## log
+**/logs/
+*.log

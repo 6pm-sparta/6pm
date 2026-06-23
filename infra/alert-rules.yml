@@ -1,0 +1,54 @@
+# =====================================================================
+# Prometheus Alert Rules — 임계치 초과 시 Alertmanager 로 발화
+# (Alertmanager 가 AIOps 서비스 웹훅으로 전달 → Claude 분석 → Slack)
+# Spring Boot Actuator + micrometer 가 노출하는 표준 메트릭 기준.
+# =====================================================================
+groups:
+  - name: 6pm-service-alerts
+    rules:
+      # CPU 사용률 80% 초과 (프로세스 CPU 사용량, 2분 지속)
+      - alert: HighCpuUsage
+        expr: process_cpu_usage > 0.8
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.application }} CPU 80% 초과"
+          description: "{{ $labels.application }} 인스턴스 CPU 사용률 {{ $value | humanizePercentage }} (2분 지속)"
+
+      # HikariCP DB 커넥션 풀 고갈 (대기 중인 스레드 존재)
+      - alert: DbConnectionPoolExhausted
+        expr: hikaricp_connections_pending > 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.application }} DB 커넥션 풀 부족"
+          description: "{{ $labels.application }} HikariCP 대기 커넥션 {{ $value }}건 (1분 지속)"
+
+      # JVM Heap 사용률 90% 초과
+      - alert: HighHeapUsage
+        expr: sum by (application)(jvm_memory_used_bytes{area="heap"}) / sum by (application)(jvm_memory_max_bytes{area="heap"}) > 0.9
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.application }} Heap 90% 초과"
+          description: "JVM Heap 사용률 {{ $value | humanizePercentage }}"
+
+      # Kafka Consumer Lag 누적 (스트림 처리 지연)
+      - alert: KafkaConsumerLag
+        expr: kafka_consumer_fetch_manager_records_lag_max > 1000
+        for: 3m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.application }} Kafka Consumer Lag 누적"
+          description: "최대 Lag {{ $value }}건 (3분 지속)"
+
+      # 서비스 다운 (스크레이프 실패) — up 메트릭엔 application 라벨이 없으므로 job 사용
+      # ⚠️ 로컬에서 일부 서비스만 켜면 안 켠 서비스는 정상적으로 DOWN으로 발화함(의도된 동작)
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.job }} DOWN"
+          description: "{{ $labels.job }} 가 1분 이상 응답 없음 (instance {{ $labels.instance }})"
+

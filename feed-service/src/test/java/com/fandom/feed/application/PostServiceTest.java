@@ -2,7 +2,8 @@ package com.fandom.feed.application;
 
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
-import com.fandom.feed.application.policy.PostSort;
+import com.fandom.feed.global.constant.FeedPolicy;
+import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
@@ -31,7 +32,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
-import static com.fandom.feed.application.policy.PostPolicy.PAGE_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,7 +58,7 @@ class PostServiceTest {
     private PostReactionService postReactionService;
 
     @Mock
-    PostListCacheService postListCacheService;
+    private PostListCacheService postListCacheService;
 
     @Mock
     private UserClient userClient;
@@ -156,7 +156,7 @@ class PostServiceTest {
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
-            postService.getPosts(null, PostSort.LATEST, authorId, null, null);
+            postService.getPosts(null, ReactionSort.LATEST, authorId, null, null);
 
             // then
             verify(postRepository).findByCursor(any(), any(), eq(authorId), any());
@@ -169,20 +169,20 @@ class PostServiceTest {
             // given
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
-            when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(false);
-            when(postRepository.findByCursorForWarm(PostSort.LATEST)).thenReturn(List.of());
+            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(false);
+            when(postRepository.findByCursorForWarm(ReactionSort.LATEST)).thenReturn(List.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
-            postService.getPosts(null, PostSort.LATEST, null, null, null);
+            postService.getPosts(null, ReactionSort.LATEST, null, null, null);
 
             // then
-            verify(postRepository).findByCursorForWarm(PostSort.LATEST);
+            verify(postRepository).findByCursorForWarm(ReactionSort.LATEST);
             verify(postListCacheService, never()).getPostIds(any(), any());
-            verify(postListCacheService).expireCache(PostSort.LATEST);
+            verify(postListCacheService).expireCache(ReactionSort.LATEST);
         }
 
         @Test
@@ -192,8 +192,8 @@ class PostServiceTest {
             UUID cursor = UUID.randomUUID();
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
-            when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(PostSort.LATEST, cursor)).thenReturn(null);
+            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
+            when(postListCacheService.getPostIds(ReactionSort.LATEST, cursor)).thenReturn(null);
             when(postRepository.findByCursor(eq(cursor), any(), isNull(), isNull())).thenReturn(List.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
@@ -201,7 +201,7 @@ class PostServiceTest {
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
-            postService.getPosts(cursor, PostSort.LATEST, null, null, null);
+            postService.getPosts(cursor, ReactionSort.LATEST, null, null, null);
 
             // then
             verify(postRepository).findByCursor(eq(cursor), any(), isNull(), isNull());
@@ -212,16 +212,17 @@ class PostServiceTest {
         void getPostsCacheReady() {
             // given
             UUID postId = UUID.randomUUID();
-            when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(PostSort.LATEST, null)).thenReturn(List.of(postId));
+
+            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
+            when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(List.of(postId));
             when(postCacheService.getPostDetailBatch(List.of(postId))).thenReturn(List.of(mock(PostCache.Detail.class)));
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
             // when
-            postService.getPosts(null, PostSort.LATEST, null, null, null);
+            postService.getPosts(null, ReactionSort.LATEST, null, null, null);
 
             // then
-            verify(postListCacheService).getPostIds(PostSort.LATEST, null);
+            verify(postListCacheService).getPostIds(ReactionSort.LATEST, null);
             verifyNoInteractions(postRepository);
         }
     }
@@ -234,14 +235,15 @@ class PostServiceTest {
         void noHasMoreWhenUnderPageSize() {
             // given
             UUID postId = UUID.randomUUID();
-            when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(PostSort.LATEST, null)).thenReturn(List.of(postId));
+
+            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
+            when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(List.of(postId));
             when(postCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostCache.Detail.class)));
             when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, PostSort.LATEST, null, null, null
+                    null, ReactionSort.LATEST, null, null, null
             );
 
             // then
@@ -254,24 +256,24 @@ class PostServiceTest {
         @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
         void hasMoreWhenExceedsPageSize() {
             // given
-            List<UUID> postIds = IntStream.range(0, PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
+            List<UUID> postIds = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
 
-            when(postListCacheService.isCacheReady(PostSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(PostSort.LATEST, null)).thenReturn(postIds);
-            when(postCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, PAGE_SIZE)
+            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
+            when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(postIds);
+            when(postCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.Detail.class)).toList());
-            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PAGE_SIZE)
+            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, PostSort.LATEST, null, null, null
+                    null, ReactionSort.LATEST, null, null, null
             );
 
             // then
             assertThat(result.hasMore()).isTrue();
-            assertThat(result.nextCursor()).isEqualTo(postIds.get(PAGE_SIZE - 1)); // 20번째
-            assertThat(result.content()).hasSize(PAGE_SIZE);
+            assertThat(result.nextCursor()).isEqualTo(postIds.get(FeedPolicy.PAGE_SIZE - 1));
+            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
     }
 
@@ -293,7 +295,7 @@ class PostServiceTest {
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, PostSort.LATEST, UUID.randomUUID(), null, null
+                    null, ReactionSort.LATEST, UUID.randomUUID(), null, null
             );
 
             // then
@@ -306,25 +308,25 @@ class PostServiceTest {
         @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
         void hasMoreWhenExceedsPageSize() {
             // given
-            List<Post> posts = IntStream.range(0, PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
+            List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(userClient.getUsers(any()).getData()).thenReturn(List.of());
-            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PAGE_SIZE)
+            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, PostSort.LATEST, UUID.randomUUID(), null, null
+                    null, ReactionSort.LATEST, UUID.randomUUID(), null, null
             );
 
             // then
             assertThat(result.hasMore()).isTrue();
-            assertThat(result.nextCursor()).isEqualTo(posts.get(PAGE_SIZE - 1).getId());
-            assertThat(result.content()).hasSize(PAGE_SIZE);
+            assertThat(result.nextCursor()).isEqualTo(posts.get(FeedPolicy.PAGE_SIZE - 1).getId());
+            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
     }
 
@@ -338,17 +340,17 @@ class PostServiceTest {
 
         when(post.getId()).thenReturn(postId);
         when(post.getAuthorId()).thenReturn(UUID.randomUUID());
-        when(postRepository.findByCursorForWarm(PostSort.LATEST)).thenReturn(List.of(post));
+        when(postRepository.findByCursorForWarm(ReactionSort.LATEST)).thenReturn(List.of(post));
         when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
         when(userClient.getUsers(any())).thenReturn(apiResponse);
         when(apiResponse.getData()).thenReturn(List.of());
         when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
         // when
-        postService.getPosts(null, PostSort.LATEST, null, null, null);
+        postService.getPosts(null, ReactionSort.LATEST, null, null, null);
 
         // then
-        verify(postListCacheService).addPost(postId, PostSort.LATEST);
+        verify(postListCacheService).addPost(postId, ReactionSort.LATEST);
     }
 
     @Nested
@@ -374,7 +376,7 @@ class PostServiceTest {
                     ));
 
             // when
-            postService.getPosts(null, PostSort.LATEST, UUID.randomUUID(), null, null);
+            postService.getPosts(null, ReactionSort.LATEST, UUID.randomUUID(), null, null);
 
             // then
             verify(imageService, times(1)).findAllByPostIds(any());
@@ -386,25 +388,25 @@ class PostServiceTest {
         @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor 설정")
         void buildDBResponseWhenExceedsPageSize() {
             // given
-            List<Post> posts = IntStream.range(0, PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
+            List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, PAGE_SIZE)
+            when(postReactionService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, PostSort.LATEST, UUID.randomUUID(), null, null
+                    null, ReactionSort.LATEST, UUID.randomUUID(), null, null
             );
 
             // then
             assertThat(result.hasMore()).isTrue();
             assertThat(result.nextCursor()).isNotNull();
-            assertThat(result.content()).hasSize(PAGE_SIZE);
+            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
     }
 

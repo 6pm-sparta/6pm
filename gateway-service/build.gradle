@@ -15,4 +15,8 @@ dependencies {
     implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
     runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'
     runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // Access Token blacklist 조회용 (로그아웃된 토큰 차단). WebFlux라 reactive.
+    // auth-service가 blacklist:access:{jti} 키로 등록한 것을 동일 Redis(6379)에서 조회한다.
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
 }

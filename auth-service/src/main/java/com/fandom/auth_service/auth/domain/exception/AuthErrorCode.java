@@ -15,6 +15,8 @@ public enum AuthErrorCode implements ErrorCode {
     // 이메일/비밀번호 불일치는 계정 존재 여부 노출을 막기 위해 동일 메시지로 통일한다.
     LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 일치하지 않습니다."),
     INACTIVE_MEMBER(HttpStatus.FORBIDDEN, "비활성화된 계정입니다."),
+    INVALID_ACCESS_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 Access Token입니다."),
+    INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 Refresh Token입니다."),
     MEMBER_LOOKUP_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "회원 정보 조회에 실패했습니다.");
 
     private final HttpStatus status;

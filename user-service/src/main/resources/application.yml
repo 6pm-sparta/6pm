@@ -20,6 +20,13 @@ spring:
         default_schema: user_db
         format_sql: true
     show-sql: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
 
 eureka:
   client:
@@ -34,6 +41,9 @@ management:
     web:
       exposure:
         include: health, info, prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
   endpoint:
     health:
       show-details: always
@@ -43,3 +53,12 @@ management:
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
+
+logging:
+  file:
+    name: ./logs/user-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
