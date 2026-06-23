@@ -2,7 +2,11 @@ package com.fandom.order_service.payment.application.webhook;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.kafka.producer.OrderEventProducer;
+import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
+import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
+import com.fandom.order_service.payment.domain.repository.PaymentRepository;
 import com.fandom.order_service.payment.infra.pg.PgWebhookHmacUtil;
 import com.fandom.order_service.payment.presentation.dto.request.PgWebhookRequest;
 import lombok.RequiredArgsConstructor;
@@ -12,9 +16,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Optional;
 
 /**
- * PG 콜백(Webhook) 수신 처리. 서명 검증 + pgTransactionId 기준 중복수신 차단까지만 책임진다.
+ * PG 콜백(Webhook) 수신 처리. 서명 검증 + pgTransactionId 기준 중복수신 차단 + 상태별 도메인 디스패치.
  */
 @Slf4j
 @Service
@@ -23,10 +28,15 @@ public class PgWebhookService {
 
     private static final String DEDUPE_KEY_PREFIX = "webhook:pg:";
     private static final String CLAIM_MARKER = "RECEIVED";
+    private static final String STATUS_APPROVED = "APPROVED";
+    private static final String STATUS_FAILED = "FAILED";
 
     private final PgWebhookHmacUtil signatureVerifier;
     private final StringRedisTemplate redisTemplate;
     private final OrderProperties orderProperties;
+    private final PaymentRepository paymentRepository;
+    private final PaymentRequestWriter paymentRequestWriter;
+    private final OrderEventProducer orderEventProducer;
 
     public void receive(PgWebhookRequest request, String signature) {
 
@@ -43,9 +53,50 @@ public class PgWebhookService {
             return;
         }
 
-        // TODO(#109, #110): status에 따른 결제 승인/실패, 환불 완료 도메인 디스패치 연결
-        log.info("[PG Webhook] 수신 완료. pgTransactionId={}, orderId={}, status={}, amount={}",
-                request.pgTransactionId(), request.orderId(), request.status(), request.amount());
+        dispatch(request);
+    }
+
+    /**
+     * Webhook 상태에 따라 결제 승인/실패 처리를 수행한다.
+     * 이미 처리된 요청은 no-op 처리되어 이벤트를 중복 발행하지 않는다.
+     */
+    private void dispatch(PgWebhookRequest request) {
+
+        Optional<Payment> paymentOpt = paymentRepository.findByPgTransactionId(request.pgTransactionId());
+        if (paymentOpt.isEmpty()) {
+
+            // 알 수 없는 pgTransactionId, 재전송 루프를 막기 위해 로그만 남기고 종료한다.
+            log.error("[PG Webhook] pgTransactionId에 해당하는 결제 건을 찾을 수 없습니다. pgTransactionId={}, orderId={}",
+                    request.pgTransactionId(), request.orderId());
+            return;
+        }
+
+        Payment payment = paymentOpt.get();
+
+        if (!payment.getAmount().equals(request.amount())) {
+
+            // 결제 금액이 일치하지 않으면 적용하지 않는다.
+            log.error("[PG Webhook] amount 불일치로 적용하지 않습니다. paymentId={}, expected={}, received={}",
+                    payment.getId(), payment.getAmount(), request.amount());
+            return;
+        }
+
+        // 실제 상태 전이가 발생한 경우에만 이벤트를 발행한다.
+        switch (request.status()) {
+            case STATUS_APPROVED -> {
+                if (paymentRequestWriter.applyApproval(request.orderId(), payment.getId())) {
+                    orderEventProducer.publishPaymentCompleted(request.orderId());
+                }
+            }
+            case STATUS_FAILED -> {
+                String reason = request.failureReason() != null ? request.failureReason() : "PG 응답 실패";
+                if (paymentRequestWriter.applyFailure(request.orderId(), payment.getId(), reason)) {
+                    orderEventProducer.publishPaymentFailed(request.orderId());
+                }
+            }
+            default -> log.info("[PG Webhook] #110에서 처리할 status — 아직 디스패치 미연결. " +
+                    "status={}, pgTransactionId={}", request.status(), request.pgTransactionId());
+        }
     }
 
     private boolean claim(String pgTransactionId) {

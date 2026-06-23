@@ -53,7 +53,10 @@ public class Order extends BaseEntity {
     @Column(nullable = false)
     private LocalDateTime statusUpdatedAt;
 
-    /** 주문 타임아웃 처자동 리(P1) 기준 시각. 결제 전이라면 이 시각 이후 자동 취소 대상이 된다. */
+    /**
+     * 주문 만료 기준 시각.
+     * 결제 타임아웃 처리와 Webhook 미수신으로 인한 PAYMENT_REQUESTED 좀비 상태 정리에 사용된다.
+     */
     private LocalDateTime expiredAt;
 
     @Builder

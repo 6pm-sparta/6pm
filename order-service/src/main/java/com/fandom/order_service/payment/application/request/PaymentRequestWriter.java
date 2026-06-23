@@ -19,16 +19,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * 결제 요청 처리 중 두 군데에서 별도 트랜잭션이 필요해 PaymentRequestService와 물리적으로 분리한다
+ * 결제 요청 처리 중 세 군데에서 별도 트랜잭션이 필요해 PaymentRequestService와 물리적으로 분리한다
  * (OrderCreationWriter와 동일한 이유 — self-invocation은 Spring AOP 프록시를 거치지 않아
  * @Transactional 경계가 생기지 않으므로 다른 빈으로 분리해야 한다).
  *
  * 1. markPaymentRequestedAndSave: 분산락(Redisson RLock) "안에서" 짧게 커밋되어야 하는 구간.
  *    PENDING → PAYMENT_REQUESTED 전이 + 결제 시도 레코드(Payment, REQUESTED) INSERT.
  *    이 트랜잭션이 커밋된 뒤에야 분산락을 해제하고 PG를 호출한다.
- * 2. applyApproval/applyFailure: PG 호출(락 밖, 동기) 완료 후 결과를 반영하는 별도 트랜잭션.
- *    PG 호출 자체는 트랜잭션을 물고 있으면 안 되므로(외부 API 응답 대기 동안 DB 커넥션을 쥐고 있게 됨),
- *    호출이 끝난 뒤 새 트랜잭션에서 짧게 결과만 반영한다.
+ * 2. recordPgTransactionId: PG가 요청 접수를 ack하며 즉시 반환한 pgTransactionId를 기록하는
+ *    별도 트랜잭션. 승인/거절 여부는 아직 모른다 — webhook이 그 결과를 들고 온다.
+ * 3. applyApproval/applyFailure: PG webhook 콜백을 받았을 때 결과를 반영하는 트랜잭션.
+ *    PgWebhookService가 pgTransactionId로 Payment를 찾아 호출한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -73,25 +74,59 @@ public class PaymentRequestWriter {
         return paymentRepository.save(payment);
     }
 
+    /**
+     * PG 요청 접수 시 반환된 pgTransactionId를 저장한다.
+     * 실제 승인/거절 결과는 Webhook으로 반영된다.
+     */
     @Transactional
-    public void applyApproval(UUID orderId, UUID paymentId, String pgTransactionId) {
+    public void recordPgTransactionId(UUID paymentId, String pgTransactionId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+        payment.recordPgTransactionId(pgTransactionId);
+    }
+
+    /**
+     * 승인 Webhook을 반영한다.
+     * 이미 처리된 요청(PAYMENT_REQUESTED 아님)은 중복 수신으로 간주하고 무시한다.
+     *
+     * @return 실제 상태 전이가 발생했는지 여부
+     */
+    @Transactional
+    public boolean applyApproval(UUID orderId, UUID paymentId) {
 
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
+            return false;
+        }
+
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
         OrderStatus before = order.getStatus();
         order.markPaid();
-        payment.approve(pgTransactionId);
+        payment.approve();
         saveHistory(order.getId(), before, order.getStatus(), "결제 승인");
+        return true;
     }
 
+    /**
+     * 실패 Webhook을 반영한다.
+     * 이미 처리된 요청(PAYMENT_REQUESTED 아님)은 중복 수신으로 간주하고 무시한다.
+     *
+     * @return 실제 상태 전이가 발생했는지 여부
+     */
     @Transactional
-    public void applyFailure(UUID orderId, UUID paymentId, String failureReason) {
+    public boolean applyFailure(UUID orderId, UUID paymentId, String failureReason) {
 
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
+            return false;
+        }
+
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
@@ -99,6 +134,7 @@ public class PaymentRequestWriter {
         order.markFailed();
         payment.fail(failureReason);
         saveHistory(order.getId(), before, order.getStatus(), "결제 실패: " + failureReason);
+        return true;
     }
 
     private void saveHistory(UUID orderId, OrderStatus fromStatus, OrderStatus toStatus, String reason) {
