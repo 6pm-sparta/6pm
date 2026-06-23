@@ -54,7 +54,9 @@ class OrderCancelWriterTest {
     @BeforeEach
     void setUp() {
         OrderProperties orderProperties = new OrderProperties(
-                null, 10, null, new OrderProperties.Cancellation(24));
+                null, 10, null,
+                new OrderProperties.Cancellation(24),
+                new OrderProperties.Compensation(3, 1000L));
         orderCancelWriter = new OrderCancelWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, orderProperties);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();

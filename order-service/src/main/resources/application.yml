@@ -61,6 +61,9 @@ order:
     idempotency-key-ttl-seconds: 600  # Idempotency-Key 캐시 TTL — expiration-minutes(10분)와 동일하게 맞춤
   cancellation:
     cancellable-window-hours: 24  # CONFIRMED 취소 가능 시간(확정 시각 기준). 임의값 — 팀 협의 필요(api 명세서 미확정 항목)
+  compensation:
+    refund-max-attempts: 3        # SAGA 보상 PG 환불 재시도 최대 횟수 — 컨슈머 스레드를 막는 동기 루프라 짧게 결정
+    refund-retry-backoff-millis: 1000  # 재시도 간 대기(ms) — 3회×1초면 최악의 경우에도 약 2초 안에 끝남
 
 eureka:
   client:

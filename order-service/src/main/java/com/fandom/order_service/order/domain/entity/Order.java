@@ -106,10 +106,11 @@ public class Order extends BaseEntity {
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
-    /** PAYMENT_REQUESTED → FAILED. PG 거절/오류 응답을 받은 직후 호출한다.*/
+    /** PAYMENT_REQUESTED → FAILED. PG 거절/오류 응답을 받은 직후 호출한다.
+     *  COMPENSATING → FAILED. SAGA 보상(환불 재시도) 최종 실패 시에도 사용한다. */
     public void markFailed() {
 
-        if (this.status != OrderStatus.PAYMENT_REQUESTED) {
+        if (this.status != OrderStatus.PAYMENT_REQUESTED && this.status != OrderStatus.COMPENSATING) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -132,10 +133,15 @@ public class Order extends BaseEntity {
      * PAID/CONFIRMED → REFUND_REQUESTED. PG 환불 호출 "전"에 먼저 반영해야 한다 — 결제 요청의
      * PAYMENT_REQUESTED 전이와 동일한 이유. 동시 취소 요청의 두 번째가 이 전이 이후 들어오면
      * 상태가 이미 REFUND_REQUESTED라 즉시 거부된다.
+     * COMPENSATING → REFUND_REQUESTED도 허용한다 — SAGA 보상 트랜잭션이 COMPENSATING을 거쳐
+     * 같은 REFUND_REQUESTED 상태로 들어오기 때문. REFUND_REQUESTED 자체는 "PG 환불 호출 중/완료
+     * 대기"라는 의미만 가지며, 거기 들어온 경로(유저 직접 취소 vs SAGA 보상)는 상태값이 아니라
+     * order_status_histories.reason으로 구분한다.
      */
     public void markRefundRequested() {
 
-        if (this.status != OrderStatus.PAID && this.status != OrderStatus.CONFIRMED) {
+        if (this.status != OrderStatus.PAID && this.status != OrderStatus.CONFIRMED
+                && this.status != OrderStatus.COMPENSATING) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -151,6 +157,20 @@ public class Order extends BaseEntity {
         }
 
         this.status = OrderStatus.REFUNDED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * PAID/CONFIRMED → COMPENSATING. ticketing.seat.book.failed 수신(좌석 예매 확정 실패) 직후
+     * 호출한다(SAGA 보상 트랜잭션의 시작점).
+     */
+    public void markCompensating() {
+
+        if (this.status != OrderStatus.PAID && this.status != OrderStatus.CONFIRMED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.COMPENSATING;
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
