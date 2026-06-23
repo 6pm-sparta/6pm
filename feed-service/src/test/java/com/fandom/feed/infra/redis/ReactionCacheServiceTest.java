@@ -20,7 +20,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class PostReactionServiceTest {
+class ReactionCacheServiceTest {
     @Mock
     private RedisTemplate<String, String> redisTemplate;
 
@@ -31,7 +31,7 @@ class PostReactionServiceTest {
     private SetOperations<String, String> setOperations;
 
     @InjectMocks
-    private PostReactionService postReactionService;
+    private ReactionCacheService reactionCacheService;
 
     @BeforeEach
     void setUp() {
@@ -54,7 +54,7 @@ class PostReactionServiceTest {
             when(setOperations.isMember(anyString(), anyString())).thenReturn(true);
 
             // When
-            PostCache.ReactionInfo info = postReactionService.getReactionInfo(postId, userId);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, userId);
 
             // Then
             assertThat(info.commentCount()).isEqualTo(10L);
@@ -72,7 +72,7 @@ class PostReactionServiceTest {
             when(setOperations.size(anyString())).thenReturn(5L);
 
             // When
-            PostCache.ReactionInfo info = postReactionService.getReactionInfo(postId, null);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, null);
 
             // Then
             assertThat(info.commentCount()).isEqualTo(10L);

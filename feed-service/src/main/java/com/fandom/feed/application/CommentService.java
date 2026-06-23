@@ -1,5 +1,6 @@
 package com.fandom.feed.application;
 
+import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.event.Event;
@@ -57,13 +58,15 @@ public class CommentService {
     }
 
     public CursorPageResponse<CommentResponse.Detail> getCommentsForUser(
-            UUID cursor, ReactionSort sort, UUID userId, boolean isMine, boolean isMaster
+            UUID cursor, ReactionSort sort, UUID userId, UserIdCard idCard
     ) {
         // 권한 검증
-        if (!isMine && !isMaster)
-            throw new CustomException(CommonErrorCode.FORBIDDEN);
+        if (idCard.isMaster() && userId == null)
+            throw new CustomException(CommonErrorCode.INVALID_INPUT_VALUE);
 
-        List<Comment> comments = commentRepository.findByCursorAndAuthorId(cursor, sort, userId);
+        UUID targetUserId = idCard.isMaster() ? userId : idCard.getUserId();
+
+        List<Comment> comments = commentRepository.findByCursorAndAuthorId(cursor, sort, targetUserId);
         return buildResponse(comments);
     }
 

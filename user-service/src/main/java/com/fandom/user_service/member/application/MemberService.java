@@ -7,6 +7,7 @@ import com.fandom.user_service.member.domain.entity.User;
 import com.fandom.user_service.member.domain.exception.MemberErrorCode;
 import com.fandom.user_service.member.domain.repository.CreatorRepository;
 import com.fandom.user_service.member.domain.repository.UserRepository;
+import com.fandom.user_service.member.application.port.CreatorCreatedEventPublisher;
 import com.fandom.user_service.member.application.port.MemberWithdrawalEventPublisher;
 import com.fandom.user_service.member.presentation.dto.request.CreatorSignUpRequest;
 import com.fandom.user_service.member.presentation.dto.request.CreatorUpdateRequest;
@@ -38,6 +39,7 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
     private final ProfileService profileService;
     private final MemberWithdrawalEventPublisher memberWithdrawalEventPublisher;
+    private final CreatorCreatedEventPublisher creatorCreatedEventPublisher;
 
     /**
      * 일반회원 가입. role=MEMBER, status는 기본 ACTIVE.
@@ -87,6 +89,7 @@ public class MemberService {
                         .build()
         );
         Profile profile = profileService.createInitialProfile(user, request.nickname());
+        publishCreatorCreatedEventAfterCommit(user.getId(), profile.getNickname());
 
         return CreatorSignUpResponse.from(user, profile, creator);
     }
@@ -208,6 +211,19 @@ public class MemberService {
             @Override
             public void afterCommit() {
                 memberWithdrawalEventPublisher.publish(userId, role);
+            }
+        });
+    }
+
+    private void publishCreatorCreatedEventAfterCommit(UUID userId, String nickname) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            creatorCreatedEventPublisher.publish(userId, nickname);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                creatorCreatedEventPublisher.publish(userId, nickname);
             }
         });
     }

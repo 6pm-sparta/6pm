@@ -24,7 +24,7 @@ public class PostListCacheService {
     public List<UUID> getPostIds(ReactionSort sort, UUID cursor) {
         String key = resolveKey(sort);
 
-        Double cursorScore = cursor != null ? redisTemplate.opsForZSet().score(key, cursor.toString()) : null;
+        Double cursorScore = (cursor != null) ? redisTemplate.opsForZSet().score(key, cursor.toString()) : null;
 
         // cursor는 있는데 캐시에 없으면 5페이지 초과
         if (cursor != null && cursorScore == null) return null;
@@ -33,13 +33,13 @@ public class PostListCacheService {
             case LATEST -> redisTemplate.opsForZSet()
                     .reverseRangeByScore(
                             key,
-                            0, cursorScore != null ? cursorScore - 1 : Double.MAX_VALUE,
+                            0, (cursorScore != null) ? cursorScore - 1 : Double.MAX_VALUE,
                             0, FeedPolicy.PAGE_SIZE + 1
                     );
             case OLDEST -> redisTemplate.opsForZSet()
                     .rangeByScore(
                             key,
-                            cursorScore != null ? cursorScore + 1 : 0, Double.MAX_VALUE,
+                            (cursorScore != null) ? cursorScore + 1 : 0, Double.MAX_VALUE,
                             0, FeedPolicy.PAGE_SIZE + 1
                     );
         };
