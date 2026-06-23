@@ -77,4 +77,30 @@ class QueueSchedulerTest {
         verify(purchaseTokenService, never()).issue(any(), any());
         verify(zSetOperations, never()).remove(eq(queueKey), any());
     }
+
+    @Test
+    @DisplayName("Redis에 존재하는 waiting_queue 키로부터 활성 공연 ID를 추출한다")
+    void findActiveShowIds_extractsShowIdsFromKeys() {
+        // given
+        given(redisTemplate.keys("waiting_queue:*")).willReturn(Set.of("waiting_queue:1", "waiting_queue:2"));
+
+        // when
+        Set<Long> result = ReflectionTestUtils.invokeMethod(queueScheduler, "findActiveShowIds");
+
+        // then
+        org.assertj.core.api.Assertions.assertThat(result).containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("waiting_queue 키가 없으면 빈 Set을 반환한다")
+    void findActiveShowIds_noKeys_returnsEmptySet() {
+        // given
+        given(redisTemplate.keys("waiting_queue:*")).willReturn(Set.of());
+
+        // when
+        Set<Long> result = ReflectionTestUtils.invokeMethod(queueScheduler, "findActiveShowIds");
+
+        // then
+        org.assertj.core.api.Assertions.assertThat(result).isEmpty();
+    }
 }

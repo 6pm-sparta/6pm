@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -15,21 +16,29 @@ import java.util.UUID;
 public class QueueScheduler {
 
     private static final String WAITING_QUEUE_KEY = "waiting_queue:%d";
+    private static final String WAITING_QUEUE_PATTERN = "waiting_queue:*";
     private static final int BATCH_SIZE = 50;
 
     private final RedisTemplate<String, String> redisTemplate;
     private final QueueSseService queueSseService;
     private final PurchaseTokenService purchaseTokenService;
 
-    // TODO: 실제 운영 시 활성 공연 ID 목록을 DB 또는 캐시에서 조회하도록 변경
-    private static final Set<Long> ACTIVE_SHOW_IDS = Set.of();
-
+    // 대기열이 실제로 존재하는 공연만 처리 대상으로 삼는다 (대기열 키는 enter() 시점에 생성되고, 비워지면 자동으로 사라짐)
     @Scheduled(fixedDelay = 60_000)
     public void processQueue() {
-        for (Long showId : ACTIVE_SHOW_IDS) {
+        for (Long showId : findActiveShowIds()) {
             processShowQueue(showId);
             queueSseService.broadcastRank(showId);
         }
+    }
+
+    private Set<Long> findActiveShowIds() {
+        Set<String> keys = redisTemplate.keys(WAITING_QUEUE_PATTERN);
+        if (keys == null || keys.isEmpty()) return Set.of();
+
+        return keys.stream()
+                .map(key -> Long.valueOf(key.substring(key.lastIndexOf(':') + 1)))
+                .collect(Collectors.toSet());
     }
 
     private void processShowQueue(Long showId) {
