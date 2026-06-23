@@ -5,6 +5,7 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.filter.IdCardVerificationFilter;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.gateway_service.jwt.JwtValidator;
+import com.fandom.gateway_service.security.GatewaySecurityRules;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -14,7 +15,6 @@ import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -28,38 +28,36 @@ import java.util.UUID;
 /**
  * Access Token을 검증하고, 검증된 신원을 UserIdCard로 만들어 downstream에 전파하는 글로벌 필터.
  *
- * 흐름 (common-auth.md):
- * 1. 인증 예외 경로(로그인 / 회원가입)는 검증 없이 통과
- * 2. 그 외 경로는 Authorization: Bearer 토큰 검증, 실패 시 401(ApiResponse 형식)
- * 3. 검증 성공 시 UserIdCard(userId, role) 생성 → HMAC 서명 → X-Id-Card / X-Id-Card-Signature 헤더로 전파
- *
- * HeaderSanitizationFilter(위조 헤더 제거) 다음에 실행되므로, 클라이언트가 보낸 X-Id-Card는 이미 제거된 상태다.
+ * HeaderSanitizationFilter가 클라이언트 위조 헤더를 먼저 제거한 뒤 실행된다.
  */
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+
+    private static final String ACCESS_BLACKLIST_KEY_PREFIX = "blacklist:access:";
+    private static final String USER_BLACKLIST_KEY_PREFIX = "blacklist:user:";
 
     private final JwtValidator jwtValidator;
     private final HmacUtils hmacUtils;
     private final ObjectMapper objectMapper;
     private final ReactiveStringRedisTemplate redisTemplate;
-
-    private static final String ACCESS_BLACKLIST_KEY_PREFIX = "blacklist:access:";
-    private static final String USER_BLACKLIST_KEY_PREFIX = "blacklist:user:";
+    private final GatewaySecurityRules gatewaySecurityRules;
 
     public JwtAuthenticationFilter(JwtValidator jwtValidator, HmacUtils hmacUtils,
-                                   ObjectMapper objectMapper, ReactiveStringRedisTemplate redisTemplate) {
+                                   ObjectMapper objectMapper, ReactiveStringRedisTemplate redisTemplate,
+                                   GatewaySecurityRules gatewaySecurityRules) {
         this.jwtValidator = jwtValidator;
         this.hmacUtils = hmacUtils;
         this.objectMapper = objectMapper;
         this.redisTemplate = redisTemplate;
+        this.gatewaySecurityRules = gatewaySecurityRules;
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
 
-        // 인증 예외 경로는 토큰 검증 없이 통과
-        if (isPermitAll(request)) {
+        // 인증 예외 경로는 토큰 검증 없이 통과한다.
+        if (gatewaySecurityRules.isPermitAll(request)) {
             return chain.filter(exchange);
         }
 
@@ -73,21 +71,18 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         try {
             claims = jwtValidator.parse(token);
         } catch (JwtException | IllegalArgumentException e) {
-            // JwtException: 만료/서명불일치/형식오류 등 토큰 자체의 문제
-            // IllegalArgumentException: 빈 토큰 또는 subject(userId) UUID 변환 실패
-            // 그 외(NPE 등 서버 오류)는 잡지 않아 '유효하지 않은 토큰'으로 둔갑하지 않는다.
+            // 만료, 서명 불일치, 형식 오류, subject 변환 실패는 모두 인증 실패로 응답한다.
             return unauthorized(exchange, "유효하지 않은 토큰입니다.");
         }
 
-        // 로그아웃된 토큰인지 blacklist 확인 (auth가 등록한 blacklist:access:{jti}).
-        // 회원 탈퇴 등 user 단위 무효화도 blacklist:user:{userId}로 함께 확인한다.
-        // 존재하면 차단, 없으면 UserIdCard 전파 후 통과. (보안상 메시지는 동일)
+        // 로그아웃 토큰과 사용자 단위 무효화 토큰을 함께 차단한다.
         String jti = claims.getId();
         String userId = claims.getSubject();
         Mono<Boolean> accessBlacklisted = redisTemplate.hasKey(ACCESS_BLACKLIST_KEY_PREFIX + jti)
                 .defaultIfEmpty(false);
         Mono<Boolean> userBlacklisted = redisTemplate.hasKey(USER_BLACKLIST_KEY_PREFIX + userId)
                 .defaultIfEmpty(false);
+
         return Mono.zip(accessBlacklisted, userBlacklisted)
                 .flatMap(result -> {
                     if (Boolean.TRUE.equals(result.getT1()) || Boolean.TRUE.equals(result.getT2())) {
@@ -99,10 +94,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 검증된 토큰의 claim으로 UserIdCard(userId, role)를 만들고 HMAC 서명하여
-     * X-Id-Card / X-Id-Card-Signature 헤더로 실어 보낸다.
-     *
-     * 페이로드는 userId, role만 담는다. status는 인증 시점의 관심사이므로 IdCard에는 포함하지 않는다.
+     * 검증된 토큰 claim으로 UserIdCard를 만들고 HMAC 서명 헤더를 추가한다.
      */
     private ServerHttpRequest withUserIdCard(ServerHttpRequest request, Claims claims) {
         UUID userId = UUID.fromString(claims.getSubject());
@@ -118,40 +110,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .build();
     }
 
-    /**
-     * UserIdCard를 JSON 문자열로 직렬화한다. (HmacUtils.sign의 서명 대상과 동일한 직렬화 결과여야 한다)
-     */
     private String objectMapperWriteValue(UserIdCard idCard) {
         try {
             return objectMapper.writeValueAsString(idCard);
         } catch (Exception e) {
             throw new IllegalStateException("UserIdCard 직렬화 실패", e);
         }
-    }
-
-    /**
-     * 인증 불필요 경로 (로그인 / 회원가입 / 크리에이터 가입). 가입은 POST만 허용한다.
-     *
-     * NOTE(임시): 회원가입 경로가 /api/v1/members, /api/v1/creators 로 분리되어 있어 그대로 화이트리스트에 둔다.
-     * 추후 user-service 경로를 /api/v1/users/** 로 통일하는 리팩터링 시 함께 정리한다.
-     */
-    private boolean isPermitAll(ServerHttpRequest request) {
-        String path = request.getPath().value();
-        HttpMethod method = request.getMethod();
-
-        if (path.equals("/api/v1/auth/login")) {
-            return true;
-        }
-        // 재발급은 access 토큰이 만료된 뒤 refresh로 새 access를 받는 경로이므로
-        // Gateway의 access 토큰 검증을 거치지 않는다. (refresh 검증은 auth-service가 수행)
-        if (path.equals("/api/v1/auth/reissue") && HttpMethod.POST.equals(method)) {
-            return true;
-        }
-        boolean isSignUp = path.equals("/api/v1/members") || path.equals("/api/v1/creators");
-        boolean isProfileLookup = (path.matches("^/api/v1/members/[^/]+/profile$")
-                || path.matches("^/api/v1/creators/[^/]+/profile$"))
-                && HttpMethod.GET.equals(method);
-        return (isSignUp && HttpMethod.POST.equals(method)) || isProfileLookup;
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange, String message) {
@@ -172,7 +136,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        // 위조 헤더 제거(HIGHEST_PRECEDENCE) 다음에 실행
         return Ordered.HIGHEST_PRECEDENCE + 1;
     }
 }
