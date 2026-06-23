@@ -1,6 +1,7 @@
 package com.fandom.user_service.follow.application;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.user_service.follow.application.port.FollowEventPublisher;
 import com.fandom.user_service.follow.domain.entity.Follow;
 import com.fandom.user_service.follow.domain.exception.FollowErrorCode;
 import com.fandom.user_service.follow.domain.repository.FollowRepository;
@@ -22,6 +23,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +48,9 @@ class FollowServiceTest {
     @Mock
     private ProfileRepository profileRepository;
 
+    @Mock
+    private FollowEventPublisher followEventPublisher;
+
     @InjectMocks
     private FollowService followService;
 
@@ -56,10 +61,12 @@ class FollowServiceTest {
         UUID creatorId = UUID.randomUUID();
         User follower = user(Role.MEMBER);
         User creator = user(Role.CREATOR);
+        UUID followId = UUID.randomUUID();
         Follow savedFollow = Follow.builder()
                 .follower(follower)
                 .followee(creator)
                 .build();
+        ReflectionTestUtils.setField(savedFollow, "id", followId);
 
         given(userRepository.findById(followerId)).willReturn(Optional.of(follower));
         given(userRepository.findById(creatorId)).willReturn(Optional.of(creator));
@@ -74,6 +81,7 @@ class FollowServiceTest {
         verify(followRepository).saveAndFlush(any(Follow.class));
         verify(profileRepository).increaseFollowingCountByUserId(followerId);
         verify(profileRepository).increaseFollowerCountByUserId(creatorId);
+        verify(followEventPublisher).publishFollowed(followId, followerId, creatorId);
     }
 
     @Test
@@ -156,10 +164,12 @@ class FollowServiceTest {
         UUID creatorId = UUID.randomUUID();
         User follower = user(Role.MEMBER);
         User creator = user(Role.CREATOR);
+        UUID followId = UUID.randomUUID();
         Follow follow = Follow.builder()
                 .follower(follower)
                 .followee(creator)
                 .build();
+        ReflectionTestUtils.setField(follow, "id", followId);
 
         given(userRepository.findById(followerId)).willReturn(Optional.of(follower));
         given(userRepository.findById(creatorId)).willReturn(Optional.of(creator));
@@ -170,6 +180,7 @@ class FollowServiceTest {
         verify(followRepository).delete(follow);
         verify(profileRepository).decreaseFollowingCountByUserId(followerId);
         verify(profileRepository).decreaseFollowerCountByUserId(creatorId);
+        verify(followEventPublisher).publishUnfollowed(followId, followerId, creatorId);
     }
 
     @Test
