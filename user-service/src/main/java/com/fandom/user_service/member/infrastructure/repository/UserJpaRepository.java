@@ -1,15 +1,12 @@
-package com.fandom.user_service.member.domain.repository;
+package com.fandom.user_service.member.infrastructure.repository;
 
 import com.fandom.user_service.member.domain.entity.User;
+import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
 import java.util.UUID;
 
-public interface UserRepository {
-
-    User save(User user);
-
-    Optional<User> findById(UUID id);
+public interface UserJpaRepository extends JpaRepository<User, UUID> {
 
     Optional<User> findByEmail(String email);
 
