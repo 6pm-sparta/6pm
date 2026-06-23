@@ -6,12 +6,6 @@
 groups:
   - name: 6pm-service-alerts
     rules:
-      # 테스트용 주석 (삭제 예정)
-      - alert: AlertPipelineTest
-        expr: vector(1)
-        for: 0m
-        labels: { severity: warning }
-        annotations: { summary: "알림 파이프라인 테스트" }
       # CPU 사용률 80% 초과 (프로세스 CPU 사용량, 2분 지속)
       - alert: HighCpuUsage
         expr: process_cpu_usage > 0.8
