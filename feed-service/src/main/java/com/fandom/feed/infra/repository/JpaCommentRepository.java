@@ -16,8 +16,8 @@ public interface JpaCommentRepository extends JpaRepository<Comment, UUID> {
           AND (:cursor IS NULL OR c.id < :cursor)
         ORDER BY c.id DESC
     """)
-    List<Comment> findLatestByPostId(@Param("postId") UUID postId,
-                                     @Param("cursor") UUID cursor,
+    List<Comment> findLatestByPostId(@Param("cursor") UUID cursor,
+                                     @Param("postId") UUID postId,
                                      Pageable pageable);
 
     @Query("""
@@ -26,8 +26,8 @@ public interface JpaCommentRepository extends JpaRepository<Comment, UUID> {
           AND (:cursor IS NULL OR c.id > :cursor)
         ORDER BY c.id ASC
     """)
-    List<Comment> findOldestByPostId(@Param("postId") UUID postId,
-                                     @Param("cursor") UUID cursor,
+    List<Comment> findOldestByPostId(@Param("cursor") UUID cursor,
+                                     @Param("postId") UUID postId,
                                      Pageable pageable);
 
     @Query("""
@@ -36,8 +36,8 @@ public interface JpaCommentRepository extends JpaRepository<Comment, UUID> {
           AND (:cursor IS NULL OR c.id < :cursor)
         ORDER BY c.id DESC
     """)
-    List<Comment> findLatestByAuthorId(@Param("authorId") UUID authorId,
-                                       @Param("cursor") UUID cursor,
+    List<Comment> findLatestByAuthorId(@Param("cursor") UUID cursor,
+                                       @Param("authorId") UUID authorId,
                                        Pageable pageable);
 
     @Query("""
@@ -46,7 +46,7 @@ public interface JpaCommentRepository extends JpaRepository<Comment, UUID> {
           AND (:cursor IS NULL OR c.id > :cursor)
         ORDER BY c.id ASC
     """)
-    List<Comment> findOldestByAuthorId(@Param("authorId") UUID authorId,
-                                       @Param("cursor") UUID cursor,
+    List<Comment> findOldestByAuthorId(@Param("cursor") UUID cursor,
+                                       @Param("authorId") UUID authorId,
                                        Pageable pageable);
 }

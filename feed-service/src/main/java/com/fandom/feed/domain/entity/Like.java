@@ -3,37 +3,33 @@ package com.fandom.feed.domain.entity;
 import com.fandom.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.Check;
 
 import java.util.UUID;
 
 @Entity
 @Table(
-        name = "images",
-        uniqueConstraints = @UniqueConstraint(name = "uq_posts_post_order_index", columnNames = {"post_id", "order_index"})
+        name = "likes",
+        uniqueConstraints = @UniqueConstraint(name = "uk_post_user", columnNames = {"post_id", "user_id"}),
+        indexes = @Index(name = "idx_likes_user_id", columnList = "user_id, id DESC")
 )
-@Check(constraints = "order_index BETWEEN 0 AND 3")
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Image extends BaseEntity {
+public class Like extends BaseEntity {
     @Column(nullable = false)
     private UUID postId;
 
     @Column(nullable = false)
-    private Integer orderIndex;
-
-    @Column(nullable = false, unique = true)
-    private String imageKey;
+    private UUID userId;
 
     @Builder
-    private Image(UUID postId, Integer orderIndex, String imageKey) {
+    private Like(UUID postId, UUID userId) {
         this.postId = postId;
-        this.orderIndex = orderIndex;
-        this.imageKey = imageKey;
+        this.userId = userId;
     }
 }

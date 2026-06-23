@@ -63,10 +63,7 @@ public class CommentController {
             @RequestParam(required = false) UUID userId,
             @CurrentIdCard UserIdCard idCard
     ) {
-        boolean isMine = userId.equals(idCard.getUserId());
-        CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(
-                cursor, sort, userId, isMine, idCard.isMaster()
-        );
+        CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(cursor, sort, userId, idCard);
         return ApiResponse.success(response);
     }
 

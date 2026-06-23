@@ -1,5 +1,6 @@
 package com.fandom.feed.application;
 
+import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
@@ -261,15 +262,16 @@ class CommentServiceTest {
         }
 
         @Test
-        @DisplayName("본인 조회 - 댓글 목록 반환")
+        @DisplayName("본인 - 본인 댓글 목록 반환")
         void getCommentsForUserIsMine() {
             // given
+            UserIdCard idCard = UserIdCard.of(authorId, "MEMBER");
             when(commentRepository.findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId)).thenReturn(comments);
             when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
 
             // when
             CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(
-                    null, ReactionSort.LATEST, authorId, true, false
+                    null, ReactionSort.LATEST, null, idCard
             );
 
             // then
@@ -281,15 +283,16 @@ class CommentServiceTest {
         }
 
         @Test
-        @DisplayName("MASTER 조회 - 댓글 목록 반환")
+        @DisplayName("MASTER 사용자 - 지정한 userId의 댓글 목록 반환")
         void getCommentsForUserIsMaster() {
             // given
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MASTER");
             when(commentRepository.findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId)).thenReturn(comments);
             when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
 
             // when
             CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(
-                    null, ReactionSort.LATEST, authorId, false, true
+                    null, ReactionSort.LATEST, authorId, idCard
             );
 
             // then
@@ -300,12 +303,15 @@ class CommentServiceTest {
         }
 
         @Test
-        @DisplayName("권한 없음 - 예외 발생")
-        void getCommentsForUser_forbidden() {
+        @DisplayName("MASTER인데 userId 미지정 - 예외 발생")
+        void getCommentsForUserMasterWithoutUserId() {
+            // given
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MASTER");
+
             // when & then
-            assertThatThrownBy(() -> commentService.getCommentsForUser(null, ReactionSort.LATEST, authorId, false, false))
+            assertThatThrownBy(() -> commentService.getCommentsForUser(null, ReactionSort.LATEST, null, idCard))
                     .isInstanceOf(CustomException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", CommonErrorCode.FORBIDDEN);
+                    .hasFieldOrPropertyWithValue("errorCode", CommonErrorCode.INVALID_INPUT_VALUE);
 
             verifyNoInteractions(commentRepository, userClient);
         }
@@ -448,8 +454,8 @@ class CommentServiceTest {
         }
 
         @Test
-        @DisplayName("실패 - 존재하지 않는 댓글이면 예외를 던진다")
-        void deleteComment_commentNotFound() {
+        @DisplayName("댓글 없음 - 예외 발생")
+        void deleteCommentNotInDB() {
             // given
             when(commentRepository.findById(commentId)).thenReturn(Optional.empty());
 
