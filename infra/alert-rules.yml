@@ -42,11 +42,13 @@ groups:
           summary: "{{ $labels.application }} Kafka Consumer Lag 누적"
           description: "최대 Lag {{ $value }}건 (3분 지속)"
 
-      # 서비스 다운 (스크레이프 실패)
+      # 서비스 다운 (스크레이프 실패) — up 메트릭엔 application 라벨이 없으므로 job 사용
+      # ⚠️ 로컬에서 일부 서비스만 켜면 안 켠 서비스는 정상적으로 DOWN으로 발화함(의도된 동작)
       - alert: ServiceDown
-        expr: up{job="spring-services"} == 0
+        expr: up == 0
         for: 1m
         labels: {severity: critical}
         annotations:
-          summary: "{{ $labels.application }} DOWN"
-          description: "{{ $labels.application }} 가 1분 이상 응답 없음"
+          summary: "{{ $labels.job }} DOWN"
+          description: "{{ $labels.job }} 가 1분 이상 응답 없음 (instance {{ $labels.instance }})"
+
