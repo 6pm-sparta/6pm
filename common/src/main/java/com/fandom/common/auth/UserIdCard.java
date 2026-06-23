@@ -28,6 +28,11 @@ public class UserIdCard {
     }
 
     @JsonIgnore
+    public boolean isMe(UUID userId) {
+        return userId != null && userId.equals(this.userId);
+    }
+
+    @JsonIgnore
     public boolean isMember() {
         return "MEMBER".equals(role);
     }
