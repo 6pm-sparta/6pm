@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -127,7 +128,7 @@ class PaymentRequestWriterTest {
     }
 
     @Test
-    @DisplayName("승인 처리 시 Order는 PAID, Payment는 APPROVED + pgTransactionId로 전이된다")
+    @DisplayName("승인 처리 시 Order는 PAID, Payment는 APPROVED로 전이되고 true를 반환한다")
     void applyApproval_success() {
         // given
         Order order = pendingOrderWithId(50_000L);
@@ -139,6 +140,7 @@ class PaymentRequestWriterTest {
                 .paymentMethod(PaymentMethod.CARD)
                 .idempotencyKey("idem-key-4")
                 .build();
+        payment.recordPgTransactionId("PG-1234"); // 요청 접수 시점에 이미 기록돼 있는 상태를 흉내냄
         UUID paymentId = UUID.randomUUID();
         ReflectionTestUtils.setField(payment, "id", paymentId);
 
@@ -146,19 +148,40 @@ class PaymentRequestWriterTest {
         given(paymentRepository.findById(paymentId)).willReturn(Optional.of(payment));
 
         // when
-        paymentRequestWriter.applyApproval(orderId, paymentId, "PG-1234");
+        boolean applied = paymentRequestWriter.applyApproval(orderId, paymentId);
 
         // then
+        assertThat(applied).isTrue();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.APPROVED);
-        assertThat(payment.getPgTransactionId()).isEqualTo("PG-1234");
+        assertThat(payment.getPgTransactionId()).isEqualTo("PG-1234"); // approve()는 더 이상 이 값을 건드리지 않음
 
         ArgumentCaptor<OrderStatusHistory> historyCaptor = ArgumentCaptor.forClass(OrderStatusHistory.class);
         verify(orderStatusHistoryRepository).save(historyCaptor.capture());
     }
 
     @Test
-    @DisplayName("실패 처리 시 Order는 FAILED, Payment는 FAILED + failureReason으로 전이된다")
+    @DisplayName("이미 PAYMENT_REQUESTED가 아닌 주문에 승인 콜백이 다시 오면(중복 redelivery) no-op으로 false를 반환한다")
+    void applyApproval_alreadyProcessed_noOp() {
+        // given
+        Order order = pendingOrderWithId(50_000L);
+        order.markPaymentRequested();
+        order.markPaid(); // 첫 콜백으로 이미 처리된 상태
+        UUID paymentId = UUID.randomUUID();
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+
+        // when
+        boolean applied = paymentRequestWriter.applyApproval(orderId, paymentId);
+
+        // then
+        assertThat(applied).isFalse();
+        verify(paymentRepository, never()).findById(any());
+        verify(orderStatusHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("실패 처리 시 Order는 FAILED, Payment는 FAILED + failureReason으로 전이되고 true를 반환한다")
     void applyFailure_success() {
         // given
         Order order = pendingOrderWithId(50_000L);
@@ -177,11 +200,32 @@ class PaymentRequestWriterTest {
         given(paymentRepository.findById(paymentId)).willReturn(Optional.of(payment));
 
         // when
-        paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.");
+        boolean applied = paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.");
 
         // then
+        assertThat(applied).isTrue();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FAILED);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
         assertThat(payment.getFailureReason()).isEqualTo("잔액이 부족합니다.");
+    }
+
+    @Test
+    @DisplayName("이미 PAYMENT_REQUESTED가 아닌 주문에 실패 콜백이 다시 오면(중복 redelivery) no-op으로 false를 반환한다")
+    void applyFailure_alreadyProcessed_noOp() {
+        // given
+        Order order = pendingOrderWithId(50_000L);
+        order.markPaymentRequested();
+        order.markFailed(); // 첫 콜백으로 이미 처리된 상태
+        UUID paymentId = UUID.randomUUID();
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+
+        // when
+        boolean applied = paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.");
+
+        // then
+        assertThat(applied).isFalse();
+        verify(paymentRepository, never()).findById(any());
+        verify(orderStatusHistoryRepository, never()).save(any());
     }
 }
