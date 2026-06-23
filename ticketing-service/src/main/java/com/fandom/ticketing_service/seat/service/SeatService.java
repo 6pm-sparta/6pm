@@ -7,6 +7,8 @@ import com.fandom.ticketing_service.order.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.queue.service.PurchaseTokenService;
 import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
 import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
+import com.fandom.ticketing_service.domain.ShowSeat;
+import com.fandom.ticketing_service.domain.ShowSeatRepository;
 import com.fandom.ticketing_service.seat.dto.HoldResponse;
 import com.fandom.ticketing_service.seat.dto.ShowSeatResponse;
 import lombok.RequiredArgsConstructor;
