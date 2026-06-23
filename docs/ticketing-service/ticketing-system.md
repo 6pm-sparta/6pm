@@ -50,7 +50,7 @@ Orders               (주문 = 예약 + 확정 통합 단일 애그리게이트)
 | 키 | 자료구조 | TTL | 설명 |
 |---|---|---|---|
 | `waiting_queue:{show_id}` | Sorted Set | - | 대기열. score = 입장 요청 timestamp |
-| `purchase-token:{userId}` | String | 600초 | 좌석 선택 화면 진입 권한 토큰 |
+| `purchase-token:{showId}:{userId}` | String | 600초 | 좌석 구매 자격 토큰 (showId별 격리) |
 | `show:{show_id}:seat:{show_seat_id}` | String | 600초 | 좌석 상태: `AVAILABLE` / `HOLDING` / `BOOKED` |
 | `show:{show_id}:seat:{show_seat_id}:owner` | String | 600초 (seatKey와 동일) | 선점한 `{userId}:{status}`. status는 `PENDING`(주문 생성 중) / `CONFIRMED`(주문 생성 완료) |
 | `inventory:{show_id}` | String (Counter) | - | 남은 좌석 수 |
@@ -79,22 +79,22 @@ flowchart TD
     A[대기열 등록]
     B[순번 대기 - SSE]
     C[purchase-token 발급]
-    D{Gateway 토큰 검증}
     E[좌석 목록 조회]
-    F{좌석 선점 요청}
+    F{좌석 Hold 요청 - 토큰 검증}
     G[주문 생성 - PENDING]
     H[결제 요청]
     I[PAID → CONFIRMED + 좌석 BOOKED]
     J[FAILED + 좌석 해제]
 
-    A --> B --> C --> D
-    D -->|통과| E
+    A --> B --> C --> E
     E --> F
-    F -->|성공| G --> H
-    F -->|실패 409| E
+    F -->|토큰 있음 + 선점 성공| G --> H
+    F -->|토큰 없음 403 / 선점 실패 409| E
     H -->|결제 성공| I
     H -->|결제 실패| J
 ```
+
+> **변경 (2026-06-23):** 토큰 검증 주체를 Gateway → `SeatService.hold()`로 변경. 좌석 목록 조회는 토큰 없이도 가능하며, 검증은 Hold 시점에 이루어진다. 자세한 배경은 [260623 대기열 토큰.md](./260623%20대기열%20토큰.md), 변경 이력은 [ticketing-system-change-log.md](./ticketing-system-change-log.md) 참고.
 
 ---
 
@@ -108,28 +108,34 @@ sequenceDiagram
     participant Redis
     participant Scheduler
 
-    Client->>Gateway: POST /api/v1/queue/shows/{showId}/enter
+    Client->>Gateway: POST /api/v1/tickets/shows/{showId}/queue
     Gateway->>Queue: 대기열 등록
     Queue->>Redis: ZADD NX (중복 방지)
     Redis-->>Client: 등록 완료
 
-    Client->>Queue: SSE 연결 (GET /api/v1/queue/shows/{showId}/stream)
+    Client->>Queue: SSE 연결 (GET /api/v1/tickets/shows/{showId}/queue/stream)
     loop 순번 안내
         Scheduler->>Redis: ZRANK 조회
         Redis-->>Scheduler: 현재 순번
-        Scheduler-->>Client: 순번 이벤트 전송
+        Scheduler-->>Client: 순번(RANK) 이벤트 전송
     end
 
     Scheduler->>Redis: ZRANGE + ZREM (앞 N명 추출)
-    Scheduler->>Redis: SETNX purchase-token TTL 600s
-    Scheduler-->>Client: 입장 가능 이벤트
-    Client->>Gateway: 좌석 선택 화면 진입 요청
-    Gateway->>Redis: purchase-token 검증 통과
+    Scheduler->>Redis: SETNX purchase-token:{showId}:{userId} TTL 600s
+    Scheduler-->>Client: READY 이벤트 (입장 가능)
+    Client->>Gateway: 좌석 목록 조회 (토큰 불필요)
 ```
+
+> **변경 (2026-06-23):** 이전 버전은 Gateway가 좌석 선택 화면 진입 시점에 토큰을 검증한다고 되어 있었으나, 실제로는 좌석 목록 조회까지는 토큰 없이 가능하고 **좌석 Hold 요청 시점**에 `SeatService`가 직접 검증한다 (구간 2 참고).
 
 ---
 
-### 구간 2 — 좌석 선점 + 주문 생성 (order-service에서)
+### 구간 2 — 좌석 선점 + 주문 생성
+
+**좌석 Hold 시 구매 토큰 검증 (2026-06-23 추가):**
+`SeatService.hold()` 진입 시 `purchase-token:{showId}:{userId}` 존재 여부를 가장 먼저 확인한다. 없으면 `PURCHASE_TOKEN_NOT_FOUND`(403)로 즉시 거부하고, 있으면 기존 좌석 선점 Lua 스크립트(`HOLD_SCRIPT`) → 주문 생성 흐름으로 진행한다. 토큰은 Hold 성공 여부와 무관하게 TTL(600초)로만 만료되며 별도 삭제 로직은 없다.
+
+(이하 주문 생성은 order-service에서)
 
 ### 구간 3 — 결제 및 예매 확정 (order-service에서)
 
@@ -195,3 +201,4 @@ sequenceDiagram
 |---|---|---|
 | `holdId` | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 사용할지 |
 | 주문 취소 연동 | 미구현 | `releaseHold`/`releaseExpiredHold` 시 order-service의 주문도 취소하는 API 연동 필요 (`OrderClient`에 취소 메서드 없음) |
+| 스케줄러 분산 락 | 미구현 | `QueueScheduler`가 멀티 인스턴스로 떠 있을 때 같은 배치를 중복 처리할 수 있음. ShedLock 등 분산 락 적용 필요 |

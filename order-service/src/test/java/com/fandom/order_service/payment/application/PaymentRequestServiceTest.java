@@ -84,7 +84,8 @@ class PaymentRequestServiceTest {
         OrderProperties orderProperties = new OrderProperties(
                 new OrderProperties.Hold(30L, 600L), 10,
                 new OrderProperties.PaymentLockProperties(3L, 5L, 600L),
-                new OrderProperties.Cancellation(24L));
+                new OrderProperties.Cancellation(24L),
+                new OrderProperties.Compensation(3, 1000L));
 
         paymentRequestService = new PaymentRequestService(
                 redissonClient, redisTemplate, objectMapper, paymentRequestWriter,

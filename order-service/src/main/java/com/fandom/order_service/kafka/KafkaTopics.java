@@ -15,6 +15,7 @@ public final class KafkaTopics {
 
     /** 수신(Consumer): ticketing-service → order-service */
     public static final String SEAT_BOOKED = "ticketing.seat.booked";
+    public static final String SEAT_BOOK_FAILED = "ticketing.seat.book.failed";
 
     private KafkaTopics() {
     }
