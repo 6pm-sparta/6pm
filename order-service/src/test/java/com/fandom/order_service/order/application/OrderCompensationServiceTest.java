@@ -50,7 +50,8 @@ class OrderCompensationServiceTest {
     void setUp() {
         // 테스트가 실제로 sleep 때문에 느려지지 않도록 backoff는 0으로 둔다.
         OrderProperties orderProperties = new OrderProperties(
-                null, 10, null, null, new OrderProperties.Compensation(3, 0L));
+                null, 10, null, null,
+                new OrderProperties.Compensation(3, 0L), null);
         orderCompensationService = new OrderCompensationService(
                 orderCompensationWriter, paymentGateway, orderEventProducer, orderProperties);
 
