@@ -22,7 +22,7 @@ public class ReactionCacheService {
 
     /**
      * 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드<br>
-     * TODO: Comment, Like 도메인 연동 필요 [P1]
+     * TODO: Comment 도메인 연동 필요 [P1]
      */
     public PostCache.ReactionInfo getReactionInfo(UUID postId, UUID userId) {
         return new PostCache.ReactionInfo(getCommentCount(postId), getLikeCount(postId), isLiked(postId, userId));
@@ -32,7 +32,7 @@ public class ReactionCacheService {
      * 게시글 ID로 캐시에서 게시글 리액션 정보를 배치 조회하는 메서드<br>
      * TODO: Comment, Like 도메인 연동 필요 [P1]
      */
-    public List<PostCache.ReactionInfo> getReactionInfoBatch(List<UUID> ids, UUID userId) {
+    public List<PostCache.ReactionInfo> getReactionInfoBatch(List<UUID> ids, UUID userId, boolean isLiked) {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
         List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             ids.forEach(id -> {
@@ -43,7 +43,7 @@ public class ReactionCacheService {
                 connection.stringCommands().get(commentKey.getBytes());
                 connection.setCommands().sCard(likeKey.getBytes());
 
-                if (userId != null)
+                if (!isLiked && (userId != null))
                     connection.setCommands().sIsMember(likeKey.getBytes(), userId.toString().getBytes());
             });
             return null;
@@ -58,7 +58,7 @@ public class ReactionCacheService {
 
             long commentCount = (results.get(base) != null) ? Long.parseLong(results.get(base).toString()) : 0L;
             long likeCount = (results.get(base + 1) != null) ? (Long) results.get(base + 1) : 0L;
-            boolean liked = (userId != null) && Boolean.TRUE.equals(results.get(base + 2));
+            boolean liked = isLiked || ((userId != null) && Boolean.TRUE.equals(results.get(base + 2)));
 
             reactionInfos.add(new PostCache.ReactionInfo(commentCount, likeCount, liked));
         }

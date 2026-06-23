@@ -53,7 +53,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findLatestByPostIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByPostId(postId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByPostId(null, postId, pageable);
 
             // then
             assertThat(results).hasSize(3);
@@ -68,7 +68,7 @@ class JpaCommentRepositoryTest {
             UUID cursor = sortedIds.get(1);
 
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByPostId(postId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByPostId(cursor, postId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -98,7 +98,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findOldestByPostIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByPostId(postId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByPostId(null, postId, pageable);
 
             // then
             assertThat(results).hasSize(3);
@@ -113,7 +113,7 @@ class JpaCommentRepositoryTest {
             UUID cursor = sortedIds.get(1);
 
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByPostId(postId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByPostId(cursor, postId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -130,7 +130,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findLatestByAuthorIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(authorId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(null, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -146,7 +146,7 @@ class JpaCommentRepositoryTest {
             UUID cursor = comment4.getId();
 
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(authorId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(cursor, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -176,7 +176,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findOldestByAuthorIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(authorId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(null, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -194,7 +194,7 @@ class JpaCommentRepositoryTest {
             UUID cursor = sortedIds.getFirst();
 
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(authorId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(cursor, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);

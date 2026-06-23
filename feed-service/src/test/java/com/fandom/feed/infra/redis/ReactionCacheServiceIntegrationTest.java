@@ -1,5 +1,6 @@
 package com.fandom.feed.infra.redis;
 
+import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.config.RedisConfig;
 import com.fandom.feed.infra.redis.dto.PostCache;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -29,6 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ExtendWith(SpringExtension.class)
 @Import({ReactionCacheService.class, RedisConfig.class, RedisAutoConfiguration.class})
 public class ReactionCacheServiceIntegrationTest {
+    @MockitoBean
+    private LikeRepository likeRepository;
+
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
@@ -69,7 +74,9 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId2, "other");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(List.of(postId1, postId2), userId);
+            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+                    List.of(postId1, postId2), userId, false
+            );
 
             // Then
             assertThat(results).hasSize(2);
@@ -92,13 +99,35 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(List.of(postId), null);
+            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+                    List.of(postId), null, false
+            );
 
             // Then
             assertThat(results).hasSize(1);
             assertThat(results.getFirst().commentCount()).isEqualTo(2);
             assertThat(results.getFirst().likeCount()).isEqualTo(1);
             assertThat(results.getFirst().liked()).isFalse();
+        }
+
+        @Test
+        @DisplayName("isLiked = true - liked 항상 true")
+        void getReactionInfoBatchWithIsLiked() {
+            // Given
+            UUID postId = UUID.randomUUID();
+            redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId, "2");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
+
+            // When
+            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+                    List.of(postId), null, true
+            );
+
+            // Then
+            assertThat(results).hasSize(1);
+            assertThat(results.getFirst().commentCount()).isEqualTo(2);
+            assertThat(results.getFirst().likeCount()).isEqualTo(1);
+            assertThat(results.getFirst().liked()).isTrue();
         }
     }
 }

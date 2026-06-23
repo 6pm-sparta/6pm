@@ -147,34 +147,22 @@ class PostServiceTest {
         void getPostsWithFilter() {
             // given
             UUID authorId = UUID.randomUUID();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
-
             when(postRepository.findByCursor(any(), any(), eq(authorId), any())).thenReturn(List.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
-            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
             postService.getPosts(null, ReactionSort.LATEST, authorId, null, null);
 
             // then
             verify(postRepository).findByCursor(any(), any(), eq(authorId), any());
-            verifyNoInteractions(postListCacheService);
+            verifyNoInteractions(imageService);
         }
 
         @Test
         @DisplayName("캐시 준비 안됨 - DB 조회 후 캐시 워밍업")
         void getPostsCacheNotReady() {
             // given
-            ApiResponse<List<UserResponse>> apiResponse = mock();
-
             when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(false);
             when(postRepository.findByCursorForWarm(ReactionSort.LATEST)).thenReturn(List.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
-            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
             postService.getPosts(null, ReactionSort.LATEST, null, null, null);
@@ -182,7 +170,9 @@ class PostServiceTest {
             // then
             verify(postRepository).findByCursorForWarm(ReactionSort.LATEST);
             verify(postListCacheService, never()).getPostIds(any(), any());
+            verify(postListCacheService, never()).addPost(any(), any());
             verify(postListCacheService).expireCache(ReactionSort.LATEST);
+            verifyNoInteractions(imageService);
         }
 
         @Test
@@ -190,21 +180,17 @@ class PostServiceTest {
         void getPostsCursorNotInCache() {
             // given
             UUID cursor = UUID.randomUUID();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
             when(postListCacheService.getPostIds(ReactionSort.LATEST, cursor)).thenReturn(null);
             when(postRepository.findByCursor(eq(cursor), any(), isNull(), isNull())).thenReturn(List.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
-            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(List.of());
 
             // when
             postService.getPosts(cursor, ReactionSort.LATEST, null, null, null);
 
             // then
             verify(postRepository).findByCursor(eq(cursor), any(), isNull(), isNull());
+            verifyNoInteractions(imageService);
         }
 
         @Test
@@ -216,7 +202,8 @@ class PostServiceTest {
             when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
             when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(List.of(postId));
             when(postCacheService.getPostDetailBatch(List.of(postId))).thenReturn(List.of(mock(PostCache.Detail.class)));
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
+                    .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
             // when
             postService.getPosts(null, ReactionSort.LATEST, null, null, null);
@@ -239,7 +226,8 @@ class PostServiceTest {
             when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
             when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(List.of(postId));
             when(postCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostCache.Detail.class)));
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
+                    .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
@@ -262,7 +250,8 @@ class PostServiceTest {
             when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(postIds);
             when(postCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.Detail.class)).toList());
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
+            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
+                    .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
@@ -291,7 +280,8 @@ class PostServiceTest {
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
+                    .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
@@ -315,7 +305,8 @@ class PostServiceTest {
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(userClient.getUsers(any()).getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
+            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
+                    .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
@@ -344,7 +335,8 @@ class PostServiceTest {
         when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
         when(userClient.getUsers(any())).thenReturn(apiResponse);
         when(apiResponse.getData()).thenReturn(List.of());
-        when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+        when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
+                .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
         // when
         postService.getPosts(null, ReactionSort.LATEST, null, null, null);
@@ -368,7 +360,7 @@ class PostServiceTest {
             when(imageService.findAllByPostIds(postIds)).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(postIds, null))
+            when(reactionCacheService.getReactionInfoBatch(postIds, null, false))
                     .thenReturn(List.of(
                             mock(PostCache.ReactionInfo.class),
                             mock(PostCache.ReactionInfo.class),
@@ -381,7 +373,7 @@ class PostServiceTest {
             // then
             verify(imageService, times(1)).findAllByPostIds(any());
             verify(userClient, times(1)).getUsers(any());
-            verify(reactionCacheService, times(1)).getReactionInfoBatch(any(), any());
+            verify(reactionCacheService, times(1)).getReactionInfoBatch(any(), any(), anyBoolean());
         }
 
         @Test
@@ -395,7 +387,8 @@ class PostServiceTest {
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
             when(userClient.getUsers(any())).thenReturn(apiResponse);
             when(apiResponse.getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
+            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
+                    .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
 
             // when
@@ -532,7 +525,7 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("Master 사용자 - 정상 삭제")
+        @DisplayName("MASTER 사용자 - 정상 삭제")
         void deletePostIsMaster() {
             // given
             UUID postId = UUID.randomUUID();

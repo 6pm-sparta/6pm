@@ -120,7 +120,7 @@ public class PostService {
         List<UUID> pageIds = hasMore ? postIds.subList(0, FeedPolicy.PAGE_SIZE) : postIds;
 
         List<PostCache.Detail> posts = postCacheService.getPostDetailBatch(pageIds);
-        List<PostCache.ReactionInfo> reactionInfos = reactionCacheService.getReactionInfoBatch(pageIds, userId);
+        List<PostCache.ReactionInfo> reactionInfos = reactionCacheService.getReactionInfoBatch(pageIds, userId, false);
 
         List<PostResponse.Summary> summaries = IntStream.range(0, pageIds.size())
                 .mapToObj(i -> PostResponse.Summary.of(posts.get(i), reactionInfos.get(i)))
@@ -141,7 +141,8 @@ public class PostService {
         boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
         List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
-        return buildDBResponse(page, hasMore, userId);
+        UUID nextCursor = hasMore ? page.getLast().getId() : null;
+        return buildDBResponse(page, nextCursor, hasMore, userId, false);
     }
 
     /**
@@ -157,13 +158,19 @@ public class PostService {
         boolean hasMore = allPosts.size() > FeedPolicy.PAGE_SIZE;
         List<Post> page = hasMore ? allPosts.subList(0, FeedPolicy.PAGE_SIZE) : allPosts;
 
-        return buildDBResponse(page, hasMore, userId);
+        UUID nextCursor = hasMore ? page.getLast().getId() : null;
+        return buildDBResponse(page, nextCursor, hasMore, userId, false);
     }
 
     /**
      * Post 엔티티로 응답을 구성하는 메서드
      */
-    private CursorPageResponse<PostResponse.Summary> buildDBResponse(List<Post> page, boolean hasMore, UUID userId) {
+    protected CursorPageResponse<PostResponse.Summary> buildDBResponse(
+            List<Post> page, UUID nextCursor, boolean hasMore, UUID userId, boolean isLiked
+    ) {
+        if (page.isEmpty())
+            return CursorPageResponse.of(List.of(), null, false);
+
         List<UUID> postIds = page.stream().map(Post::getId).toList();
 
         // 배치 조회
@@ -173,7 +180,7 @@ public class PostService {
         Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()
                 .stream().collect(Collectors.toMap(UserResponse::userId, Function.identity()));
 
-        List<PostCache.ReactionInfo> reactionInfos = reactionCacheService.getReactionInfoBatch(postIds, userId);
+        List<PostCache.ReactionInfo> reactionInfos = reactionCacheService.getReactionInfoBatch(postIds, userId, isLiked);
 
         // DTO 조립
         List<PostCache.Detail> details = page.stream()
@@ -186,7 +193,6 @@ public class PostService {
                 .mapToObj(i -> PostResponse.Summary.of(details.get(i), reactionInfos.get(i)))
                 .toList();
 
-        UUID nextCursor = hasMore ? page.getLast().getId() : null;
         return CursorPageResponse.of(summaries, nextCursor, hasMore);
     }
 }
