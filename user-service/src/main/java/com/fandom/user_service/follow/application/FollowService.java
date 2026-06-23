@@ -1,6 +1,7 @@
 package com.fandom.user_service.follow.application;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.user_service.follow.application.port.FollowEventPublisher;
 import com.fandom.user_service.follow.domain.entity.Follow;
 import com.fandom.user_service.follow.domain.exception.FollowErrorCode;
 import com.fandom.user_service.follow.domain.repository.FollowRepository;
@@ -20,6 +21,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,7 @@ public class FollowService {
     private final FollowRepository followRepository;
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final FollowEventPublisher followEventPublisher;
 
     @Transactional
     public Follow follow(UUID followerId, UUID creatorId) {
@@ -50,6 +54,7 @@ public class FollowService {
 
         increaseFollowingCount(followerId);
         increaseFollowerCount(creatorId);
+        publishFollowedEventAfterCommit(follow.getId(), followerId, creatorId);
 
         return follow;
     }
@@ -67,6 +72,7 @@ public class FollowService {
 
         decreaseFollowingCount(followerId);
         decreaseFollowerCount(creatorId);
+        publishUnfollowedEventAfterCommit(follow.getId(), followerId, creatorId);
     }
 
     public PageResponse<FollowerResponse> getFollowers(UUID creatorId, Pageable pageable) {
@@ -172,5 +178,31 @@ public class FollowService {
         if (updatedCount == 0) {
             throw new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND);
         }
+    }
+
+    private void publishFollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            followEventPublisher.publishFollowed(followId, followerId, followeeId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                followEventPublisher.publishFollowed(followId, followerId, followeeId);
+            }
+        });
+    }
+
+    private void publishUnfollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            followEventPublisher.publishUnfollowed(followId, followerId, followeeId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                followEventPublisher.publishUnfollowed(followId, followerId, followeeId);
+            }
+        });
     }
 }

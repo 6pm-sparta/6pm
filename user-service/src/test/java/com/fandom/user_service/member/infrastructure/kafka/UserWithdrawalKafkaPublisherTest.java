@@ -10,12 +10,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -34,6 +36,8 @@ class UserWithdrawalKafkaPublisherTest {
     void publish_member() {
         UUID userId = UUID.randomUUID();
         ArgumentCaptor<UserWithdrawalMessage> messageCaptor = ArgumentCaptor.forClass(UserWithdrawalMessage.class);
+        given(kafkaTemplate.send(anyString(), anyString(), any(UserWithdrawalMessage.class)))
+                .willReturn(CompletableFuture.completedFuture(null));
 
         publisher.publish(userId, Role.MEMBER);
 
@@ -48,6 +52,8 @@ class UserWithdrawalKafkaPublisherTest {
     void publish_creator() {
         UUID userId = UUID.randomUUID();
         ArgumentCaptor<UserWithdrawalMessage> messageCaptor = ArgumentCaptor.forClass(UserWithdrawalMessage.class);
+        given(kafkaTemplate.send(anyString(), anyString(), any(UserWithdrawalMessage.class)))
+                .willReturn(CompletableFuture.completedFuture(null));
 
         publisher.publish(userId, Role.CREATOR);
 
