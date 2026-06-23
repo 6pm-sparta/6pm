@@ -9,10 +9,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,6 +35,8 @@ class CreatorCreatedKafkaPublisherTest {
         UUID userId = UUID.randomUUID();
         String nickname = "creator";
         ArgumentCaptor<CreatorCreatedMessage> messageCaptor = ArgumentCaptor.forClass(CreatorCreatedMessage.class);
+        given(kafkaTemplate.send(anyString(), anyString(), any(CreatorCreatedMessage.class)))
+                .willReturn(CompletableFuture.completedFuture(null));
 
         publisher.publish(userId, nickname);
 
