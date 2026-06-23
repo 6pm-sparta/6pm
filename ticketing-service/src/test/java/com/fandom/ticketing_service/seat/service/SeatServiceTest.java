@@ -8,6 +8,7 @@ import com.fandom.ticketing_service.order.dto.CreateOrderResponse;
 import com.fandom.ticketing_service.domain.ShowSeat;
 import com.fandom.ticketing_service.domain.ShowSeatRepository;
 import com.fandom.ticketing_service.seat.dto.HoldResponse;
+import com.fandom.ticketing_service.seat.dto.PurchaseLimitResponse;
 import com.fandom.ticketing_service.seat.dto.ShowSeatResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -301,6 +302,63 @@ class SeatServiceTest {
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(TicketingErrorCode.SEAT_HOLD_PROCESSING);
+        }
+    }
+
+    @Nested
+    @DisplayName("구매 한도 조회")
+    class GetPurchaseLimit {
+
+        @Test
+        @DisplayName("구매 내역이 없으면 잔여 수량은 한도와 같다")
+        void getPurchaseLimit_noPurchase_returnsFullRemaining() {
+            // given
+            Long showId = 1L;
+            UUID userId = UUID.randomUUID();
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn(null);
+
+            // when
+            PurchaseLimitResponse result = seatService.getPurchaseLimit(showId, userId);
+
+            // then
+            assertThat(result.limit()).isEqualTo(4);
+            assertThat(result.purchased()).isEqualTo(0);
+            assertThat(result.remaining()).isEqualTo(4);
+        }
+
+        @Test
+        @DisplayName("구매 수량만큼 잔여 수량이 차감된다")
+        void getPurchaseLimit_withPurchase_returnsReducedRemaining() {
+            // given
+            Long showId = 1L;
+            UUID userId = UUID.randomUUID();
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn("3");
+
+            // when
+            PurchaseLimitResponse result = seatService.getPurchaseLimit(showId, userId);
+
+            // then
+            assertThat(result.limit()).isEqualTo(4);
+            assertThat(result.purchased()).isEqualTo(3);
+            assertThat(result.remaining()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("한도를 모두 사용했으면 잔여 수량은 0 이하로 내려가지 않는다")
+        void getPurchaseLimit_atLimit_returnsZeroRemaining() {
+            // given
+            Long showId = 1L;
+            UUID userId = UUID.randomUUID();
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn("4");
+
+            // when
+            PurchaseLimitResponse result = seatService.getPurchaseLimit(showId, userId);
+
+            // then
+            assertThat(result.remaining()).isEqualTo(0);
         }
     }
 }
