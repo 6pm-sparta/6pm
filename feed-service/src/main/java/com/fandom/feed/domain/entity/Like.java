@@ -7,6 +7,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -25,4 +26,10 @@ public class Like extends BaseEntity {
 
     @Column(nullable = false)
     private UUID userId;
+
+    @Builder
+    private Like(UUID postId, UUID userId) {
+        this.postId = postId;
+        this.userId = userId;
+    }
 }
