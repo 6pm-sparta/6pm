@@ -27,13 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
 @ExtendWith(SpringExtension.class)
-@Import({PostReactionService.class, RedisConfig.class, RedisAutoConfiguration.class})
-public class PostReactionServiceIntegrationTest {
+@Import({ReactionCacheService.class, RedisConfig.class, RedisAutoConfiguration.class})
+public class ReactionCacheServiceIntegrationTest {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
     @Autowired
-    private PostReactionService postReactionService;
+    private ReactionCacheService reactionCacheService;
 
     @SuppressWarnings("resource")
     @Container
@@ -69,7 +69,7 @@ public class PostReactionServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId2, "other");
 
             // When
-            List<PostCache.ReactionInfo> results = postReactionService.getReactionInfoBatch(List.of(postId1, postId2), userId);
+            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(List.of(postId1, postId2), userId);
 
             // Then
             assertThat(results).hasSize(2);
@@ -92,7 +92,7 @@ public class PostReactionServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
-            List<PostCache.ReactionInfo> results = postReactionService.getReactionInfoBatch(List.of(postId), null);
+            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(List.of(postId), null);
 
             // Then
             assertThat(results).hasSize(1);

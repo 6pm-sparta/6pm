@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class PostReactionService {
+public class ReactionCacheService {
     private final RedisTemplate<String, String> redisTemplate;
 
     /**
