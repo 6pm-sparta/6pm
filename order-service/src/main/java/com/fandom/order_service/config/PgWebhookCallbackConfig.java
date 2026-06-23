@@ -19,7 +19,6 @@ public class PgWebhookCallbackConfig {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(4);
         scheduler.setThreadNamePrefix("pg-webhook-callback-");
-        scheduler.initialize();
         return scheduler;
     }
 
