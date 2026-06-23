@@ -17,7 +17,7 @@ import java.util.UUID;
 @Table(
         name = "likes",
         uniqueConstraints = @UniqueConstraint(name = "uk_post_user", columnNames = {"post_id", "user_id"}),
-        indexes = @Index(name = "idx_likes_user_id", columnList = "user_id")
+        indexes = @Index(name = "idx_likes_user_id", columnList = "user_id, id DESC")
 )
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Like extends BaseEntity {

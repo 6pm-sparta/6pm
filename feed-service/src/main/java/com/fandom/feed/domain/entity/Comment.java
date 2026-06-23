@@ -17,8 +17,8 @@ import java.util.UUID;
 @Table(
         name = "comments",
         indexes = {
-                @Index(name = "idx_comments_post_created", columnList = "post_id, created_at DESC"),
-                @Index(name = "idx_comments_author_created", columnList = "author_id, created_at DESC")
+                @Index(name = "idx_comments_post_id", columnList = "post_id, id DESC"),
+                @Index(name = "idx_comments_author_id", columnList = "author_id, id DESC")
         }
 )
 @Getter

@@ -16,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "posts",
-        indexes = @Index(name = "idx_posts_author_created", columnList = "author_id, created_at DESC")
+        indexes = @Index(name = "idx_posts_author_id", columnList = "author_id, id DESC")
 )
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("deleted_at IS NULL")
