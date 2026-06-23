@@ -24,6 +24,15 @@ spring:
     consumer:
       group-id: notification-service
 
+logging:
+  file:
+    name: ./logs/notification-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
+
 notification:
   reconciler:
     batch-size: 100

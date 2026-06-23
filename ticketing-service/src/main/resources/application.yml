@@ -27,6 +27,15 @@ spring:
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
 
+logging:
+  file:
+    name: ./logs/ticketing-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
+
 eureka:
   client:
     service-url:

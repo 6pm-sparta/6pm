@@ -32,6 +32,7 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: gemini-3.1-flash-lite   # 무료 한도 여유있는 모델(RPD 500). 2.5-flash는 RPD 20으로 429 빈발.
+
           REVIEW_PROMPT: |
             너는 6pm Fandom SNS 프로젝트의 엄격한 Spring Boot MSA 수석 아키텍트야.
             아래 제공된 Git Diff 코드를 리뷰하고, 한국어로 친절하지만 단호하게 피드백을 남겨줘.

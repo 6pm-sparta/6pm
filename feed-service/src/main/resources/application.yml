@@ -24,6 +24,14 @@ spring:
     openfeign:
       circuitbreaker:
         enabled: true
+logging:
+  file:
+    name: ./logs/feed-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
 
 eureka:
   client:
