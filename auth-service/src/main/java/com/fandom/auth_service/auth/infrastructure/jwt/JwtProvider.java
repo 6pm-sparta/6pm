@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
 
@@ -22,15 +24,22 @@ import java.util.UUID;
 @Component
 public class JwtProvider {
 
+    private static final String TOKEN_TYPE_CLAIM = "type";
+    private static final String ACCESS_TOKEN_TYPE = "access";
+    private static final String REFRESH_TOKEN_TYPE = "refresh";
+
     private final SecretKey secretKey;
     private final long accessTokenExpiration;
+    private final long refreshTokenExpiration;
 
     public JwtProvider(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.access-token-expiration}") long accessTokenExpiration
+            @Value("${jwt.access-token-expiration}") long accessTokenExpiration,
+            @Value("${jwt.refresh-token-expiration}") long refreshTokenExpiration
     ) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiration = accessTokenExpiration;
+        this.refreshTokenExpiration = refreshTokenExpiration;
     }
 
     /**
@@ -40,20 +49,55 @@ public class JwtProvider {
      * @param status 계정 상태 (발급 시점 스냅샷)
      */
     public String createAccessToken(UUID userId, String role, String status) {
+        return createToken(userId, role, status, ACCESS_TOKEN_TYPE, accessTokenExpiration);
+    }
+
+    public String createRefreshToken(UUID userId, String role, String status) {
+        return createToken(userId, role, status, REFRESH_TOKEN_TYPE, refreshTokenExpiration);
+    }
+
+    private String createToken(UUID userId, String role, String status, String tokenType, long expiration) {
         Date now = new Date();
-        Date expiry = new Date(now.getTime() + accessTokenExpiration);
+        Date expiry = new Date(now.getTime() + expiration);
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(userId.toString())
                 .claim("role", role)
                 .claim("status", status)
+                .claim(TOKEN_TYPE_CLAIM, tokenType)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(secretKey)
                 .compact();
     }
 
+    public io.jsonwebtoken.Claims parse(String token) {
+        return Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    public boolean isRefreshToken(io.jsonwebtoken.Claims claims) {
+        return REFRESH_TOKEN_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM, String.class));
+    }
+
+    public boolean isAccessToken(io.jsonwebtoken.Claims claims) {
+        return ACCESS_TOKEN_TYPE.equals(claims.get(TOKEN_TYPE_CLAIM, String.class));
+    }
+
+    public Duration getRemainingTtl(io.jsonwebtoken.Claims claims) {
+        Instant expiration = claims.getExpiration().toInstant();
+        return Duration.between(Instant.now(), expiration);
+    }
+
     public long getAccessTokenExpiration() {
         return accessTokenExpiration;
+    }
+
+    public long getRefreshTokenExpiration() {
+        return refreshTokenExpiration;
     }
 }
