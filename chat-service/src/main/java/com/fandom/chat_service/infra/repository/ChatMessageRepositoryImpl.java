@@ -27,4 +27,12 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepository {
                 ? jpaRepository.findByRoomIdOrderByIdDesc(roomId, page)
                 : jpaRepository.findByRoomIdAndIdLessThanOrderByIdDesc(roomId, cursor, page);
     }
+
+    @Override
+    public List<ChatMessage> findMessagesForFan(UUID roomId, UUID requesterId, UUID cursor, int limit) {
+        PageRequest page = PageRequest.of(0, limit);
+        return cursor == null
+                ? jpaRepository.findFanMessages(roomId, requesterId, page)
+                : jpaRepository.findFanMessagesAfter(roomId, requesterId, cursor, page);
+    }
 }
