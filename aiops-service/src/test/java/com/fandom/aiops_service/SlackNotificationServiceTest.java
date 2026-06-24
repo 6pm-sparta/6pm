@@ -1,5 +1,6 @@
-package com.fandom.aiops_service.application;
+package com.fandom.aiops_service;
 
+import com.fandom.aiops_service.application.SlackNotificationService;
 import com.fandom.aiops_service.domain.entity.IncidentAlertHistory;
 import com.fandom.aiops_service.domain.repository.IncidentAlertHistoryRepository;
 import com.fandom.aiops_service.infrastructure.slack.SlackClient;
