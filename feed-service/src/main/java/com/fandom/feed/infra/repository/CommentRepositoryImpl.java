@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,5 +34,10 @@ public class CommentRepositoryImpl extends BaseRepositoryImpl<Comment, UUID, Jpa
             case LATEST -> jpaRepository.findLatestByAuthorId(cursor, authorId, PAGEABLE);
             case OLDEST -> jpaRepository.findOldestByAuthorId(cursor, authorId, PAGEABLE);
         };
+    }
+
+    @Override
+    public void softDeleteAllByPostId(UUID postId, UUID userId) {
+        jpaRepository.softDeleteAllByPostId(postId, userId, LocalDateTime.now());
     }
 }

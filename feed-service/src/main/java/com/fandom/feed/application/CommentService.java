@@ -129,4 +129,9 @@ public class CommentService {
         UUID nextCursor = hasMore ? comments.getLast().getId() : null;
         return CursorPageResponse.of(content, nextCursor, hasMore);
     }
+
+    @Transactional
+    public void deleteAllByPostId(UUID postId, UUID userId) {
+        commentRepository.softDeleteAllByPostId(postId, userId);
+    }
 }

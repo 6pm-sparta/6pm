@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class LikeService {
     private final PostReader postReader;
-    private final PostService postService;
+    private final PostAssembler postAssembler;
     private final ReactionCacheService reactionCacheService;
     private final LikeRepository likeRepository;
 
@@ -50,7 +50,7 @@ public class LikeService {
         List<Post> orderedPosts = orderedPostIds.stream().map(postMap::get).filter(Objects::nonNull).toList();
 
         UUID nextCursor = hasMore ? page.getLast().getId() : null;
-        return postService.buildDBResponse(orderedPosts, nextCursor, hasMore, userId, true);
+        return postAssembler.buildDBResponse(orderedPosts, nextCursor, hasMore, userId, true);
     }
 
     @Transactional
@@ -59,5 +59,10 @@ public class LikeService {
         likeRepository.deleteByPostIdAndUserId(postId, userId);
         long likeCount = reactionCacheService.removeLike(postId, userId);
         return LikeResponse.of(postId, likeCount);
+    }
+
+    @Transactional
+    public void deleteAllByPostId(UUID postId) {
+        likeRepository.deleteAllByPostId(postId);
     }
 }

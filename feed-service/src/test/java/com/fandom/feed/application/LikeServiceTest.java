@@ -36,7 +36,7 @@ class LikeServiceTest {
     private ReactionCacheService reactionCacheService;
 
     @Mock
-    private PostService postService;
+    private PostAssembler postAssembler;
 
     @InjectMocks
     private LikeService likeService;
@@ -66,7 +66,7 @@ class LikeServiceTest {
         when(postReader.findAllByIds(List.of(postId1, postId2))).thenReturn(List.of(post2, post1));
 
         CursorPageResponse<PostResponse.Summary> dummy = CursorPageResponse.of(List.of(), null, false);
-        when(postService.buildDBResponse(anyList(), any(), anyBoolean(), eq(userId), eq(true))).thenReturn(dummy);
+        when(postAssembler.buildDBResponse(anyList(), any(), anyBoolean(), eq(userId), eq(true))).thenReturn(dummy);
 
         // When
         likeService.getLikes(null, ReactionSort.LATEST, userId);
@@ -75,7 +75,7 @@ class LikeServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Post>> captor = ArgumentCaptor.forClass(List.class);
 
-        verify(postService).buildDBResponse(captor.capture(), any(), anyBoolean(), eq(userId), eq(true));
+        verify(postAssembler).buildDBResponse(captor.capture(), any(), anyBoolean(), eq(userId), eq(true));
         assertThat(captor.getValue()).extracting(Post::getId).containsExactly(postId1, postId2);
     }
 
