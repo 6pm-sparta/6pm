@@ -20,7 +20,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("CreatorCreatedKafkaPublisher unit tests")
+@DisplayName("크리에이터 생성 Kafka 발행기 단위 테스트")
 class CreatorCreatedKafkaPublisherTest {
 
     @Mock
@@ -30,7 +30,7 @@ class CreatorCreatedKafkaPublisherTest {
     private CreatorCreatedKafkaPublisher publisher;
 
     @Test
-    @DisplayName("creator created event publishes user.creator-created with user id key")
+    @DisplayName("크리에이터 생성 이벤트는 user.creator-created 토픽에 userId를 key로 발행된다")
     void publish() {
         UUID userId = UUID.randomUUID();
         String nickname = "creator";

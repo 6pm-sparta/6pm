@@ -96,7 +96,7 @@ public class FollowService {
 
     public PageResponse<FollowingResponse> getFollowings(UUID memberId, Pageable pageable) {
         User member = findUserById(memberId);
-        validateRole(member, Role.MEMBER, FollowErrorCode.FOLLOWER_MUST_BE_MEMBER);
+        validateFollowerRole(member);
 
         Page<Follow> followingPage = followRepository.findByFollowerId(memberId, pageable);
         Map<UUID, Profile> profilesByUserId = findProfilesByUserIds(
@@ -117,8 +117,14 @@ public class FollowService {
         if (follower.getId().equals(followee.getId())) {
             throw new CustomException(FollowErrorCode.SELF_FOLLOW_NOT_ALLOWED);
         }
-        validateRole(follower, Role.MEMBER, FollowErrorCode.FOLLOWER_MUST_BE_MEMBER);
+        validateFollowerRole(follower);
         validateRole(followee, Role.CREATOR, FollowErrorCode.FOLLOWEE_MUST_BE_CREATOR);
+    }
+
+    private void validateFollowerRole(User user) {
+        if (user.getRole() != Role.MEMBER && user.getRole() != Role.CREATOR) {
+            throw new CustomException(FollowErrorCode.FOLLOWER_MUST_BE_MEMBER_OR_CREATOR);
+        }
     }
 
     private void validateRole(User user, Role role, FollowErrorCode errorCode) {

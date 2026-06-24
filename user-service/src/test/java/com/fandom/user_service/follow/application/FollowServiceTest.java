@@ -36,7 +36,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("FollowService unit tests")
+@DisplayName("팔로우 서비스 단위 테스트")
 class FollowServiceTest {
 
     @Mock
@@ -55,7 +55,7 @@ class FollowServiceTest {
     private FollowService followService;
 
     @Test
-    @DisplayName("follow saves relation and increases counts")
+    @DisplayName("팔로우에 성공하면 관계를 저장하고 카운트를 증가시킨다")
     void follow_success() {
         UUID followerId = UUID.randomUUID();
         UUID creatorId = UUID.randomUUID();
@@ -85,7 +85,37 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("follow rejects duplicate relation")
+    @DisplayName("크리에이터는 다른 크리에이터를 팔로우할 수 있다")
+    void follow_creatorToCreator_success() {
+        UUID followerId = UUID.randomUUID();
+        UUID creatorId = UUID.randomUUID();
+        User follower = user(Role.CREATOR);
+        User creator = user(Role.CREATOR);
+        UUID followId = UUID.randomUUID();
+        Follow savedFollow = Follow.builder()
+                .follower(follower)
+                .followee(creator)
+                .build();
+        ReflectionTestUtils.setField(savedFollow, "id", followId);
+
+        given(userRepository.findById(followerId)).willReturn(Optional.of(follower));
+        given(userRepository.findById(creatorId)).willReturn(Optional.of(creator));
+        given(followRepository.existsByFollowerIdAndFolloweeId(followerId, creatorId)).willReturn(false);
+        given(followRepository.saveAndFlush(any(Follow.class))).willReturn(savedFollow);
+        given(profileRepository.increaseFollowingCountByUserId(followerId)).willReturn(1);
+        given(profileRepository.increaseFollowerCountByUserId(creatorId)).willReturn(1);
+
+        Follow follow = followService.follow(followerId, creatorId);
+
+        assertThat(follow).isEqualTo(savedFollow);
+        verify(followRepository).saveAndFlush(any(Follow.class));
+        verify(profileRepository).increaseFollowingCountByUserId(followerId);
+        verify(profileRepository).increaseFollowerCountByUserId(creatorId);
+        verify(followEventPublisher).publishFollowed(followId, followerId, creatorId);
+    }
+
+    @Test
+    @DisplayName("이미 팔로우한 관계면 예외가 발생한다")
     void follow_duplicate() {
         UUID followerId = UUID.randomUUID();
         UUID creatorId = UUID.randomUUID();
@@ -100,7 +130,7 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("follow maps unique constraint violation to duplicate follow")
+    @DisplayName("유니크 제약 위반은 중복 팔로우 예외로 변환된다")
     void follow_duplicateByUniqueConstraint() {
         UUID followerId = UUID.randomUUID();
         UUID creatorId = UUID.randomUUID();
@@ -117,7 +147,7 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("follow rejects self follow")
+    @DisplayName("자기 자신 팔로우는 예외가 발생한다")
     void follow_self() {
         UUID userId = UUID.randomUUID();
         User user = user(Role.MEMBER);
@@ -130,21 +160,21 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("follow rejects non-member follower")
-    void follow_nonMemberFollower() {
+    @DisplayName("지원하지 않는 팔로워 역할이면 예외가 발생한다")
+    void follow_unsupportedFollowerRole() {
         UUID followerId = UUID.randomUUID();
         UUID creatorId = UUID.randomUUID();
-        given(userRepository.findById(followerId)).willReturn(Optional.of(user(Role.CREATOR)));
+        given(userRepository.findById(followerId)).willReturn(Optional.of(user(Role.MASTER)));
         given(userRepository.findById(creatorId)).willReturn(Optional.of(user(Role.CREATOR)));
 
         assertThatThrownBy(() -> followService.follow(followerId, creatorId))
                 .isInstanceOf(CustomException.class)
                 .extracting("errorCode")
-                .isEqualTo(FollowErrorCode.FOLLOWER_MUST_BE_MEMBER);
+                .isEqualTo(FollowErrorCode.FOLLOWER_MUST_BE_MEMBER_OR_CREATOR);
     }
 
     @Test
-    @DisplayName("follow rejects non-creator followee")
+    @DisplayName("팔로우 대상이 크리에이터가 아니면 예외가 발생한다")
     void follow_nonCreatorFollowee() {
         UUID followerId = UUID.randomUUID();
         UUID followeeId = UUID.randomUUID();
@@ -158,7 +188,7 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("unfollow deletes relation and decreases counts")
+    @DisplayName("언팔로우에 성공하면 관계를 삭제하고 카운트를 감소시킨다")
     void unfollow_success() {
         UUID followerId = UUID.randomUUID();
         UUID creatorId = UUID.randomUUID();
@@ -184,7 +214,7 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("unfollow rejects missing relation")
+    @DisplayName("팔로우 관계가 없으면 언팔로우 예외가 발생한다")
     void unfollow_notFound() {
         UUID followerId = UUID.randomUUID();
         UUID creatorId = UUID.randomUUID();
@@ -199,7 +229,7 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("getFollowers returns paged follower profiles")
+    @DisplayName("팔로워 목록은 페이지 응답으로 조회된다")
     void getFollowers_success() {
         UUID creatorId = UUID.randomUUID();
         User creator = user(Role.CREATOR);
@@ -224,7 +254,7 @@ class FollowServiceTest {
     }
 
     @Test
-    @DisplayName("getFollowings returns paged creator profiles")
+    @DisplayName("팔로잉 목록은 크리에이터 프로필 페이지 응답으로 조회된다")
     void getFollowings_success() {
         UUID memberId = UUID.randomUUID();
         User member = user(Role.MEMBER);
@@ -242,6 +272,32 @@ class FollowServiceTest {
         given(profileRepository.findAllByUserIdIn(List.of(creator.getId()))).willReturn(List.of(creatorProfile));
 
         PageResponse<FollowingResponse> response = followService.getFollowings(memberId, pageable);
+
+        assertThat(response.content()).hasSize(1);
+        assertThat(response.content().get(0).nickname()).isEqualTo("creator");
+        assertThat(response.content().get(0).followerCount()).isEqualTo(10);
+        assertThat(response.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("크리에이터의 팔로잉 목록도 조회할 수 있다")
+    void getFollowings_creatorFollower_success() {
+        UUID creatorFollowerId = UUID.randomUUID();
+        User creatorFollower = user(Role.CREATOR);
+        User creator = user(Role.CREATOR);
+        Profile creatorProfile = profile(creator, "creator", 10, 0);
+        Follow follow = Follow.builder()
+                .follower(creatorFollower)
+                .followee(creator)
+                .build();
+        Pageable pageable = PageRequest.of(0, 10);
+
+        given(userRepository.findById(creatorFollowerId)).willReturn(Optional.of(creatorFollower));
+        given(followRepository.findByFollowerId(creatorFollowerId, pageable))
+                .willReturn(new PageImpl<>(List.of(follow), pageable, 1));
+        given(profileRepository.findAllByUserIdIn(List.of(creator.getId()))).willReturn(List.of(creatorProfile));
+
+        PageResponse<FollowingResponse> response = followService.getFollowings(creatorFollowerId, pageable);
 
         assertThat(response.content()).hasSize(1);
         assertThat(response.content().get(0).nickname()).isEqualTo("creator");

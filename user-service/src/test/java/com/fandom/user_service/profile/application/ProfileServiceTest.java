@@ -33,7 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ProfileService unit tests")
+@DisplayName("프로필 서비스 단위 테스트")
 class ProfileServiceTest {
 
     @Mock
@@ -49,7 +49,7 @@ class ProfileServiceTest {
     private ProfileService profileService;
 
     @Test
-    @DisplayName("createInitialProfile saves default profile values")
+    @DisplayName("초기 프로필 생성 시 기본 프로필 값을 저장한다")
     void createInitialProfile_success() {
         User user = member();
         given(profileRepository.existsByNickname("tester")).willReturn(false);
@@ -66,7 +66,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    @DisplayName("createInitialProfile rejects duplicate nickname")
+    @DisplayName("초기 프로필 생성 시 중복 닉네임이면 예외가 발생한다")
     void createInitialProfile_duplicateNickname() {
         User user = member();
         given(profileRepository.existsByNickname("duplicate")).willReturn(true);
@@ -80,7 +80,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    @DisplayName("getMemberProfile returns public member profile")
+    @DisplayName("일반 회원 공개 프로필을 조회한다")
     void getMemberProfile_success() {
         UUID userId = UUID.randomUUID();
         User user = member();
@@ -96,7 +96,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    @DisplayName("getCreatorProfile returns public creator profile")
+    @DisplayName("크리에이터 공개 프로필을 조회한다")
     void getCreatorProfile_success() {
         UUID userId = UUID.randomUUID();
         User user = creatorUser();
@@ -116,7 +116,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    @DisplayName("updateMemberProfile changes only requested fields")
+    @DisplayName("일반 회원 프로필 수정 시 요청된 필드만 변경한다")
     void updateMemberProfile_success() {
         UUID userId = UUID.randomUUID();
         User user = member();
@@ -137,7 +137,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    @DisplayName("updateCreatorProfile changes birthday and public profile fields")
+    @DisplayName("크리에이터 프로필 수정 시 생일과 공개 프로필 필드를 변경한다")
     void updateCreatorProfile_success() {
         UUID userId = UUID.randomUUID();
         User user = creatorUser();
@@ -162,7 +162,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    @DisplayName("member profile endpoint rejects creator role")
+    @DisplayName("일반 회원 프로필 엔드포인트는 크리에이터 역할 접근을 거부한다")
     void getMemberProfile_forbiddenRole() {
         UUID userId = UUID.randomUUID();
         given(userRepository.findById(userId)).willReturn(Optional.of(creatorUser()));
@@ -174,7 +174,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    @DisplayName("update profile rejects duplicate nickname")
+    @DisplayName("프로필 수정 시 중복 닉네임이면 예외가 발생한다")
     void updateMemberProfile_duplicateNickname() {
         UUID userId = UUID.randomUUID();
         User user = member();

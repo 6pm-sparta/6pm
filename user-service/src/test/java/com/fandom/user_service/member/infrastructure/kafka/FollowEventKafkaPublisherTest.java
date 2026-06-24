@@ -20,7 +20,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("FollowEventKafkaPublisher unit tests")
+@DisplayName("팔로우 이벤트 Kafka 발행기 단위 테스트")
 class FollowEventKafkaPublisherTest {
 
     @Mock
@@ -30,7 +30,7 @@ class FollowEventKafkaPublisherTest {
     private FollowEventKafkaPublisher publisher;
 
     @Test
-    @DisplayName("follow event publishes user.followed with follow id key")
+    @DisplayName("팔로우 이벤트는 user.followed 토픽에 followId를 key로 발행된다")
     void publishFollowed() {
         UUID followId = UUID.randomUUID();
         UUID followerId = UUID.randomUUID();
@@ -48,7 +48,7 @@ class FollowEventKafkaPublisherTest {
     }
 
     @Test
-    @DisplayName("unfollow event publishes user.unfollowed with follow id key")
+    @DisplayName("언팔로우 이벤트는 user.unfollowed 토픽에 followId를 key로 발행된다")
     void publishUnfollowed() {
         UUID followId = UUID.randomUUID();
         UUID followerId = UUID.randomUUID();
