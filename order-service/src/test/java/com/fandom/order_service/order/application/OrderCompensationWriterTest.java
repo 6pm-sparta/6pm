@@ -80,8 +80,8 @@ class OrderCompensationWriterTest {
     }
 
     @Test
-    @DisplayName("PAID 주문은 COMPENSATING으로 전이되고 환불 대상 결제를 함께 반환한다")
-    void startCompensation_paid_transitionsToCompensating() {
+    @DisplayName("PAID 주문은 COMPENSATING을 거쳐 REFUND_REQUESTED까지 한 트랜잭션에서 전이되고 환불 대상 결제를 함께 반환한다")
+    void startCompensation_paid_transitionsToRefundRequested() {
         // given
         Order order = paidOrder();
         Payment payment = approvedPayment();
@@ -93,11 +93,12 @@ class OrderCompensationWriterTest {
         OrderCompensationResult result = orderCompensationWriter.startCompensation(orderId, "좌석 매진");
 
         // then
-        assertThat(result.type()).isEqualTo(OrderCompensationResult.Type.COMPENSATING_STARTED);
+        assertThat(result.type()).isEqualTo(OrderCompensationResult.Type.REFUND_REQUESTED_STARTED);
         assertThat(result.userId()).isEqualTo(userId);
         assertThat(result.paymentToRefund()).isEqualTo(payment);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPENSATING);
-        verify(orderStatusHistoryRepository).save(any());
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED);
+        // PAID→COMPENSATING, COMPENSATING→REFUND_REQUESTED 두 단계 모두 이력에 남는다
+        verify(orderStatusHistoryRepository, times(2)).save(any());
     }
 
     @Test
@@ -145,43 +146,6 @@ class OrderCompensationWriterTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(OrderErrorCode.ORDER_NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("applyRefundSuccess는 COMPENSATING을 REFUND_REQUESTED 거쳐 REFUNDED까지 전이하고 결제도 환불 처리한다")
-    void applyRefundSuccess_transitionsToRefundedAndRefundsPayment() {
-        // given
-        Order order = paidOrder();
-        order.markCompensating();
-        Payment payment = approvedPayment();
-        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findById(payment.getId())).willReturn(Optional.of(payment));
-
-        // when
-        OrderCompensationResult result = orderCompensationWriter.applyRefundSuccess(orderId, payment.getId());
-
-        // then
-        assertThat(result.type()).isEqualTo(OrderCompensationResult.Type.REFUNDED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUNDED);
-        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
-        // COMPENSATING→REFUND_REQUESTED, REFUND_REQUESTED→REFUNDED 두 단계 모두 이력에 남는다
-        verify(orderStatusHistoryRepository, times(2)).save(any());
-    }
-
-    @Test
-    @DisplayName("applyRefundFailure는 COMPENSATING을 FAILED로 전이한다(수동 처리 대상)")
-    void applyRefundFailure_transitionsToFailed() {
-        // given
-        Order order = paidOrder();
-        order.markCompensating();
-        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-
-        // when
-        OrderCompensationResult result = orderCompensationWriter.applyRefundFailure(orderId);
-
-        // then
-        assertThat(result.type()).isEqualTo(OrderCompensationResult.Type.FAILED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.FAILED);
     }
 
     @Test
