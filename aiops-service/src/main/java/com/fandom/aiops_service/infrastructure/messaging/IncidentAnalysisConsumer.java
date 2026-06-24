@@ -8,12 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
-/**
- * incident.detected 토픽 컨슈머.
- *  - 페이로드는 incidentId(String) → DB에서 사건을 다시 읽어 LLM 분석을 수행/저장.
- *  - 분석 자체의 트랜잭션/예외 처리는 IncidentAnalysisService 가 담당(여기선 위임만).
- *  - 잘못된 메시지(파싱 불가 등)는 ERROR 로그 후 흘려보낸다(웹훅/적재는 이미 정상).
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor

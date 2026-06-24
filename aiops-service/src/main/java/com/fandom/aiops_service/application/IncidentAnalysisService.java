@@ -3,23 +3,15 @@ package com.fandom.aiops_service.application;
 import com.fandom.aiops_service.application.dto.AiAnalysisResult;
 import com.fandom.aiops_service.domain.entity.IncidentAlertHistory;
 import com.fandom.aiops_service.domain.repository.IncidentAlertHistoryRepository;
+import com.fandom.common.exception.CustomException;
+import com.fandom.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
 import java.util.UUID;
 
-/**
- * 사건(incident)에 대한 LLM(Gemini) 분석 → DB 저장.
- * Kafka 컨슈머(IncidentAnalysisConsumer)가 호출하는 비동기 경로의 핵심 로직.
- *
- * 설계:
- *  - analyzeAndStore 는 @Transactional. 사건을 로드 → LLM 분석 → applyAiAnalysis(더티체킹 update).
- *  - LLM 호출 실패는 graceful: ERROR 로그만 남기고 사건은 미분석 상태로 둔다(이후 재처리 가능).
- *  - 이미 분석된 사건은 멱등하게 스킵(중복 메시지/재처리 대비).
- */
 @Slf4j
 @Service
 public class IncidentAnalysisService {
@@ -45,28 +37,25 @@ public class IncidentAnalysisService {
             return;
         }
 
-        analyze(incident).ifPresentOrElse(
-                result -> {
-                    incident.applyAiAnalysis(result.summary(), result.rootCause(), result.guide());
-                    log.info("[AIOps] LLM 분석 완료 → incidentId={}, summary={}", incidentId, result.summary());
-                },
-                () -> log.warn("[AIOps] LLM 분석 결과 없음 — 미분석 보존: incidentId={}", incidentId)
-        );
+        try {
+            AiAnalysisResult result = analyze(incident);
+            incident.applyAiAnalysis(result.summary(), result.rootCause(), result.guide());
+            log.info("[AIOps] LLM 분석 완료 → incidentId={}, summary={}", incidentId, result.summary());
+        } catch (CustomException e) {
+            // graceful: 분석에 실패해도 사건 기록은 보존(미분석 상태). 추후 재처리 가능(#130).
+            log.warn("[AIOps] 분석 미완료 — 미분석 보존: incidentId={}, code={}", incidentId, e.getErrorCode());
+        }
     }
 
-    /**
-     * 실제 LLM 호출. 실패 시 Optional.empty() (예외를 밖으로 던지지 않는다).
-     */
-    public Optional<AiAnalysisResult> analyze(IncidentAlertHistory incident) {
+    public AiAnalysisResult analyze(IncidentAlertHistory incident) {
         try {
-            AiAnalysisResult result = chatClient.prompt()
+            return chatClient.prompt()
                     .user(buildUserPrompt(incident))
                     .call()
                     .entity(AiAnalysisResult.class);
-            return Optional.ofNullable(result);
         } catch (Exception e) {
-            log.error("[AIOps] LLM 분석 호출 실패 — incidentId={}", incident.getId(), e);
-            return Optional.empty();
+            log.error("[AIOps] {} — incidentId={}", ErrorCode.LLM_ANALYSIS_FAILED.getMessage(), incident.getId(), e);
+            throw new CustomException(ErrorCode.LLM_ANALYSIS_FAILED);
         }
     }
 

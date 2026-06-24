@@ -15,16 +15,6 @@ import org.springframework.util.StringUtils;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 
-/**
- * Alertmanager 웹훅 처리:
- *  - firing  → 사건 신규 기록(DETECTED, fired_at) + 분석 이벤트 발행(#128)
- *  - resolved→ 진행 중 사건 찾아 복구 시각 + MTTR 기록
- *
- * 설계 포인트
- *  - 매칭 기준은 fingerprint 1순위(없으면 alertname+job 폴백) → firing↔resolved 짝짓기 정확도↑
- *  - 웹훅은 "기록"까지만 동기로 끝내고 200을 빠르게 반환한다. LLM 분석은 Kafka로 비동기 위임(#128)
- *    → 트랜잭션 커밋 이후(AFTER_COMMIT) Kafka publish (IncidentEventPublisher)
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

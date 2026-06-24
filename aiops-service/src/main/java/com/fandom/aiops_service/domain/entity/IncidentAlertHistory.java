@@ -14,11 +14,6 @@ import org.hibernate.type.SqlTypes;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 
-/**
- * 장애 사건 이력 (aiops_db.incident_alert_history).
- * Alertmanager 알림을 받아 기록하고, MTTR(복구시간)을 측정한다.
- * id/createdAt 등 공통 필드는 BaseEntity가 담당.
- */
 @Entity
 @Getter
 @Table(name = "incident_alert_history")

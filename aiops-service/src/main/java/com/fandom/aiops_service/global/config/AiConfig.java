@@ -4,13 +4,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Spring AI ChatClient 구성.
- * google-genai 스타터가 ChatModel/ChatClient.Builder 를 자동구성하므로
- * 여기서는 AIOps 도메인용 시스템 프롬프트만 입혀 빈으로 노출한다.
- *
- * 인증: spring.ai.google.genai.api-key=${GEMINI_API_KEY} (AI Studio 키 그대로 사용, GCP 자격증명 불필요)
- */
 @Configuration
 public class AiConfig {
 
