@@ -4,7 +4,6 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.PostService;
-import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.global.annotation.RequireRole;
 import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.presentation.dto.request.PostRequest;
@@ -58,13 +57,12 @@ public class PostController {
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<CursorPageResponse<PostResponse.Summary>> getPosts(
             @RequestParam(required = false) UUID cursor,
-            @RequestParam(defaultValue = "LATEST") ReactionSort sort,
             @RequestParam(required = false) UUID authorId,
             @RequestParam(required = false) String keyword,
             @CurrentIdCard UserIdCard idCard
     ) {
         UUID userId = extractLikeableUserId(idCard);
-        CursorPageResponse<PostResponse.Summary> response = postService.getPosts(cursor, sort, authorId, keyword, userId);
+        CursorPageResponse<PostResponse.Summary> response = postService.getPosts(cursor, authorId, keyword, userId);
         return ApiResponse.success(response);
     }
 

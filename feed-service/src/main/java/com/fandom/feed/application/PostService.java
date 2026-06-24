@@ -2,7 +2,6 @@ package com.fandom.feed.application;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
@@ -44,6 +43,8 @@ public class PostService {
 
         imageService.saveImages(post.getId(), imageKeys);
 
+        postListCacheService.addPost(post.getId(), post.getAuthorId(), false);
+
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
     }
 
@@ -53,21 +54,19 @@ public class PostService {
         return PostResponse.Detail.of(cachedPost, reactionInfo);
     }
 
-    public CursorPageResponse<PostResponse.Summary> getPosts(
-            UUID cursor, ReactionSort sort, UUID authorId, String keyword, UUID userId
-    ) {
-        // 검색 조건이 있으면 DB 조회
-        if (authorId != null || keyword != null)
-            return getPostsFromDB(cursor, sort, authorId, keyword, userId);
+    public CursorPageResponse<PostResponse.Summary> getPosts(UUID cursor, UUID authorId, String keyword, UUID userId) {
+        // 검색어 있으면 DB 조회
+        if (keyword != null)
+            return getPostsFromDB(cursor, authorId, keyword, userId);
 
-        // 캐시가 없으면 DB 조회 후 캐시 워밍업
-        if (!postListCacheService.isCacheReady(sort))
-            return getPostsFromDBAndWarm(sort, userId);
+        // 캐시 없으면 DB 조회 후 캐시 워밍업
+        if (!postListCacheService.isCacheReady(authorId))
+            return getPostsFromDBAndWarm(authorId, userId);
 
         // 캐시 조회 후 5페이지 초과 시 DB 조회
-        List<UUID> postIds = postListCacheService.getPostIds(sort, cursor);
+        List<UUID> postIds = postListCacheService.getPostIds(authorId, cursor);
         if (postIds == null)
-            return getPostsFromDB(cursor, sort, null, null, userId);
+            return getPostsFromDB(cursor, null, null, userId);
 
         return postAssembler.buildCacheResponse(postIds, userId);
     }
@@ -107,7 +106,7 @@ public class PostService {
         imageService.deleteAllByPostId(postId);
         imageService.publishS3DeleteEvent(imageKeys);
 
-        postListCacheService.removePost(postId);
+        postListCacheService.removePost(postId, post.getAuthorId());
 
         return PostResponse.Delete.from(post);
     }
@@ -115,10 +114,8 @@ public class PostService {
     /**
      * DB에서 게시글 목록을 가져오는 메서드
      */
-    private CursorPageResponse<PostResponse.Summary> getPostsFromDB(
-            UUID cursor, ReactionSort sort, UUID authorId, String keyword, UUID userId
-    ) {
-        List<Post> posts = postRepository.findByCursor(cursor, sort, authorId, keyword);
+    private CursorPageResponse<PostResponse.Summary> getPostsFromDB(UUID cursor, UUID authorId, String keyword, UUID userId) {
+        List<Post> posts = postRepository.findByCursor(cursor, authorId, keyword);
 
         boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
         List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
@@ -130,12 +127,12 @@ public class PostService {
     /**
      * DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드
      */
-    private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(ReactionSort sort, UUID userId) {
-        List<Post> allPosts = postRepository.findByCursorForWarm(sort);
+    private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
+        List<Post> allPosts = postRepository.findByCursorForWarm(authorId);
 
-        allPosts.forEach(post -> postListCacheService.addPost(post.getId(), sort));
+        allPosts.forEach(post -> postListCacheService.addPost(post.getId(), authorId, true));
 
-        postListCacheService.expireCache(sort);
+        postListCacheService.expireCache(authorId);
 
         boolean hasMore = allPosts.size() > FeedPolicy.PAGE_SIZE;
         List<Post> page = hasMore ? allPosts.subList(0, FeedPolicy.PAGE_SIZE) : allPosts;
