@@ -16,11 +16,6 @@ import java.util.UUID;
 public interface PaymentGateway {
 
     /**
-     * 환불을 요청한다. pgTransactionId 기준으로 PG 측에서 멱등 처리되는 것을 가정한다.
-     */
-    PgRefundResult requestRefund(String pgTransactionId, Long amount);
-
-    /**
      * 비동기 결제 승인을 요청한다. PG가 요청을 접수했다는 사실과 거래 식별자(pgTransactionId)만
      * 즉시 반환하며, 실제 승인/거절 결과는 알 수 없다 — 최종 결과는 추후 PG 콜백(webhook)으로 전달된다.
      */
