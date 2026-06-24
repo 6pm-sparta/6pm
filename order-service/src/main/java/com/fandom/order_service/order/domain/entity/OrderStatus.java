@@ -12,10 +12,10 @@ import java.util.Set;
  * - 유저 직접 취소(결제 후): PAID → REFUND_REQUESTED → REFUNDED
  * - 예매 확정 후 취소(취소 가능 시간 내): CONFIRMED → REFUND_REQUESTED → REFUNDED
  * - SAGA 보상 트랜잭션: PAID → COMPENSATING → REFUND_REQUESTED → REFUNDED
- * - 보상 트랜잭션 최종 실패: COMPENSATING → FAILED
+ * - 환불 거절(PG webhook): REFUND_REQUESTED → FAILED
  *
- * 주의: CONFIRMED는 완전한 종료 상태가 아니다. 설계문서 기준으로는 취소 가능 시간 내라면
- * CONFIRMED에서도 REFUND_REQUESTED로 빠질 수 있다. (CANCELLED/REFUNDED/FAILED만 진짜 종료 상태)
+ * CONFIRMED는 취소 가능 기간 내 환불로 전이될 수 있으며,
+ * CANCELLED, REFUNDED, FAILED를 종료 상태로 본다.
  */
 public enum OrderStatus {
     PENDING,
