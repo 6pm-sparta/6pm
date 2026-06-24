@@ -3,8 +3,8 @@ package com.fandom.aiops_service.application;
 import com.fandom.aiops_service.application.dto.AiAnalysisResult;
 import com.fandom.aiops_service.domain.entity.IncidentAlertHistory;
 import com.fandom.aiops_service.domain.repository.IncidentAlertHistoryRepository;
+import com.fandom.aiops_service.global.exception.AiopsErrorCode;
 import com.fandom.common.exception.CustomException;
-import com.fandom.common.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -54,8 +54,8 @@ public class IncidentAnalysisService {
                     .call()
                     .entity(AiAnalysisResult.class);
         } catch (Exception e) {
-            log.error("[AIOps] {} — incidentId={}", ErrorCode.LLM_ANALYSIS_FAILED.getMessage(), incident.getId(), e);
-            throw new CustomException(ErrorCode.LLM_ANALYSIS_FAILED);
+            log.error("[AIOps] {} — incidentId={}", AiopsErrorCode.LLM_ANALYSIS_FAILED.getMessage(), incident.getId(), e);
+            throw new CustomException(AiopsErrorCode.LLM_ANALYSIS_FAILED);
         }
     }
 
