@@ -2,6 +2,7 @@ package com.fandom.gateway_service.filter;
 
 import com.fandom.common.auth.HmacUtils;
 import com.fandom.gateway_service.jwt.JwtValidator;
+import com.fandom.gateway_service.security.GatewaySecurityRules;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -46,7 +47,8 @@ class JwtAuthenticationFilterTest {
         redisTemplate = mock(ReactiveStringRedisTemplate.class);
         chain = mock(GatewayFilterChain.class);
         given(chain.filter(any())).willReturn(Mono.empty());
-        filter = new JwtAuthenticationFilter(jwtValidator, hmacUtils, new ObjectMapper(), redisTemplate);
+        filter = new JwtAuthenticationFilter(jwtValidator, hmacUtils, new ObjectMapper(), redisTemplate,
+                new GatewaySecurityRules());
     }
 
     private static final UUID USER_ID = UUID.randomUUID();

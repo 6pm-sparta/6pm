@@ -4,8 +4,20 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 
+import java.util.Set;
+
 @Component
 public class GatewaySecurityRules {
+
+    private static final String MEMBER = "MEMBER";
+    private static final String CREATOR = "CREATOR";
+    private static final String MASTER = "MASTER";
+
+    private static final Set<String> ALL_AUTHENTICATED = Set.of(MEMBER, CREATOR, MASTER);
+    private static final Set<String> MEMBER_ONLY = Set.of(MEMBER);
+    private static final Set<String> CREATOR_ONLY = Set.of(CREATOR);
+    private static final Set<String> MEMBER_OR_CREATOR = Set.of(MEMBER, CREATOR);
+    private static final Set<String> CREATOR_OR_MASTER = Set.of(CREATOR, MASTER);
 
     /**
      * Access Token 검증 없이 통과할 경로.
@@ -39,5 +51,70 @@ public class GatewaySecurityRules {
 
     public boolean isPreflight(ServerHttpRequest request) {
         return HttpMethod.OPTIONS.equals(request.getMethod());
+    }
+
+    public boolean isAllowed(ServerHttpRequest request, String role) {
+        if (isPermitAll(request)) {
+            return true;
+        }
+        return requiredRoles(request).contains(role);
+    }
+
+    private Set<String> requiredRoles(ServerHttpRequest request) {
+        String path = request.getPath().value();
+        HttpMethod method = request.getMethod();
+
+        if (matches(method, HttpMethod.PATCH, path, "^/api/v1/members/me$")) {
+            return MEMBER_ONLY;
+        }
+        if (matches(method, HttpMethod.PATCH, path, "^/api/v1/members/me/profile$")) {
+            return MEMBER_ONLY;
+        }
+        if (matches(method, HttpMethod.DELETE, path, "^/api/v1/members/me$")) {
+            return MEMBER_OR_CREATOR;
+        }
+        if (matches(method, HttpMethod.PATCH, path, "^/api/v1/creators/me$")) {
+            return CREATOR_ONLY;
+        }
+        if (matches(method, HttpMethod.PATCH, path, "^/api/v1/creators/me/profile$")) {
+            return CREATOR_ONLY;
+        }
+        if (matches(method, HttpMethod.POST, path, "^/api/v1/follows/[^/]+$")) {
+            return MEMBER_OR_CREATOR;
+        }
+        if (matches(method, HttpMethod.DELETE, path, "^/api/v1/follows/[^/]+$")) {
+            return MEMBER_OR_CREATOR;
+        }
+
+        if (matches(method, HttpMethod.POST, path, "^/api/v1/feeds/posts$")) {
+            return CREATOR_ONLY;
+        }
+        if (matches(method, HttpMethod.PUT, path, "^/api/v1/feeds/posts/[^/]+$")) {
+            return CREATOR_ONLY;
+        }
+        if (matches(method, HttpMethod.DELETE, path, "^/api/v1/feeds/posts/[^/]+$")) {
+            return CREATOR_OR_MASTER;
+        }
+        if (matches(method, HttpMethod.POST, path, "^/api/v1/feeds/posts/[^/]+/comments$")) {
+            return MEMBER_OR_CREATOR;
+        }
+        if (matches(method, HttpMethod.PUT, path, "^/api/v1/feeds/comments/[^/]+$")) {
+            return MEMBER_OR_CREATOR;
+        }
+        if (matches(method, HttpMethod.POST, path, "^/api/v1/feeds/posts/[^/]+/likes$")) {
+            return MEMBER_OR_CREATOR;
+        }
+        if (matches(method, HttpMethod.DELETE, path, "^/api/v1/feeds/posts/[^/]+/likes$")) {
+            return MEMBER_OR_CREATOR;
+        }
+        if (matches(method, HttpMethod.POST, path, "^/api/v1/feeds/likes/users$")) {
+            return MEMBER_OR_CREATOR;
+        }
+
+        return ALL_AUTHENTICATED;
+    }
+
+    private boolean matches(HttpMethod actualMethod, HttpMethod expectedMethod, String path, String regex) {
+        return expectedMethod.equals(actualMethod) && path.matches(regex);
     }
 }

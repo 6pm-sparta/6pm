@@ -5,6 +5,7 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.filter.IdCardVerificationFilter;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.gateway_service.jwt.JwtValidator;
+import com.fandom.gateway_service.security.GatewayAuthenticationAttributes;
 import com.fandom.gateway_service.security.GatewaySecurityRules;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
@@ -88,19 +89,24 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     if (Boolean.TRUE.equals(result.getT1()) || Boolean.TRUE.equals(result.getT2())) {
                         return unauthorized(exchange, "유효하지 않은 토큰입니다.");
                     }
-                    ServerHttpRequest mutatedRequest = withUserIdCard(request, claims);
-                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                    UserIdCard idCard = toUserIdCard(claims);
+                    ServerHttpRequest mutatedRequest = withUserIdCard(request, idCard);
+                    ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
+                    mutatedExchange.getAttributes().put(GatewayAuthenticationAttributes.USER_ID_CARD, idCard);
+                    return chain.filter(mutatedExchange);
                 });
     }
 
     /**
      * 검증된 토큰 claim으로 UserIdCard를 만들고 HMAC 서명 헤더를 추가한다.
      */
-    private ServerHttpRequest withUserIdCard(ServerHttpRequest request, Claims claims) {
+    private UserIdCard toUserIdCard(Claims claims) {
         UUID userId = UUID.fromString(claims.getSubject());
         String role = claims.get("role", String.class);
+        return UserIdCard.of(userId, role);
+    }
 
-        UserIdCard idCard = UserIdCard.of(userId, role);
+    private ServerHttpRequest withUserIdCard(ServerHttpRequest request, UserIdCard idCard) {
         String idCardJson = objectMapperWriteValue(idCard);
         String signature = hmacUtils.sign(idCard);
 
