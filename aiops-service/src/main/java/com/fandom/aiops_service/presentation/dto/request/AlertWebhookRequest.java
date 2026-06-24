@@ -6,10 +6,13 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
-
+/**
+ * Alertmanager 웹훅 페이로드.
+ * 우리가 쓰는 필드만 매핑하고 나머지(version, groupKey 등)는 무시한다.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AlertWebhookRequest(
-        String status,
+        String status,            // 그룹 전체 상태 (firing / resolved)
         List<Alert> alerts
 ) {
     @JsonIgnoreProperties(ignoreUnknown = true)

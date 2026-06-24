@@ -1,4 +1,3 @@
-# aiops-service/src/main/resources/application.yml — 표준 와이어링 (인프라 담당 제공)
 server:
   port: 8086
 
