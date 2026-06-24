@@ -1,7 +1,7 @@
 # 티켓팅 시스템 설계 문서
 
 > **[주의]** 이 문서의 Order Service 관련 설계는 임의로 작성해둔 것이며 확정된 사항이 아닙니다.
-> 자세한 내용은 [Order/Payment 서비스 설계 문서](https://app.notion.com/p/teamsparta/order-payment-3822dc3ef51480608fd7cb333ea3ba34)를 참고해주세요.
+> 자세한 내용은 [Order/Payment 서비스 설계 문서](docs/)를 참고해주세요.
 
 ## 0. 요약 및 문서 읽는 법
 
@@ -185,13 +185,7 @@ sequenceDiagram
 
 ## 8. 구현 일정
 
-| 날짜 | 작업 |
-|---|---|
-| 6/16 (월) | 설계 확정 + 명세 작성 |
-| 6/17 (화) | 대기열 + 토큰 + SSE |
-| 6/18 (수) | 좌석 선점 + 주문 생성 |
-| 6/19 (목) | 예매 확정 |
-| 주말 | TTL 만료 처리, 결제 실패 SAGA, 취소/환불 |
+[github projects - 6pm 일정 관리](https://github.com/orgs/6pm-sparta/projects/2) 
 
 ---
 
@@ -202,3 +196,9 @@ sequenceDiagram
 | `holdId` | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 사용할지 |
 | 주문 취소 연동 | 미구현 | `releaseHold`/`releaseExpiredHold` 시 order-service의 주문도 취소하는 API 연동 필요 (`OrderClient`에 취소 메서드 없음) |
 | 스케줄러 분산 락 | 미구현 | `QueueScheduler`가 멀티 인스턴스로 떠 있을 때 같은 배치를 중복 처리할 수 있음. ShedLock 등 분산 락 적용 필요 |
+| `GET /purchase-limit` 엔드포인트 | 미문서화 | `SeatController.java:54-60`에 구현되어 있으나 섹션 6 API 명세에 누락. 코드에 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있어 설계 자체도 미확정 |
+| `seat/controller` 패키지 위치 | 불일치 | "260623 구매제한 AI 검증.md"는 `seat/controller` → `seat/presentation/controller` 이동을 전제로 작성됐으나, 실제로는 이동되지 않고 여전히 `seat/controller`에 위치 |
+| 구매 한도 값(`MAX_PER_USER`) | 미문서화 | 섹션 3 Redis 키 설계에 `purchase-count` 키는 있지만 실제 한도 값(현재 코드상 4)이 어디에도 명시돼 있지 않음. 2→4 변경 사실도 문서에 반영 안 됨 |
+| `purchase-token` 검증 미연결 (버그) | 미구현 | 문서(구간 2, 260623 대기열 토큰.md, TODO.md)는 `SeatService.hold()` 진입 시 `purchase-token` 존재 여부를 가장 먼저 검증한다고 명시하지만, 실제 `SeatService.hold()`(`SeatService.java:99-135`)에는 해당 검증 호출이 없음. `PurchaseTokenService.exists()`가 코드 어디에서도 호출되지 않아, 대기열을 거치지 않고 바로 `hold()`를 호출해도 선점이 통과됨 |
+| SSE `ENTERED` 이벤트 (문서/코드 불일치) | 미구현 | "260623 대기열 토큰.md"는 토큰 발급 시 SSE로 `ENTERED` 이벤트를 전송한다고 적혀 있으나, 실제 `QueueSseService.java:58,61`에서는 `READY`/`RANK` 이벤트만 전송하고 `ENTERED`는 코드 어디에도 없음 |
+| CHANGELOG.md API 경로 변경 이력 | 수정 필요 | `/queue/enter` → `/queue/shows/{showId}/enter` 기록 이후 실제로는 `/api/v1/tickets/shows/{showId}/queue`로 한 번 더 변경됐는데 반영 안 됨. 최신 경로 변경 이력 추가 필요 |
