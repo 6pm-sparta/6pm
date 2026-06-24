@@ -30,12 +30,15 @@ public class PgWebhookService {
     private static final String CLAIM_MARKER = "RECEIVED";
     private static final String STATUS_APPROVED = "APPROVED";
     private static final String STATUS_FAILED = "FAILED";
+    private static final String STATUS_REFUNDED = "REFUNDED";
+    private static final String STATUS_REFUND_FAILED = "REFUND_FAILED";
 
     private final PgWebhookHmacUtil signatureVerifier;
     private final StringRedisTemplate redisTemplate;
     private final OrderProperties orderProperties;
     private final PaymentRepository paymentRepository;
     private final PaymentRequestWriter paymentRequestWriter;
+    private final RefundResultWriter refundResultWriter;
     private final OrderEventProducer orderEventProducer;
 
     public void receive(PgWebhookRequest request, String signature) {
@@ -94,8 +97,19 @@ public class PgWebhookService {
                     orderEventProducer.publishPaymentFailed(request.orderId());
                 }
             }
-            default -> log.info("[PG Webhook] #110에서 처리할 status — 아직 디스패치 미연결. " +
-                    "status={}, pgTransactionId={}", request.status(), request.pgTransactionId());
+            case STATUS_REFUNDED -> refundResultWriter.applyRefundSuccess(request.orderId(), payment.getId())
+                    .ifPresent(userId -> {
+                        // 좌석 반환 이벤트는 유저 직접 취소/SAGA 보상 양쪽 모두에 항상 발행한다.
+                        orderEventProducer.publishPaymentCancelled(request.orderId());
+                        orderEventProducer.publishOrderCancelledNotification(request.orderId(), userId);
+                    });
+            case STATUS_REFUND_FAILED -> {
+                String reason = request.failureReason() != null ? request.failureReason() : "PG 환불 거절";
+                // FAILED 전이 + 로그로 남기고 수동 처리 대상으로 남김.
+                refundResultWriter.applyRefundFailure(request.orderId(), reason);
+            }
+            default -> log.warn("[PG Webhook] 알 수 없는 status — 무시. status={}, pgTransactionId={}",
+                    request.status(), request.pgTransactionId());
         }
     }
 

@@ -19,7 +19,10 @@ public record OrderCancelResponse(
         return new OrderCancelResponse(orderId, status.name(), null, updatedAt);
     }
 
-    public static OrderCancelResponse refunded(UUID orderId, OrderStatus status, UUID paymentId, LocalDateTime updatedAt) {
-        return new OrderCancelResponse(orderId, status.name(), paymentId, updatedAt);
+    /**
+     * PG에 비동기 환불 요청을 접수시킨 직후 응답한다.
+     */
+    public static OrderCancelResponse refundRequested(UUID orderId, UUID paymentId, LocalDateTime updatedAt) {
+        return new OrderCancelResponse(orderId, OrderStatus.REFUND_REQUESTED.name(), paymentId, updatedAt);
     }
 }

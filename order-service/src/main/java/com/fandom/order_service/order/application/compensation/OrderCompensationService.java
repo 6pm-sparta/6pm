@@ -1,10 +1,7 @@
 package com.fandom.order_service.order.application.compensation;
 
-import com.fandom.order_service.config.OrderProperties;
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.infra.pg.PaymentGateway;
-import com.fandom.order_service.payment.infra.pg.PgRefundResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -14,9 +11,7 @@ import java.util.UUID;
 /**
  * ticketing.seat.book.failed 수신 → SAGA 보상 트랜잭션(SeatEventConsumer가 이 서비스를 호출).
  *
- * 재시도는 Kafka 메시지 재전송이 아니라 이 메서드 안에서 도는 동기 루프다.
- * Kafka 레벨 재전송으로 구현하면 COMPENSATING 전이 같은 부수효과가 메시지마다 중복 실행되는 걸
- * 막기 더 까다로워진다.
+ * 환불이 webhook으로 REFUND_FAILED 응답을 받으면 그 시점에 바로 FAILED로 전이된다.
  */
 @Slf4j
 @Service
@@ -25,8 +20,6 @@ public class OrderCompensationService {
 
     private final OrderCompensationWriter orderCompensationWriter;
     private final PaymentGateway paymentGateway;
-    private final OrderEventProducer orderEventProducer;
-    private final OrderProperties orderProperties;
 
     public void compensate(UUID orderId, String reason) {
 
@@ -44,49 +37,17 @@ public class OrderCompensationService {
             return;
         }
 
-        retryRefund(orderId, started.paymentToRefund(), started.userId());
-    }
+        Payment payment = started.paymentToRefund();
 
-    private void retryRefund(UUID orderId, Payment payment, UUID userId) {
-
-        int maxAttempts = orderProperties.compensation().refundMaxAttempts();
-        long backoffMillis = orderProperties.compensation().refundRetryBackoffMillis();
-
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-
-            PgRefundResult pgResult = paymentGateway.requestRefund(payment.getPgTransactionId(), payment.getAmount());
-
-            if (pgResult.isSuccess()) {
-                OrderCompensationResult refunded =
-                        orderCompensationWriter.applyRefundSuccess(orderId, payment.getId());
-                orderEventProducer.publishOrderCancelledNotification(refunded.orderId(), userId);
-                log.info("[SAGA 보상] 환불 완료. orderId={}, attempt={}/{}", orderId, attempt, maxAttempts);
-                return;
-            }
-
-            log.warn("[SAGA 보상] 환불 재시도 {}/{} 실패. orderId={}, reason={}",
-                    attempt, maxAttempts, orderId, pgResult.failureReason());
-
-            // 인터럽트 시 재시도 없이 바로 빠져나온다.
-            if (!sleep(backoffMillis)) {
-                log.warn("[SAGA 보상] 재시도 중 인터럽트 발생 - 루프 중단. orderId={}, attempt={}", orderId, attempt);
-                break;
-            }
-        }
-
-        // 최대 재시도 초과 — 수동 처리 대상으로 FAILED 전이 후 종료.
-        orderCompensationWriter.applyRefundFailure(orderId);
-        log.error("[SAGA 보상] 환불 최종 실패 - 수동 처리 대상. orderId={}, paymentId={}, pgTransactionId={}",
-                orderId, payment.getId(), payment.getPgTransactionId());
-    }
-
-    private boolean sleep(long millis) {
         try {
-            Thread.sleep(millis);
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
+            paymentGateway.requestRefundAsync(orderId, payment.getPgTransactionId(), payment.getAmount());
+            log.info("[SAGA 보상] PG 환불 요청 접수 완료, 결과는 webhook으로 비동기 반영됨. orderId={}, pgTransactionId={}",
+                    orderId, payment.getPgTransactionId());
+        } catch (RuntimeException pgFailure) {
+
+            // PG 접수 자체가 실패(네트워크 오류 등, webhook이 영영 오지 않을 상황) — 복구는 별도 배치 이슈 스코프.
+            log.error("[SAGA 보상] PG 환불 접수 실패. orderId={}, paymentId={}, pgTransactionId={}",
+                    orderId, payment.getId(), payment.getPgTransactionId(), pgFailure);
         }
     }
 }

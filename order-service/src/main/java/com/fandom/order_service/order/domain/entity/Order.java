@@ -189,6 +189,20 @@ public class Order extends BaseEntity {
     }
 
     /**
+     * REFUND_REQUESTED → FAILED.
+     * PG가 환불 거절 응답(REFUND_FAILED)을 반환한 경우 호출한다.
+     */
+    public void markRefundFailed() {
+
+        if (this.status != OrderStatus.REFUND_REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.FAILED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /**
      * CONFIRMED 상태가 "취소 가능 시간" 내인지 확인한다. 확정 시각(statusUpdatedAt) 기준으로 판단한다.
      * todo : 취소 가능 시간에 대해 협의 해야 함
      */
