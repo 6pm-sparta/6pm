@@ -51,6 +51,12 @@ class PostServiceTest {
     private ImageService imageService;
 
     @Mock
+    private LikeService likeService;
+
+    @Mock
+    private CommentService commentService;
+
+    @Mock
     private ImageUrlConverter imageUrlConverter;
 
     @Mock
@@ -367,6 +373,8 @@ class PostServiceTest {
 
             // then
             assertThat(post.isDeleted()).isTrue();
+            verify(likeService).deleteAllByPostId(postId);
+            verify(commentService).deleteAllByPostId(postId, userId);
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(imageKeys);
         }
@@ -386,6 +394,8 @@ class PostServiceTest {
             postService.deletePost(postId, userId, false);
 
             // then
+            verify(likeService).deleteAllByPostId(postId);
+            verify(commentService).deleteAllByPostId(postId, userId);
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
         }
@@ -405,6 +415,8 @@ class PostServiceTest {
             postService.deletePost(postId, userId, true);
 
             // then
+            verify(likeService).deleteAllByPostId(postId);
+            verify(commentService).deleteAllByPostId(postId, userId);
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
         }

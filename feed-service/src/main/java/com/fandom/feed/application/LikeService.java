@@ -60,4 +60,9 @@ public class LikeService {
         long likeCount = reactionCacheService.removeLike(postId, userId);
         return LikeResponse.of(postId, likeCount);
     }
+
+    @Transactional
+    public void deleteAllByPostId(UUID postId) {
+        likeRepository.deleteAllByPostId(postId);
+    }
 }

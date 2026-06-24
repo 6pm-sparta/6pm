@@ -28,9 +28,11 @@ import java.util.UUID;
 public class PostService {
     private final PostReader postReader;
     private final PostAssembler postAssembler;
-    private final ImageService imageService;
     private final PostRepository postRepository;
+    private final ImageService imageService;
     private final PostCacheService postCacheService;
+    private final CommentService commentService;
+    private final LikeService likeService;
     private final PostListCacheService postListCacheService;
     private final ReactionCacheService reactionCacheService;
     private final ImageUrlConverter imageUrlConverter;
@@ -95,12 +97,17 @@ public class PostService {
         if (!userId.equals(post.getAuthorId()) && !isMaster)
             throw new CustomException(PostErrorCode.FORBIDDEN_POST_DELETE);
 
-        List<String> imageKeys = imageService.findAllByPostId(postId);
+        commentService.deleteAllByPostId(postId, userId);
+        likeService.deleteAllByPostId(postId);
 
         post.softDelete(userId);
 
+        List<String> imageKeys = imageService.findAllByPostId(postId);
+
         imageService.deleteAllByPostId(postId);
         imageService.publishS3DeleteEvent(imageKeys);
+
+        postListCacheService.removePost(postId);
 
         return PostResponse.Delete.from(post);
     }

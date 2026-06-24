@@ -32,4 +32,6 @@ public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
     List<Like> findOldestByUserId(@Param("cursor") UUID cursor,
                                   @Param("userId") UUID userId,
                                   Pageable pageable);
+
+    void deleteAllByPostId(UUID postId);
 }
