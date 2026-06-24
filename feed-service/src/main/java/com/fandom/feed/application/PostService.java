@@ -43,7 +43,7 @@ public class PostService {
 
         imageService.saveImages(post.getId(), imageKeys);
 
-        postListCacheService.addPost(post.getId(), post.getAuthorId(), false);
+        postListCacheService.addPost(post.getId(), post.getAuthorId());
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
     }
@@ -130,7 +130,7 @@ public class PostService {
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
         List<Post> allPosts = postRepository.findByCursorForWarm(authorId);
 
-        allPosts.forEach(post -> postListCacheService.addPost(post.getId(), authorId, true));
+        allPosts.forEach(post -> postListCacheService.addPostForWarm(post.getId(), authorId));
 
         postListCacheService.expireCache(authorId);
 

@@ -156,47 +156,13 @@ class PostListCacheServiceIntegrationTest {
         private final String authorKey = RedisKeyPrefix.POST_LIST + authorId;
 
         @Test
-        @DisplayName("authorId 없는 워밍업 - all 키에만 저장")
-        void addPostWarmWithoutAuthorId() {
-            // Given
-            UUID postId = UUID.randomUUID();
-
-            // When
-            postListCacheService.addPost(postId, null, true);
-
-            // Then
-            Double allScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_ALL, postId.toString());
-            Double authorScore = redisTemplate.opsForZSet().score(authorKey, postId.toString());
-
-            assertThat(allScore).isNotNull();
-            assertThat(authorScore).isNull();
-        }
-
-        @Test
-        @DisplayName("authorId 있는 워밍업 - author 키에만 저장")
-        void addPostWarmWithAuthorId() {
-            // Given
-            UUID postId = UUID.randomUUID();
-
-            // When
-            postListCacheService.addPost(postId, authorId, true);
-
-            // Then
-            Double allScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_ALL, postId.toString());
-            Double authorScore = redisTemplate.opsForZSet().score(authorKey, postId.toString());
-
-            assertThat(allScore).isNull();
-            assertThat(authorScore).isNotNull();
-        }
-
-        @Test
         @DisplayName("워밍업 아님 - 두 키에 모두 저장")
-        void addPostNotWarm() {
+        void addPost() {
             // Given
             UUID postId = UUID.randomUUID();
 
             // When
-            postListCacheService.addPost(postId, authorId, false);
+            postListCacheService.addPost(postId, authorId);
 
             // Then
             Double allScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_ALL, postId.toString());
@@ -221,7 +187,7 @@ class PostListCacheServiceIntegrationTest {
             }
 
             // When
-            postListCacheService.addPost(UUID.randomUUID(), authorId, false);
+            postListCacheService.addPost(UUID.randomUUID(), authorId);
 
             // Then
             Long allSize = redisTemplate.opsForZSet().size(RedisKeyPrefix.POST_LIST_ALL);
@@ -229,6 +195,40 @@ class PostListCacheServiceIntegrationTest {
 
             assertThat(allSize).isEqualTo(FeedPolicy.MAX_CACHE_SIZE);
             assertThat(authorSize).isEqualTo(FeedPolicy.MAX_CACHE_SIZE);
+        }
+
+        @Test
+        @DisplayName("authorId 없는 워밍업 - all 키에만 저장")
+        void addPostForWarmWithoutAuthorId() {
+            // Given
+            UUID postId = UUID.randomUUID();
+
+            // When
+            postListCacheService.addPostForWarm(postId, null);
+
+            // Then
+            Double allScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_ALL, postId.toString());
+            Double authorScore = redisTemplate.opsForZSet().score(authorKey, postId.toString());
+
+            assertThat(allScore).isNotNull();
+            assertThat(authorScore).isNull();
+        }
+
+        @Test
+        @DisplayName("authorId 있는 워밍업 - author 키에만 저장")
+        void addPostForWarmWithAuthorId() {
+            // Given
+            UUID postId = UUID.randomUUID();
+
+            // When
+            postListCacheService.addPostForWarm(postId, authorId);
+
+            // Then
+            Double allScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_ALL, postId.toString());
+            Double authorScore = redisTemplate.opsForZSet().score(authorKey, postId.toString());
+
+            assertThat(allScore).isNull();
+            assertThat(authorScore).isNotNull();
         }
     }
 }

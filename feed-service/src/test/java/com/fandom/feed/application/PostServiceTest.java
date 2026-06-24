@@ -94,7 +94,7 @@ class PostServiceTest {
             verify(postRepository).save(any(Post.class));
             verify(imageService).saveImages(any(UUID.class), eq(imageKeys));
             verify(imageUrlConverter).toImageUrls(imageKeys);
-            verify(postListCacheService).addPost(any(), any(), eq(false));
+            verify(postListCacheService).addPost(any(), any());
         }
 
         @Test
@@ -111,7 +111,7 @@ class PostServiceTest {
             // then
             verify(postRepository).save(any(Post.class));
             verify(imageService).saveImages(any(), eq(List.of()));
-            verify(postListCacheService).addPost(any(), any(), eq(false));
+            verify(postListCacheService).addPost(any(), any());
         }
     }
 
@@ -171,7 +171,7 @@ class PostServiceTest {
 
             // then
             verify(postRepository).findByCursorForWarm(null);
-            verify(postListCacheService, never()).addPost(any(), isNull(), eq(true));
+            verify(postListCacheService, never()).addPost(any(), isNull());
             verify(postListCacheService).expireCache(null);
             verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
         }
@@ -260,7 +260,7 @@ class PostServiceTest {
         postService.getPosts(null, null, null, null);
 
         // then
-        verify(postListCacheService).addPost(postId, null, true);
+        verify(postListCacheService).addPostForWarm(postId, null);
         verify(postListCacheService).expireCache(null);
         verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
     }

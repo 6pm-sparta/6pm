@@ -3,6 +3,7 @@ package com.fandom.feed.infra.redis;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -48,26 +49,32 @@ public class PostListCacheService {
 
     /**
      * 캐시에 게시글 ID를 추가하는 메서드
-     * - 워밍업 작업 아닐 시, 항상 작성자 ID 필수
      */
-    public void addPost(UUID postId, UUID authorId, boolean isWarm) {
+    public void addPost(UUID postId, UUID authorId) {
         String member = postId.toString();
-
-        // UUID v7의 timestamp 추출해서 score로 사용
         long score = (postId.getMostSignificantBits() >>> 16);
+        List<String> keys = allKeys(authorId);
 
-        // 워밍업 작업
-        if (isWarm) {
-            redisTemplate.opsForZSet().add(resolveKey(authorId), member, score);
-            return;
-        }
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            keys.forEach(key -> {
+                connection.zSetCommands().zAdd(
+                        key.getBytes(), score, member.getBytes()
+                );
+                connection.zSetCommands().zRemRange(
+                        key.getBytes(), 0, -(FeedPolicy.MAX_CACHE_SIZE + 1)
+                );
+            });
+            return null;
+        });
+    }
 
-        allKeys(authorId).forEach(key -> redisTemplate.opsForZSet().add(key, member, score));
-
-        // MAX_CACHE_SIZE 초과 시 게시글 ID 제거
-        allKeys(authorId).forEach(
-                key -> redisTemplate.opsForZSet().removeRange(key, 0, -(FeedPolicy.MAX_CACHE_SIZE + 1))
-        );
+    /**
+     * 캐시에 게시글 ID를 추가하는 워밍업 메서드
+     */
+    public void addPostForWarm(UUID postId, UUID authorId) {
+        String member = postId.toString();
+        long score = (postId.getMostSignificantBits() >>> 16);
+        redisTemplate.opsForZSet().add(resolveKey(authorId), member, score);
     }
 
     /**
@@ -75,7 +82,12 @@ public class PostListCacheService {
      */
     public void removePost(UUID postId, UUID authorId) {
         String member = postId.toString();
-        allKeys(authorId).forEach(key -> redisTemplate.opsForZSet().remove(key, member));
+        List<String> keys = allKeys(authorId);
+
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            keys.forEach(key -> connection.zSetCommands().zRem(key.getBytes(), member.getBytes()));
+            return null;
+        });
     }
 
     /**
