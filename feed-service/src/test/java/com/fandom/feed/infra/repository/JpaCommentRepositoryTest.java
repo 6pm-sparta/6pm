@@ -10,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -200,5 +201,34 @@ class JpaCommentRepositoryTest {
             assertThat(results).hasSize(1);
             results.forEach(comment -> assertThat(comment.getId()).isGreaterThan(cursor));
         }
+    }
+
+    @Test
+    @DisplayName("postId에 해당하는 댓글 전체 삭제")
+    void softDeleteAllByPostId() {
+        // given
+        UUID postId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        LocalDateTime deletedAt = LocalDateTime.now();
+
+        Comment c1 = Comment.builder().postId(postId).content("댓글1").build();
+        Comment c2 = Comment.builder().postId(postId).content("댓글2").build();
+        Comment other = Comment.builder().postId(UUID.randomUUID()).content("다른 게시글").build();
+        jpaCommentRepository.saveAll(List.of(c1, c2, other));
+
+        // when
+        jpaCommentRepository.softDeleteAllByPostId(postId, userId, deletedAt);
+
+        // then
+        List<Comment> result = jpaCommentRepository.findAll();
+
+        assertThat(result).filteredOn(c -> c.getPostId().equals(postId))
+                .allSatisfy(c -> {
+                    assertThat(c.getDeletedBy()).isEqualTo(userId);
+                    assertThat(c.getDeletedAt()).isEqualTo(deletedAt);
+                });
+
+        assertThat(result).filteredOn(c -> !c.getPostId().equals(postId))
+                .allSatisfy(c -> assertThat(c.getDeletedAt()).isNull());
     }
 }
