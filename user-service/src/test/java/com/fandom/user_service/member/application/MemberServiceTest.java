@@ -8,6 +8,7 @@ import com.fandom.user_service.member.domain.entity.User;
 import com.fandom.user_service.member.domain.exception.MemberErrorCode;
 import com.fandom.user_service.member.domain.repository.CreatorRepository;
 import com.fandom.user_service.member.domain.repository.UserRepository;
+import com.fandom.user_service.member.application.port.CreatorCreatedEventPublisher;
 import com.fandom.user_service.member.application.port.MemberWithdrawalEventPublisher;
 import com.fandom.user_service.member.presentation.dto.request.CreatorSignUpRequest;
 import com.fandom.user_service.member.presentation.dto.request.CreatorUpdateRequest;
@@ -40,7 +41,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("MemberService 단위 테스트")
+@DisplayName("회원 서비스 단위 테스트")
 class MemberServiceTest {
 
     @Mock
@@ -57,6 +58,9 @@ class MemberServiceTest {
 
     @Mock
     private MemberWithdrawalEventPublisher memberWithdrawalEventPublisher;
+
+    @Mock
+    private CreatorCreatedEventPublisher creatorCreatedEventPublisher;
 
     @InjectMocks
     private MemberService memberService;
@@ -79,7 +83,11 @@ class MemberServiceTest {
         given(userRepository.existsByEmail(request.email())).willReturn(false);
         given(passwordEncoder.encode(request.password())).willReturn("encoded-password");
         given(userRepository.save(any(User.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
+                .willAnswer(invocation -> {
+                    User user = invocation.getArgument(0);
+                    user.assignId();
+                    return user;
+                });
         given(profileService.createInitialProfile(any(User.class), anyString())).willReturn(profile);
 
         // when
@@ -141,7 +149,11 @@ class MemberServiceTest {
         given(userRepository.existsByEmail(request.email())).willReturn(false);
         given(passwordEncoder.encode(request.password())).willReturn("encoded-password");
         given(userRepository.save(any(User.class)))
-                .willAnswer(invocation -> invocation.getArgument(0));
+                .willAnswer(invocation -> {
+                    User user = invocation.getArgument(0);
+                    user.assignId();
+                    return user;
+                });
         given(creatorRepository.save(any()))
                 .willAnswer(invocation -> invocation.getArgument(0));
         given(profileService.createInitialProfile(any(User.class), anyString())).willReturn(profile);
@@ -158,6 +170,7 @@ class MemberServiceTest {
         verify(userRepository).save(any(User.class));
         verify(creatorRepository).save(any());
         verify(profileService).createInitialProfile(any(User.class), anyString());
+        verify(creatorCreatedEventPublisher).publish(response.userId(), request.nickname());
     }
 
     @Test

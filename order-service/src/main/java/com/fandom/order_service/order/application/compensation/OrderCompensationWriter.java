@@ -18,15 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 /**
- * 좌석 예매 실패(ticketing.seat.book.failed) 시 SAGA 보상 트랜잭션 처리.
+ * 좌석 예매 실패(ticketing.seat.book.failed) 시 SAGA 보상 트랜잭션의 1단계 처리.
  *
- * 1. startCompensation: 비관적 락 안에서 PAID/CONFIRMED → COMPENSATING 전이 + 환불 대상 결제 조회.
- * 2. applyRefundSuccess: 락 밖에서 PG 환불 재시도(Service)가 성공한 뒤 COMPENSATING → REFUND_REQUESTED
- *    → REFUNDED를 한 트랜잭션에서 처리.
- * 3. applyRefundFailure: 재시도를 모두 소진한 뒤 COMPENSATING → FAILED로 종료.
+ * startCompensation: 비관적 락 안에서 PAID/CONFIRMED → COMPENSATING → REFUND_REQUESTED까지 한
+ * 트랜잭션에서 전이하고, 환불 대상 결제를 함께 반환한다.
  *
  * 동시성: 유저 직접 취소(OrderCancelWriter)와 이 Writer가 거의 동시에 같은 주문을 건드릴 수 있다.
- * 락으로 이중 환불 방지.
+ * 비관적 락 + 상태 검증으로 이중 처리를 방지한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -48,10 +46,16 @@ public class OrderCompensationWriter {
 
             case PAID, CONFIRMED -> {
                 Payment payment = findApprovedPayment(order.getId());
+
                 order.markCompensating();
                 saveHistory(order.getId(), before, order.getStatus(),
                         "SAGA 보상 시작 - 좌석 예매 실패: " + reason);
-                yield OrderCompensationResult.compensatingStarted(order.getId(), payment, order.getUserId());
+
+                OrderStatus compensating = order.getStatus();
+                order.markRefundRequested();
+                saveHistory(order.getId(), compensating, order.getStatus(), "SAGA 보상 - 환불 요청");
+
+                yield OrderCompensationResult.refundRequestedStarted(order.getId(), payment, order.getUserId());
             }
 
             case COMPENSATING, REFUND_REQUESTED, REFUNDED, FAILED, CANCELLED ->
@@ -61,40 +65,6 @@ public class OrderCompensationWriter {
             // PENDING, PAYMENT_REQUESTED: 결제 승인 전 단계라 좌석 확정 시도 자체가 있을 수 없는 상태(방어).
             default -> OrderCompensationResult.skippedInvalidState(order.getId(), order.getStatus());
         };
-    }
-
-    @Transactional
-    public OrderCompensationResult applyRefundSuccess(UUID orderId, UUID paymentId) {
-
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
-
-        OrderStatus step1Before = order.getStatus();
-        order.markRefundRequested();
-        saveHistory(order.getId(), step1Before, order.getStatus(), "SAGA 보상 - 환불 요청");
-
-        OrderStatus step2Before = order.getStatus();
-        order.markRefunded();
-        payment.refund();
-        saveHistory(order.getId(), step2Before, order.getStatus(), "SAGA 보상 - 환불 완료");
-
-        return OrderCompensationResult.refunded(order.getId(), order.getStatusUpdatedAt());
-    }
-
-    @Transactional
-    public OrderCompensationResult applyRefundFailure(UUID orderId) {
-
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
-
-        OrderStatus before = order.getStatus();
-        order.markFailed();
-        saveHistory(order.getId(), before, order.getStatus(),
-                "SAGA 보상 - 환불 최종 실패(재시도 소진), 수동 처리 대상");
-
-        return OrderCompensationResult.failed(order.getId(), order.getStatusUpdatedAt());
     }
 
     private Payment findApprovedPayment(UUID orderId) {

@@ -31,4 +31,9 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
      * 주문의 승인된 결제 건 조회. 주문 취소(환불) 시 pg_transaction_id를 얻기 위해 사용한다.
      */
     Optional<Payment> findByOrderIdAndPaymentStatus(UUID orderId, PaymentStatus paymentStatus);
+
+    /**
+     * PG 콜백(webhook)이 들고 오는 pgTransactionId로 결제 시도를 찾는다.
+     */
+    Optional<Payment> findByPgTransactionId(String pgTransactionId);
 }

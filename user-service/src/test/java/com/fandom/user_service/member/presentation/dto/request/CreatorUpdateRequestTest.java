@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@DisplayName("CreatorUpdateRequest 검증 테스트")
+@DisplayName("크리에이터 수정 요청 검증 테스트")
 class CreatorUpdateRequestTest {
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();

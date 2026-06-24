@@ -10,17 +10,19 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("UserWithdrawalKafkaPublisher unit tests")
+@DisplayName("회원 탈퇴 Kafka 발행기 단위 테스트")
 class UserWithdrawalKafkaPublisherTest {
 
     @Mock
@@ -30,10 +32,12 @@ class UserWithdrawalKafkaPublisherTest {
     private UserWithdrawalKafkaPublisher publisher;
 
     @Test
-    @DisplayName("member withdrawal publishes member-withdrawn and deleted events")
+    @DisplayName("일반 회원 탈퇴는 member-withdrawn과 deleted 이벤트를 발행한다")
     void publish_member() {
         UUID userId = UUID.randomUUID();
         ArgumentCaptor<UserWithdrawalMessage> messageCaptor = ArgumentCaptor.forClass(UserWithdrawalMessage.class);
+        given(kafkaTemplate.send(anyString(), anyString(), any(UserWithdrawalMessage.class)))
+                .willReturn(CompletableFuture.completedFuture(null));
 
         publisher.publish(userId, Role.MEMBER);
 
@@ -44,10 +48,12 @@ class UserWithdrawalKafkaPublisherTest {
     }
 
     @Test
-    @DisplayName("creator withdrawal publishes creator-withdrawn and deleted events")
+    @DisplayName("크리에이터 탈퇴는 creator-withdrawn과 deleted 이벤트를 발행한다")
     void publish_creator() {
         UUID userId = UUID.randomUUID();
         ArgumentCaptor<UserWithdrawalMessage> messageCaptor = ArgumentCaptor.forClass(UserWithdrawalMessage.class);
+        given(kafkaTemplate.send(anyString(), anyString(), any(UserWithdrawalMessage.class)))
+                .willReturn(CompletableFuture.completedFuture(null));
 
         publisher.publish(userId, Role.CREATOR);
 

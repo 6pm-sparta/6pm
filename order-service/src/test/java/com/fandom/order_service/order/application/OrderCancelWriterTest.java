@@ -56,7 +56,7 @@ class OrderCancelWriterTest {
         OrderProperties orderProperties = new OrderProperties(
                 null, 10, null,
                 new OrderProperties.Cancellation(24),
-                new OrderProperties.Compensation(3, 1000L));
+                new OrderProperties.Compensation(3, 1000L), null);
         orderCancelWriter = new OrderCancelWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, orderProperties);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
@@ -275,30 +275,5 @@ class OrderCancelWriterTest {
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(PaymentErrorCode.PAYMENT_NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("환불 성공 반영 시 Order는 REFUNDED, Payment는 REFUNDED로 전이된다")
-    void applyRefundSuccess_success() {
-        // given
-        Order order = orderWithId();
-        order.markPaymentRequested();
-        order.markPaid();
-        order.markRefundRequested();
-        Payment payment = approvedPaymentFor(orderId);
-        UUID paymentId = payment.getId();
-
-        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findById(paymentId)).willReturn(Optional.of(payment));
-
-        // when
-        OrderCancelDecision decision = orderCancelWriter.applyRefundSuccess(orderId, paymentId);
-
-        // then
-        assertThat(decision.type()).isEqualTo(OrderCancelDecision.Type.REFUNDED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUNDED);
-        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
-        assertThat(payment.getRefundAmount()).isEqualTo(50_000L);
-        verify(orderStatusHistoryRepository).save(any());
     }
 }

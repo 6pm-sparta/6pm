@@ -4,7 +4,6 @@ import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.global.constant.RedisScript;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;

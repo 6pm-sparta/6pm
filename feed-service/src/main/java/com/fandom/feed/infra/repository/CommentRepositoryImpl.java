@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -22,16 +23,21 @@ public class CommentRepositoryImpl extends BaseRepositoryImpl<Comment, UUID, Jpa
     @Override
     public List<Comment> findByCursorAndPostId(UUID cursor, ReactionSort sort, UUID postId) {
         return switch (sort) {
-            case LATEST -> jpaRepository.findLatestByPostId(postId, cursor, PAGEABLE);
-            case OLDEST -> jpaRepository.findOldestByPostId(postId, cursor, PAGEABLE);
+            case LATEST -> jpaRepository.findLatestByPostId(cursor, postId, PAGEABLE);
+            case OLDEST -> jpaRepository.findOldestByPostId(cursor, postId, PAGEABLE);
         };
     }
 
     @Override
     public List<Comment> findByCursorAndAuthorId(UUID cursor, ReactionSort sort, UUID authorId) {
         return switch (sort) {
-            case LATEST -> jpaRepository.findLatestByAuthorId(authorId, cursor, PAGEABLE);
-            case OLDEST -> jpaRepository.findOldestByAuthorId(authorId, cursor, PAGEABLE);
+            case LATEST -> jpaRepository.findLatestByAuthorId(cursor, authorId, PAGEABLE);
+            case OLDEST -> jpaRepository.findOldestByAuthorId(cursor, authorId, PAGEABLE);
         };
+    }
+
+    @Override
+    public void softDeleteAllByPostId(UUID postId, UUID userId) {
+        jpaRepository.softDeleteAllByPostId(postId, userId, LocalDateTime.now());
     }
 }

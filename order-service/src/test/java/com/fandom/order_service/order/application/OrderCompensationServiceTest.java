@@ -1,7 +1,5 @@
 package com.fandom.order_service.order.application;
 
-import com.fandom.order_service.config.OrderProperties;
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.order.application.compensation.OrderCompensationResult;
 import com.fandom.order_service.order.application.compensation.OrderCompensationService;
 import com.fandom.order_service.order.application.compensation.OrderCompensationWriter;
@@ -10,7 +8,6 @@ import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.infra.pg.PaymentGateway;
-import com.fandom.order_service.payment.infra.pg.PgRefundResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,10 +18,11 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,9 +35,6 @@ class OrderCompensationServiceTest {
     @Mock
     private PaymentGateway paymentGateway;
 
-    @Mock
-    private OrderEventProducer orderEventProducer;
-
     private OrderCompensationService orderCompensationService;
 
     private UUID orderId;
@@ -48,11 +43,7 @@ class OrderCompensationServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 테스트가 실제로 sleep 때문에 느려지지 않도록 backoff는 0으로 둔다.
-        OrderProperties orderProperties = new OrderProperties(
-                null, 10, null, null, new OrderProperties.Compensation(3, 0L));
-        orderCompensationService = new OrderCompensationService(
-                orderCompensationWriter, paymentGateway, orderEventProducer, orderProperties);
+        orderCompensationService = new OrderCompensationService(orderCompensationWriter, paymentGateway);
 
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
@@ -78,8 +69,7 @@ class OrderCompensationServiceTest {
         orderCompensationService.compensate(orderId, "좌석 매진");
 
         // then
-        verify(paymentGateway, never()).requestRefund(any(), any());
-        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
+        verify(paymentGateway, never()).requestRefundAsync(any(), any(), any());
     }
 
     @Test
@@ -93,67 +83,34 @@ class OrderCompensationServiceTest {
         orderCompensationService.compensate(orderId, "좌석 매진");
 
         // then
-        verify(paymentGateway, never()).requestRefund(any(), any());
+        verify(paymentGateway, never()).requestRefundAsync(any(), any(), any());
     }
 
     @Test
-    @DisplayName("첫 시도에 환불 성공하면 재시도 없이 즉시 REFUNDED 처리하고 알림을 발행한다")
-    void compensate_succeedsOnFirstAttempt() {
+    @DisplayName("REFUND_REQUESTED_STARTED면 비동기 환불 요청을 한 번 접수시키고 끝낸다(결과는 webhook으로 비동기 반영)")
+    void compensate_started_requestsRefundAsyncOnce() {
         // given
         given(orderCompensationWriter.startCompensation(orderId, "좌석 매진"))
-                .willReturn(OrderCompensationResult.compensatingStarted(orderId, payment, userId));
-        given(paymentGateway.requestRefund(payment.getPgTransactionId(), payment.getAmount()))
-                .willReturn(PgRefundResult.success());
-        given(orderCompensationWriter.applyRefundSuccess(orderId, payment.getId()))
-                .willReturn(OrderCompensationResult.refunded(orderId, null));
+                .willReturn(OrderCompensationResult.refundRequestedStarted(orderId, payment, userId));
 
         // when
         orderCompensationService.compensate(orderId, "좌석 매진");
 
         // then
-        verify(paymentGateway, times(1)).requestRefund(payment.getPgTransactionId(), payment.getAmount());
-        verify(orderCompensationWriter).applyRefundSuccess(orderId, payment.getId());
-        verify(orderEventProducer).publishOrderCancelledNotification(orderId, userId);
-        verify(orderCompensationWriter, never()).applyRefundFailure(any());
+        verify(paymentGateway).requestRefundAsync(orderId, payment.getPgTransactionId(), payment.getAmount());
     }
 
     @Test
-    @DisplayName("처음엔 실패하고 재시도에서 성공하면 그 시점까지만 호출하고 REFUNDED 처리한다")
-    void compensate_succeedsAfterRetry() {
+    @DisplayName("PG 접수 자체가 실패해도 예외를 다시 던지지 않는다(Kafka 무한 재전송 방지, 로그만 남김)")
+    void compensate_pgAcceptFails_doesNotPropagateException() {
         // given
         given(orderCompensationWriter.startCompensation(orderId, "좌석 매진"))
-                .willReturn(OrderCompensationResult.compensatingStarted(orderId, payment, userId));
-        given(paymentGateway.requestRefund(payment.getPgTransactionId(), payment.getAmount()))
-                .willReturn(PgRefundResult.failure("PG 일시 오류"))
-                .willReturn(PgRefundResult.success());
-        given(orderCompensationWriter.applyRefundSuccess(orderId, payment.getId()))
-                .willReturn(OrderCompensationResult.refunded(orderId, null));
+                .willReturn(OrderCompensationResult.refundRequestedStarted(orderId, payment, userId));
+        willThrow(new RuntimeException("connection refused"))
+                .given(paymentGateway).requestRefundAsync(orderId, payment.getPgTransactionId(), payment.getAmount());
 
-        // when
-        orderCompensationService.compensate(orderId, "좌석 매진");
-
-        // then
-        verify(paymentGateway, times(2)).requestRefund(payment.getPgTransactionId(), payment.getAmount());
-        verify(orderCompensationWriter).applyRefundSuccess(orderId, payment.getId());
-        verify(orderEventProducer).publishOrderCancelledNotification(orderId, userId);
-    }
-
-    @Test
-    @DisplayName("최대 재시도까지 전부 실패하면 FAILED로 전이하고 알림은 발행하지 않는다")
-    void compensate_allAttemptsFail_marksFailed() {
-        // given
-        given(orderCompensationWriter.startCompensation(orderId, "좌석 매진"))
-                .willReturn(OrderCompensationResult.compensatingStarted(orderId, payment, userId));
-        given(paymentGateway.requestRefund(payment.getPgTransactionId(), payment.getAmount()))
-                .willReturn(PgRefundResult.failure("PG 일시 오류"));
-
-        // when
-        orderCompensationService.compensate(orderId, "좌석 매진");
-
-        // then
-        verify(paymentGateway, times(3)).requestRefund(payment.getPgTransactionId(), payment.getAmount()); // maxAttempts=3
-        verify(orderCompensationWriter).applyRefundFailure(orderId);
-        verify(orderCompensationWriter, never()).applyRefundSuccess(any(), any());
-        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
+        // when & then
+        assertThatCode(() -> orderCompensationService.compensate(orderId, "좌석 매진"))
+                .doesNotThrowAnyException();
     }
 }

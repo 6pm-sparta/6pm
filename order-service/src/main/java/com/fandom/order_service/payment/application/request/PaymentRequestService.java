@@ -2,12 +2,10 @@ package com.fandom.order_service.payment.application.request;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
 import com.fandom.order_service.payment.domain.repository.PaymentRepository;
 import com.fandom.order_service.payment.infra.pg.PaymentGateway;
-import com.fandom.order_service.payment.infra.pg.PgApprovalResult;
 import com.fandom.order_service.payment.presentation.dto.request.PaymentRequest;
 import com.fandom.order_service.payment.presentation.dto.response.PaymentResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -26,14 +24,15 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 결제 요청/승인. 락 획득 순서(order-service 설계 문서 6. 동시성 제어 전략):
+ * 결제 요청. 락 획득 순서(order-service 설계 문서 6. 동시성 제어 전략):
  *
  * 1. Redis 분산락(Redisson RLock) 획득 — 인스턴스 간 동시 결제 요청 차단
  * 2. Redis 멱등성 키(Idempotency-Key) 확인 — 분산락 안에서, 재시도/중복 클릭 시 기존 결과 그대로 반환
  * 3-4. orders 비관적 락 + 상태 검증(PENDING) + PAYMENT_REQUESTED 전이 + 결제 시도 레코드 생성, 커밋
  * 5. 분산락 해제
- * 6. PG API 호출 (락 없이, 동기, MVP)
- * 7. 결과 반영(PAID/FAILED) — 별도 트랜잭션, 커밋 후 order.payment.completed/failed 발행(#87)
+ * 6. PG에 비동기 승인 요청 — "접수됐다"는 사실과 pgTransactionId만 즉시 받는다.
+ *    실제 승인/거절은 PgWebhookService가 콜백으로 받아 반영한다.
+ * 7. pgTransactionId를 Payment에 기록, REQUESTED 상태로 응답 캐싱 후 즉시 응답 반환.
  *
  * 분산락은 PG 호출 전체를 감싸지 않는다. 4번에서 상태가 이미 PAYMENT_REQUESTED로 바뀌었으므로,
  * 락이 풀린 뒤 들어오는 동시 요청은 3번 단계의 상태 검증에서 자연히 거부된다(락은 1차 방어,
@@ -41,8 +40,10 @@ import java.util.concurrent.TimeUnit;
  *
  * 멱등성 키 캐시는 세 가지 값 중 하나를 가진다:
  * - 키 자체가 없음: 처음 들어온 요청
- * - "IN_PROGRESS": 같은 키로 처리가 진행 중(PG 호출 전이거나 호출 중) — 결과가 아직 없으므로 409
- * - PaymentResponse의 JSON: 처리가 끝남 — 그대로 캐시된 결과를 200으로 반환
+ * - "IN_PROGRESS": 같은 키로 처리가 진행 중(마킹 이후 캐싱 이전 구간) — 결과가 아직 없으므로 409.
+ * - PaymentResponse의 JSON: 처리가 끝남(REQUESTED 상태 스냅샷) — 그대로 캐시된 결과를 200으로 반환.
+ *   비동기 모델에서는 최종 승인 여부가 아니라 "요청이 접수됐다"는 스냅샷을 캐싱한다 — 그 이후의
+ *   APPROVED/FAILED 전이는 webhook 쪽 책임이고, 클라이언트는 GET /payments/{id}로 최신 상태를 조회한다.
  */
 @Slf4j
 @Service
@@ -60,7 +61,6 @@ public class PaymentRequestService {
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
     private final OrderProperties orderProperties;
-    private final OrderEventProducer orderEventProducer;
 
     public PaymentRequestResult requestPayment(PaymentRequest request, UUID requesterId, String idempotencyKey) {
 
@@ -90,19 +90,24 @@ public class PaymentRequestService {
         Payment payment;
         try {
 
-            // 락 안에서 멱등성 키 재확인. 락 밖 조회와 사이 타이밍에 다른 요청이 끝났을 수 있다.
+            // 락 획득 전후 경쟁 상황을 고려해 멱등성 키를 재확인한다.
             Optional<PaymentResponse> cached = readCachedResult(idemKey);
             if (cached.isPresent()) {
                 return new PaymentRequestResult(cached.get(), false);
             }
 
-            // 같은 idempotencyKey로 "처리 중"임을 먼저 마킹. 결과 캐싱 전에 같은 키로 또 들어오면
-            // PAYMENT_IN_PROGRESS로 막아야 한다(결과가 아직 없는데 PG를 두 번 호출하는 걸 방지).
+            // 같은 idempotencyKey의 중복 처리를 방지하기 위해 처리 중 상태를 마킹한다.
             markInProgressOrThrow(idemKey);
 
-            // 비관적 락 + 본인 확인 + 상태 검증 + PAYMENT_REQUESTED 전이 + Payment(REQUESTED) 저장 — 짧은 트랜잭션
-            payment = paymentRequestWriter.markPaymentRequestedAndSave(
-                    request.orderId(), requesterId, request.paymentMethod(), idempotencyKey);
+            try {
+                // 주문 상태 전이 및 Payment 생성
+                payment = paymentRequestWriter.markPaymentRequestedAndSave(
+                        request.orderId(), requesterId, request.paymentMethod(), idempotencyKey);
+            } catch (RuntimeException writerFailure) {
+                //후속 처리 실패 시 마커 정리
+                clearInProgressMarker(idemKey);
+                throw writerFailure;
+            }
 
         } finally {
             if (lock.isHeldByCurrentThread()) {
@@ -111,32 +116,29 @@ public class PaymentRequestService {
         }
 
         // 여기부터는 락 밖. PG 호출은 외부 API라 느릴 수 있어 락을 들고 있지 않는다.
-        PaymentResponse response = callPgAndApplyResult(payment, idemKey);
+        PaymentResponse response = requestApprovalAndCache(payment, idemKey);
         return new PaymentRequestResult(response, true);
     }
 
-    private PaymentResponse callPgAndApplyResult(Payment payment, String idemKey) {
+    private PaymentResponse requestApprovalAndCache(Payment payment, String idemKey) {
 
-        PgApprovalResult pgResult = paymentGateway.requestApproval(
-                payment.getIdempotencyKey(), payment.getAmount(), payment.getPaymentMethod());
-
-        if (!pgResult.isApproved()) {
-            String reason = pgResult.failureReason() != null ? pgResult.failureReason() : "PG 응답 타임아웃";
-            paymentRequestWriter.applyFailure(payment.getOrderId(), payment.getId(), reason);
-            orderEventProducer.publishPaymentFailed(payment.getOrderId());
-
-            // DECLINED/TIMEOUT 모두 502로 처리.
-            // 실패는 캐싱하지 않는다 — 멱등키 TTL 동안 같은 키로 재시도하면 PG를 다시 호출해야
-            // 재시도 로직(P1, 멱등성 키 동일 유지)이 의미를 갖는다. 대신 IN_PROGRESS 마커는 지운다.
+        try {
+            // PG 요청을 접수하고 거래 식별자를 저장한다.
+            // 실제 승인/거절은 webhook으로 비동기 반영된다.
+            String pgTransactionId = paymentGateway.requestApprovalAsync(
+                    payment.getOrderId(), payment.getIdempotencyKey(), payment.getAmount(), payment.getPaymentMethod());
+            paymentRequestWriter.recordPgTransactionId(payment.getId(), pgTransactionId);
+        } catch (RuntimeException failure) {
+            // 접수 실패 시 멱등성 마커 정리
             clearInProgressMarker(idemKey);
+            if (failure instanceof CustomException) {
+                throw failure;
+            }
             throw new CustomException(PaymentErrorCode.PG_ERROR);
         }
 
-        paymentRequestWriter.applyApproval(payment.getOrderId(), payment.getId(), pgResult.pgTransactionId());
-        orderEventProducer.publishPaymentCompleted(payment.getOrderId());
-
-        Payment approved = paymentRepository.findById(payment.getId()).orElse(payment);
-        PaymentResponse response = PaymentResponse.from(approved);
+        Payment requested = paymentRepository.findById(payment.getId()).orElse(payment);
+        PaymentResponse response = PaymentResponse.from(requested);
         cacheResult(idemKey, response);
         return response;
     }

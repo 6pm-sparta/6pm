@@ -16,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(
         name = "images",
-        uniqueConstraints = @UniqueConstraint(name = "uk_post_order_index", columnNames = {"post_id", "order_index"})
+        uniqueConstraints = @UniqueConstraint(name = "uq_posts_post_order_index", columnNames = {"post_id", "order_index"})
 )
 @Check(constraints = "order_index BETWEEN 0 AND 3")
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)

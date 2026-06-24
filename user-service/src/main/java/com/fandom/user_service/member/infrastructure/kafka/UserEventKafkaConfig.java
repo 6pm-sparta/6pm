@@ -22,4 +22,19 @@ public class UserEventKafkaConfig {
     public NewTopic userDeletedTopic() {
         return TopicBuilder.name(KafkaTopics.USER_DELETED).partitions(3).replicas(1).build();
     }
+
+    @Bean
+    public NewTopic userFollowedTopic() {
+        return TopicBuilder.name(KafkaTopics.USER_FOLLOWED).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic userUnfollowedTopic() {
+        return TopicBuilder.name(KafkaTopics.USER_UNFOLLOWED).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic userCreatorCreatedTopic() {
+        return TopicBuilder.name(KafkaTopics.USER_CREATOR_CREATED).partitions(3).replicas(1).build();
+    }
 }

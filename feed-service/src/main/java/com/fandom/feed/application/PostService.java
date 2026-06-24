@@ -7,12 +7,10 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.client.UserClient;
-import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
+import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.util.ImageUrlConverter;
-import com.fandom.feed.infra.redis.PostReactionService;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
@@ -22,25 +20,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PostService {
     private final PostReader postReader;
-    private final ImageService imageService;
+    private final PostAssembler postAssembler;
     private final PostRepository postRepository;
+    private final ImageService imageService;
     private final PostCacheService postCacheService;
+    private final CommentService commentService;
+    private final LikeService likeService;
     private final PostListCacheService postListCacheService;
-    private final PostReactionService postReactionService;
+    private final ReactionCacheService reactionCacheService;
     private final ImageUrlConverter imageUrlConverter;
-    private final UserClient userClient;
 
     @Transactional
     public PostResponse.Create createPost(String content, List<String> imageKeys, UUID userId) {
@@ -54,7 +49,7 @@ public class PostService {
 
     public PostResponse.Detail getPost(UUID postId, UUID userId) {
         PostCache.Detail cachedPost = postCacheService.getPostDetail(postId);
-        PostCache.ReactionInfo reactionInfo = postReactionService.getReactionInfo(postId, userId);
+        PostCache.ReactionInfo reactionInfo = reactionCacheService.getReactionInfo(postId, userId);
         return PostResponse.Detail.of(cachedPost, reactionInfo);
     }
 
@@ -74,7 +69,7 @@ public class PostService {
         if (postIds == null)
             return getPostsFromDB(cursor, sort, null, null, userId);
 
-        return buildCacheResponse(postIds, userId);
+        return postAssembler.buildCacheResponse(postIds, userId);
     }
 
     @Transactional
@@ -102,32 +97,19 @@ public class PostService {
         if (!userId.equals(post.getAuthorId()) && !isMaster)
             throw new CustomException(PostErrorCode.FORBIDDEN_POST_DELETE);
 
-        List<String> imageKeys = imageService.findAllByPostId(postId);
+        commentService.deleteAllByPostId(postId, userId);
+        likeService.deleteAllByPostId(postId);
 
         post.softDelete(userId);
+
+        List<String> imageKeys = imageService.findAllByPostId(postId);
 
         imageService.deleteAllByPostId(postId);
         imageService.publishS3DeleteEvent(imageKeys);
 
+        postListCacheService.removePost(postId);
+
         return PostResponse.Delete.from(post);
-    }
-
-    /**
-     * 캐시에서 가져온 게시글 ID 목록으로 응답을 구성하는 메서드
-     */
-    private CursorPageResponse<PostResponse.Summary> buildCacheResponse(List<UUID> postIds, UUID userId) {
-        boolean hasMore = postIds.size() > FeedPolicy.PAGE_SIZE;
-        List<UUID> pageIds = hasMore ? postIds.subList(0, FeedPolicy.PAGE_SIZE) : postIds;
-
-        List<PostCache.Detail> posts = postCacheService.getPostDetailBatch(pageIds);
-        List<PostCache.ReactionInfo> reactionInfos = postReactionService.getReactionInfoBatch(pageIds, userId);
-
-        List<PostResponse.Summary> summaries = IntStream.range(0, pageIds.size())
-                .mapToObj(i -> PostResponse.Summary.of(posts.get(i), reactionInfos.get(i)))
-                .toList();
-
-        UUID nextCursor = hasMore ? pageIds.getLast() : null;
-        return CursorPageResponse.of(summaries, nextCursor, hasMore);
     }
 
     /**
@@ -141,7 +123,8 @@ public class PostService {
         boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
         List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
-        return buildDBResponse(page, hasMore, userId);
+        UUID nextCursor = hasMore ? page.getLast().getId() : null;
+        return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
     }
 
     /**
@@ -157,36 +140,7 @@ public class PostService {
         boolean hasMore = allPosts.size() > FeedPolicy.PAGE_SIZE;
         List<Post> page = hasMore ? allPosts.subList(0, FeedPolicy.PAGE_SIZE) : allPosts;
 
-        return buildDBResponse(page, hasMore, userId);
-    }
-
-    /**
-     * Post 엔티티로 응답을 구성하는 메서드
-     */
-    private CursorPageResponse<PostResponse.Summary> buildDBResponse(List<Post> page, boolean hasMore, UUID userId) {
-        List<UUID> postIds = page.stream().map(Post::getId).toList();
-
-        // 배치 조회
-        Map<UUID, List<String>> imageUrlsMap = imageService.findAllByPostIds(postIds);
-
-        Set<UUID> authorIds = page.stream().map(Post::getAuthorId).collect(Collectors.toSet());
-        Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()
-                .stream().collect(Collectors.toMap(UserResponse::userId, Function.identity()));
-
-        List<PostCache.ReactionInfo> reactionInfos = postReactionService.getReactionInfoBatch(postIds, userId);
-
-        // DTO 조립
-        List<PostCache.Detail> details = page.stream()
-                .map(post -> PostCache.Detail.of(
-                        post, imageUrlsMap.getOrDefault(post.getId(), List.of()), authorMap.get(post.getAuthorId())
-                ))
-                .toList();
-
-        List<PostResponse.Summary> summaries = IntStream.range(0, page.size())
-                .mapToObj(i -> PostResponse.Summary.of(details.get(i), reactionInfos.get(i)))
-                .toList();
-
         UUID nextCursor = hasMore ? page.getLast().getId() : null;
-        return CursorPageResponse.of(summaries, nextCursor, hasMore);
+        return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
     }
 }

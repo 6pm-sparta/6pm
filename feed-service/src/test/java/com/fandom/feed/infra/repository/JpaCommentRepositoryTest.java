@@ -10,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
@@ -53,7 +54,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findLatestByPostIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByPostId(postId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByPostId(null, postId, pageable);
 
             // then
             assertThat(results).hasSize(3);
@@ -68,7 +69,7 @@ class JpaCommentRepositoryTest {
             UUID cursor = sortedIds.get(1);
 
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByPostId(postId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByPostId(cursor, postId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -98,7 +99,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findOldestByPostIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByPostId(postId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByPostId(null, postId, pageable);
 
             // then
             assertThat(results).hasSize(3);
@@ -113,7 +114,7 @@ class JpaCommentRepositoryTest {
             UUID cursor = sortedIds.get(1);
 
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByPostId(postId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByPostId(cursor, postId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -130,7 +131,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findLatestByAuthorIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(authorId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(null, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -146,7 +147,7 @@ class JpaCommentRepositoryTest {
             UUID cursor = comment4.getId();
 
             // when
-            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(authorId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findLatestByAuthorId(cursor, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -176,7 +177,7 @@ class JpaCommentRepositoryTest {
         @DisplayName("cursor 없음 - 전체 댓글 대상")
         void findOldestByAuthorIdWithoutCursor() {
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(authorId, null, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(null, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -194,11 +195,40 @@ class JpaCommentRepositoryTest {
             UUID cursor = sortedIds.getFirst();
 
             // when
-            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(authorId, cursor, pageable);
+            List<Comment> results = jpaCommentRepository.findOldestByAuthorId(cursor, authorId, pageable);
 
             // then
             assertThat(results).hasSize(1);
             results.forEach(comment -> assertThat(comment.getId()).isGreaterThan(cursor));
         }
+    }
+
+    @Test
+    @DisplayName("postId에 해당하는 댓글 전체 삭제")
+    void softDeleteAllByPostId() {
+        // given
+        UUID postId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        LocalDateTime deletedAt = LocalDateTime.now();
+
+        Comment c1 = Comment.builder().postId(postId).content("댓글1").build();
+        Comment c2 = Comment.builder().postId(postId).content("댓글2").build();
+        Comment other = Comment.builder().postId(UUID.randomUUID()).content("다른 게시글").build();
+        jpaCommentRepository.saveAll(List.of(c1, c2, other));
+
+        // when
+        jpaCommentRepository.softDeleteAllByPostId(postId, userId, deletedAt);
+
+        // then
+        List<Comment> result = jpaCommentRepository.findAll();
+
+        assertThat(result).filteredOn(c -> c.getPostId().equals(postId))
+                .allSatisfy(c -> {
+                    assertThat(c.getDeletedBy()).isEqualTo(userId);
+                    assertThat(c.getDeletedAt()).isEqualTo(deletedAt);
+                });
+
+        assertThat(result).filteredOn(c -> !c.getPostId().equals(postId))
+                .allSatisfy(c -> assertThat(c.getDeletedAt()).isNull());
     }
 }

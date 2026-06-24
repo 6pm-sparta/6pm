@@ -53,7 +53,10 @@ public class Order extends BaseEntity {
     @Column(nullable = false)
     private LocalDateTime statusUpdatedAt;
 
-    /** 주문 타임아웃 처자동 리(P1) 기준 시각. 결제 전이라면 이 시각 이후 자동 취소 대상이 된다. */
+    /**
+     * 주문 만료 기준 시각.
+     * 결제 타임아웃 처리와 Webhook 미수신으로 인한 PAYMENT_REQUESTED 좀비 상태 정리에 사용된다.
+     */
     private LocalDateTime expiredAt;
 
     @Builder
@@ -182,6 +185,20 @@ public class Order extends BaseEntity {
         }
 
         this.status = OrderStatus.CONFIRMED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * REFUND_REQUESTED → FAILED.
+     * PG가 환불 거절 응답(REFUND_FAILED)을 반환한 경우 호출한다.
+     */
+    public void markRefundFailed() {
+
+        if (this.status != OrderStatus.REFUND_REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.FAILED;
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
