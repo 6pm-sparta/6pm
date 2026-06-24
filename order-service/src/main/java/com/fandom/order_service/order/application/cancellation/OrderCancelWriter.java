@@ -22,13 +22,13 @@ import java.util.UUID;
  * 주문 취소 처리.
  * (self-invocation은 Spring AOP 프록시를 거치지 않아 @Transactional 경계가 생기지 않으므로
  * 다른 빈으로 분리해야 한다).
- * 1. decide: 비관적 락 안에서 상태를 판단하고, 가능하면 즉시 전이까지 끝내는 짧은 트랜잭션.
- *    - PENDING → CANCELLED까지 여기서 끝남(PG 호출 없음)
- *    - PAID/CONFIRMED(취소 가능 시간 내) → REFUND_REQUESTED까지만 전이, 실제 PG 환불은 락 밖(Service)
- *    - CANCELLED/REFUNDED → 변경 없음, 멱등 응답용 현재 상태만 반환
- * 2. applyRefundSuccess: PG 환불 호출(락 밖, 동기) 성공 후 결과 반영.
- *    PG 환불 실패 시에는 별도 메서드가 없다 — api 명세서가 명시한 MVP 리스크대로, 주문은
- *    REFUND_REQUESTED에 그대로 머문다(복구 배치는 별도 미확정 항목, 이번 스코프 밖).
+ *
+ * decide: 비관적 락 안에서 상태를 판단하고, 가능하면 즉시 전이까지 끝내는 짧은 트랜잭션.
+ * - PENDING → CANCELLED까지 여기서 끝남(PG 호출 없음)
+ * - PAID/CONFIRMED(취소 가능 시간 내) → REFUND_REQUESTED까지만 전이. 실제 PG 환불은 락 밖(Service)에서
+ *   비동기로 요청하며, 환불 완료/거절 결과는 PG 웹훅으로 비동기 반영된다(RefundResultWriter 참고).
+ *   이 클래스는 REFUND_REQUESTED 전이까지만 책임진다.
+ * - CANCELLED/REFUNDED → 변경 없음, 멱등 응답용 현재 상태만 반환
  */
 @Component
 @RequiredArgsConstructor
@@ -67,7 +67,7 @@ public class OrderCancelWriter {
                 Payment payment = findApprovedPayment(order.getId());
                 order.markRefundRequested();
                 saveHistory(order.getId(), before, order.getStatus(), "유저 직접 취소(결제 후)");
-                yield OrderCancelDecision.refundNeeded(order.getId(), payment);
+                yield OrderCancelDecision.refundNeeded(order.getId(), payment, order.getStatusUpdatedAt());
             }
 
             case CONFIRMED -> {
@@ -77,28 +77,12 @@ public class OrderCancelWriter {
                 Payment payment = findApprovedPayment(order.getId());
                 order.markRefundRequested();
                 saveHistory(order.getId(), before, order.getStatus(), "유저 직접 취소(확정 후, 취소 가능 시간 내)");
-                yield OrderCancelDecision.refundNeeded(order.getId(), payment);
+                yield OrderCancelDecision.refundNeeded(order.getId(), payment, order.getStatusUpdatedAt());
             }
 
             // PAYMENT_REQUESTED, COMPENSATING, REFUND_REQUESTED, FAILED
             default -> throw new CustomException(OrderErrorCode.INVALID_ORDER_STATUS);
         };
-    }
-
-    @Transactional
-    public OrderCancelDecision applyRefundSuccess(UUID orderId, UUID paymentId) {
-
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
-
-        OrderStatus before = order.getStatus();
-        order.markRefunded();
-        payment.refund();
-        saveHistory(order.getId(), before, order.getStatus(), "환불 완료");
-
-        return OrderCancelDecision.refunded(order.getId(), order.getStatus(), payment.getId(), order.getStatusUpdatedAt());
     }
 
     private Payment findApprovedPayment(UUID orderId) {

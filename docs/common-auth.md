@@ -174,6 +174,9 @@ public ResponseEntity<?> getMe(@CurrentIdCard UserIdCard idCard) {
     idCard.isMember();   // MEMBER 여부
     idCard.isCreator();  // CREATOR 여부
     idCard.isMaster();   // MASTER 여부
+
+    // 현재 사용자와 대상 userId가 같은지 확인
+    idCard.isMe(userId); // userId가 null이면 false
 }
 ```
 

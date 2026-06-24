@@ -76,20 +76,32 @@ public class Payment extends BaseEntity {
     }
 
     /**
-     * REQUESTED → APPROVED. PG 승인 응답을 받은 직후 호출한다.
+     * 요청 접수(REQUESTED) 직후 PG가 즉시 반환한 거래 식별자를 기록한다.
+     */
+    public void recordPgTransactionId(String pgTransactionId) {
+
+        if (this.paymentStatus != PaymentStatus.REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.pgTransactionId = pgTransactionId;
+    }
+
+    /**
+     * REQUESTED → APPROVED. PG 승인 webhook을 받은 직후 호출한다. pgTransactionId는
+     * recordPgTransactionId()로 이미 기록돼 있으므로 여기서 다시 받지 않는다.
      *
      * @throws CustomException REQUESTED가 아닌 상태에서 호출되면 발생. 정상 흐름에서는 절대 발생하지
      *         않아야 하는 방어적 체크라(서비스 레이어가 항상 REQUESTED로 막 생성한 Payment에 대해서만
      *         호출함) CommonErrorCode.INTERNAL_SERVER_ERROR로 처리한다(비즈니스 409가 아니라 서버 내부 불일치).
      */
-    public void approve(String pgTransactionId) {
+    public void approve() {
 
         if (this.paymentStatus != PaymentStatus.REQUESTED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
         this.paymentStatus = PaymentStatus.APPROVED;
-        this.pgTransactionId = pgTransactionId;
     }
 
     /** REQUESTED → FAILED. PG 거절/오류 응답을 받은 직후 호출한다.*/

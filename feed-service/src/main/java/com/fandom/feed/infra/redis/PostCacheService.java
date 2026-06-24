@@ -58,7 +58,7 @@ public class PostCacheService {
         List<UUID> missIds = new ArrayList<>();
 
         postIds.forEach(id -> {
-            PostCache.Detail cached = cache != null ? cache.get(id, PostCache.Detail.class) : null;
+            PostCache.Detail cached = (cache != null) ? cache.get(id, PostCache.Detail.class) : null;
             if (cached != null) cachedMap.put(id, cached);
             else missIds.add(id);
         });

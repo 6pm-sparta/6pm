@@ -12,12 +12,16 @@ public class PostCache {
             UUID postId, UserResponse author, String content, List<String> imageUrls,
             LocalDateTime createdAt, LocalDateTime updatedAt
     ) {
-        public static PostCache.Detail of(Post post, List<String> imageUrls, UserResponse author) {
-            return new PostCache.Detail(
+        public static Detail of(Post post, List<String> imageUrls, UserResponse author) {
+            return new Detail(
                     post.getId(), author, post.getContent(), imageUrls, post.getCreatedAt(), post.getUpdatedAt()
             );
         }
     }
 
-    public record ReactionInfo(long commentCount, long likeCount, boolean liked) {}
+    public record ReactionInfo(long commentCount, long likeCount, boolean liked) {
+        public static ReactionInfo of(long commentCount, long likeCount, boolean liked) {
+            return new ReactionInfo(commentCount, likeCount, liked);
+        }
+    }
 }
