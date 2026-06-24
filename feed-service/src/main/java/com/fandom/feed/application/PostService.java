@@ -1,5 +1,6 @@
 package com.fandom.feed.application;
 
+import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
@@ -73,11 +74,11 @@ public class PostService {
 
     @Transactional
     @CacheEvict(value = RedisKeyPrefix.POST_DETAIL, key = "#postId")
-    public PostResponse.Update updatePost(UUID postId, String content, List<String> imageKeys, UUID userId) {
+    public PostResponse.Update updatePost(UUID postId, String content, List<String> imageKeys, UserIdCard idCard) {
         Post post = postReader.findById(postId);
 
         // 권한 검증
-        if (!userId.equals(post.getAuthorId()))
+        if (!idCard.isMe(post.getAuthorId()))
             throw new CustomException(PostErrorCode.FORBIDDEN_POST_UPDATE);
 
         post.update(content);
@@ -89,11 +90,12 @@ public class PostService {
 
     @Transactional
     @CacheEvict(value = RedisKeyPrefix.POST_DETAIL, key = "#postId")
-    public PostResponse.Delete deletePost(UUID postId, UUID userId, boolean isMaster) {
+    public PostResponse.Delete deletePost(UUID postId, UserIdCard idCard) {
         Post post = postReader.findById(postId);
+        UUID userId = idCard.getUserId();
 
         // 권한 검증
-        if (!userId.equals(post.getAuthorId()) && !isMaster)
+        if (!idCard.isMe(post.getAuthorId()) && !idCard.isMaster())
             throw new CustomException(PostErrorCode.FORBIDDEN_POST_DELETE);
 
         commentService.deleteAllByPostId(postId, userId);

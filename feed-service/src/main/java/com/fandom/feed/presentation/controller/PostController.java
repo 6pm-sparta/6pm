@@ -74,7 +74,7 @@ public class PostController {
             @RequestBody @Valid PostRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
-        PostResponse.Update response = postService.updatePost(postId, request.content(), request.imageKeys(), idCard.getUserId());
+        PostResponse.Update response = postService.updatePost(postId, request.content(), request.imageKeys(), idCard);
         return ApiResponse.success(response);
     }
 
@@ -85,7 +85,7 @@ public class PostController {
             @PathVariable UUID postId,
             @CurrentIdCard UserIdCard idCard
     ) {
-        PostResponse.Delete response = postService.deletePost(postId, idCard.getUserId(), idCard.isMaster());
+        PostResponse.Delete response = postService.deletePost(postId, idCard);
         return ApiResponse.success(response);
     }
 

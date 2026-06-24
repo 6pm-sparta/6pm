@@ -1,5 +1,6 @@
 package com.fandom.feed.application;
 
+import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
@@ -268,18 +269,21 @@ class PostServiceTest {
     @Nested
     @DisplayName("게시글 수정")
     class UpdatePost {
+        private final UUID userId = UUID.randomUUID();
+        private final UserIdCard idCard = UserIdCard.of(userId, "CREATOR");
+
         @Test
         @DisplayName("작성자 아님 - 예외 발생")
         void updatePostNotAuthor() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "CREATOR");
             Post post = Post.builder().authorId(UUID.randomUUID()).content("기존 내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> postService.updatePost(postId, "새 내용", List.of(), userId))
+            assertThatThrownBy(() -> postService.updatePost(postId, "새 내용", List.of(), idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.FORBIDDEN_POST_UPDATE);
         }
@@ -289,7 +293,6 @@ class PostServiceTest {
         void updatePostWithImageChange() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             List<String> newImageKeys = List.of("key1", "key2");
             Post post = Post.builder().authorId(userId).content("기존 내용").build();
 
@@ -298,7 +301,7 @@ class PostServiceTest {
             when(imageUrlConverter.toImageUrls(newImageKeys)).thenReturn(List.of("url1", "url2"));
 
             // when
-            postService.updatePost(postId, "새 내용", newImageKeys, userId);
+            postService.updatePost(postId, "새 내용", newImageKeys, idCard);
 
             // then
             verify(imageService).syncImages(postId, newImageKeys);
@@ -310,7 +313,6 @@ class PostServiceTest {
         void updatePostWithoutImageChange() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             List<String> existingImageKeys = List.of("key1", "key2");
             Post post = Post.builder().authorId(userId).content("기존 내용").build();
 
@@ -319,7 +321,7 @@ class PostServiceTest {
             when(imageUrlConverter.toImageUrls(existingImageKeys)).thenReturn(List.of("url1", "url2"));
 
             // when
-            postService.updatePost(postId, "새 내용", existingImageKeys, userId);
+            postService.updatePost(postId, "새 내용", existingImageKeys, idCard);
 
             // then
             verify(imageService).syncImages(postId, existingImageKeys);
@@ -330,18 +332,21 @@ class PostServiceTest {
     @Nested
     @DisplayName("게시글 삭제")
     class DeletePost {
+        private final UUID userId = UUID.randomUUID();
+        private final UserIdCard idCard = UserIdCard.of(userId, "CREATOR");
+
         @Test
         @DisplayName("작성자 아님 - 예외 발생")
         void deletePostNotAuthor() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "CREATOR");
             Post post = Post.builder().authorId(UUID.randomUUID()).content("내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> postService.deletePost(postId, userId, false))
+            assertThatThrownBy(() -> postService.deletePost(postId, idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.FORBIDDEN_POST_DELETE);
         }
@@ -351,7 +356,6 @@ class PostServiceTest {
         void deletePostImagesInDB() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             List<String> imageKeys = List.of("key1", "key2");
             Post post = Post.builder().authorId(userId).content("내용").build();
 
@@ -359,7 +363,7 @@ class PostServiceTest {
             when(imageService.findAllByPostId(postId)).thenReturn(imageKeys);
 
             // when
-            postService.deletePost(postId, userId, false);
+            postService.deletePost(postId, idCard);
 
             // then
             assertThat(post.isDeleted()).isTrue();
@@ -375,14 +379,13 @@ class PostServiceTest {
         void deletePostImagesNotInDB() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             Post post = Post.builder().authorId(userId).content("내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
             when(imageService.findAllByPostId(postId)).thenReturn(List.of());
 
             // when
-            postService.deletePost(postId, userId, false);
+            postService.deletePost(postId, idCard);
 
             // then
             verify(likeService).deleteAllByPostId(postId);
@@ -397,19 +400,19 @@ class PostServiceTest {
         void deletePostIsMaster() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             UUID authorId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MASTER");
             Post post = Post.builder().authorId(authorId).content("내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
             when(imageService.findAllByPostId(postId)).thenReturn(List.of());
 
             // when
-            postService.deletePost(postId, userId, true);
+            postService.deletePost(postId, idCard);
 
             // then
             verify(likeService).deleteAllByPostId(postId);
-            verify(commentService).deleteAllByPostId(postId, userId);
+            verify(commentService).deleteAllByPostId(postId, idCard.getUserId());
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
             verify(postListCacheService).removePost(postId, authorId);
