@@ -38,12 +38,14 @@ spring:
         chat:
           options:
             model: gemini-2.5-flash-lite
-            temperature: 0.3
+            temperature: 0.3            # 분석은 일관성 우선이라 낮게
 
 aiops:
   kafka:
     topic:
       incident-detected: incident.detected
+  slack:
+    webhook-url: ${SLACK_WEBHOOK_URL:}
 
 logging:
   file:
