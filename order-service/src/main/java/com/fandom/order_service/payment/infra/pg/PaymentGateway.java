@@ -10,8 +10,6 @@ import java.util.UUID;
  * 현재는 MockPaymentGateway 구현체만 존재한다. 추후 실제 PG사 연동이 필요해지면
  * 이 인터페이스를 구현하는 새 클래스를 추가하고 빈 설정만 교체하면 되며,
  * 호출하는 서비스 로직(PaymentRequestService 등)은 변경되지 않는 것을 목표로 한다.
- *
- * requestRefund(동기)는 환불도 webhook으로 전환되면 삭제 예정.
  */
 public interface PaymentGateway {
 
