@@ -13,5 +13,5 @@ public interface LikeRepository extends BaseRepository<Like, UUID> {
     List<Like> findByCursorAndUserId(UUID cursor, ReactionSort sort, UUID userId);
     List<Like> findAll();
     void deleteAllByPostId(UUID postId);
-    Map<UUID, List<UUID>> findLikeUsersByPostIds(List<UUID> missedIds);
+    Map<UUID, List<UUID>> findLikeUsersByPostIds(List<UUID> postIds);
 }

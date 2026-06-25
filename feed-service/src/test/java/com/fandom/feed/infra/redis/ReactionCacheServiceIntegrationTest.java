@@ -202,13 +202,12 @@ public class ReactionCacheServiceIntegrationTest {
         // Given
         UUID postId = UUID.randomUUID();
         UUID likeUserId = UUID.randomUUID();
-
         Post post = mock(Post.class);
+
         when(post.getId()).thenReturn(postId);
         when(post.getCommentCount()).thenReturn(5L);
         when(postReader.findAllByIds(List.of(postId))).thenReturn(List.of(post));
-        when(likeRepository.findLikeUsersByPostIds(List.of(postId)))
-                .thenReturn(Map.of(postId, List.of(likeUserId)));
+        when(likeRepository.findLikeUsersByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of(likeUserId)));
 
         // When
         List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
