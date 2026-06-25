@@ -1,0 +1,11 @@
+$kind: http-request
+name: 에러케이스 - 이미 선점된 좌석 재선점 시도(B)
+url: "{{baseUrl}}/api/v1/tickets/shows/{{showId}}/seats/{{seatId}}/hold"
+method: POST
+headers:
+  Authorization: "Bearer {{userB_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 4xx (실패해야 함)\", function () { pm.expect(pm.response.code).to.be.within(400, 499); });"
+    language: text/javascript
+order: 6000

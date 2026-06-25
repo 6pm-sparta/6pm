@@ -1,0 +1,11 @@
+$kind: http-request
+name: 에러케이스 - 구매 토큰 없는 유저가 선점 시도
+url: "{{baseUrl}}/api/v1/tickets/shows/{{showId}}/seats/{{seatId}}/hold"
+method: POST
+headers:
+  Authorization: "Bearer {{userB_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 4xx (실패해야 함)\", function () { pm.expect(pm.response.code).to.be.within(400, 499); });"
+    language: text/javascript
+order: 4000

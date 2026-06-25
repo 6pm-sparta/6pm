@@ -1,0 +1,11 @@
+$kind: http-request
+name: "에러케이스 - 재고 없음 (사전 준비: soldOutSeatId 환경변수에 이미 SOLD 상태인 좌석ID 직접 세팅 필요)"
+url: "{{baseUrl}}/api/v1/tickets/shows/{{showId}}/seats/{{soldOutSeatId}}/hold"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 4xx (실패해야 함)\", function () { pm.expect(pm.response.code).to.be.within(400, 499); });"
+    language: text/javascript
+order: 7000
