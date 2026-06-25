@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
@@ -34,4 +35,7 @@ public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
                                   Pageable pageable);
 
     void deleteAllByPostId(UUID postId);
+
+    @Query("SELECT l.postId, l.userId FROM Like l WHERE l.postId IN :postIds")
+    Map<UUID, List<UUID>> findLikeUsersByPostIds(List<UUID> postIds);
 }
