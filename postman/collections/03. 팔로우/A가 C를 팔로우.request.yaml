@@ -1,0 +1,11 @@
+$kind: http-request
+name: A가 C를 팔로우
+url: "{{baseUrl}}/api/v1/follows/{{creatorC_id}}"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); }); pm.collectionVariables.set(\"followId\", pm.response.json().data.followId);"
+    language: text/javascript
+order: 1000

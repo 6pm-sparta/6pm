@@ -1,0 +1,11 @@
+$kind: http-request
+name: A의 팔로잉 목록 조회(언팔 후)
+url: "{{baseUrl}}/api/v1/members/{{userA_id}}/followings"
+method: GET
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });"
+    language: text/javascript
+order: 5000
