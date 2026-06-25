@@ -61,6 +61,7 @@ class FollowServiceTest {
         UUID creatorId = UUID.randomUUID();
         User follower = user(Role.MEMBER);
         User creator = user(Role.CREATOR);
+        Profile followerProfile = profile(follower, "member");
         UUID followId = UUID.randomUUID();
         Follow savedFollow = Follow.builder()
                 .follower(follower)
@@ -74,6 +75,7 @@ class FollowServiceTest {
         given(followRepository.saveAndFlush(any(Follow.class))).willReturn(savedFollow);
         given(profileRepository.increaseFollowingCountByUserId(followerId)).willReturn(1);
         given(profileRepository.increaseFollowerCountByUserId(creatorId)).willReturn(1);
+        given(profileRepository.findByUserId(followerId)).willReturn(Optional.of(followerProfile));
 
         Follow follow = followService.follow(followerId, creatorId);
 
@@ -81,7 +83,7 @@ class FollowServiceTest {
         verify(followRepository).saveAndFlush(any(Follow.class));
         verify(profileRepository).increaseFollowingCountByUserId(followerId);
         verify(profileRepository).increaseFollowerCountByUserId(creatorId);
-        verify(followEventPublisher).publishFollowed(followId, followerId, creatorId);
+        verify(followEventPublisher).publishFollowed(followId, followerId, creatorId, "member");
     }
 
     @Test
@@ -91,6 +93,7 @@ class FollowServiceTest {
         UUID creatorId = UUID.randomUUID();
         User follower = user(Role.CREATOR);
         User creator = user(Role.CREATOR);
+        Profile followerProfile = profile(follower, "creator-follower");
         UUID followId = UUID.randomUUID();
         Follow savedFollow = Follow.builder()
                 .follower(follower)
@@ -104,6 +107,7 @@ class FollowServiceTest {
         given(followRepository.saveAndFlush(any(Follow.class))).willReturn(savedFollow);
         given(profileRepository.increaseFollowingCountByUserId(followerId)).willReturn(1);
         given(profileRepository.increaseFollowerCountByUserId(creatorId)).willReturn(1);
+        given(profileRepository.findByUserId(followerId)).willReturn(Optional.of(followerProfile));
 
         Follow follow = followService.follow(followerId, creatorId);
 
@@ -111,7 +115,7 @@ class FollowServiceTest {
         verify(followRepository).saveAndFlush(any(Follow.class));
         verify(profileRepository).increaseFollowingCountByUserId(followerId);
         verify(profileRepository).increaseFollowerCountByUserId(creatorId);
-        verify(followEventPublisher).publishFollowed(followId, followerId, creatorId);
+        verify(followEventPublisher).publishFollowed(followId, followerId, creatorId, "creator-follower");
     }
 
     @Test

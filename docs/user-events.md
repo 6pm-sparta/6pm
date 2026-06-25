@@ -140,7 +140,8 @@ Payload:
 {
   "follow_id": "uuid",
   "follower_id": "uuid",
-  "followee_id": "uuid"
+  "followee_id": "uuid",
+  "nickname": "name"
 }
 ```
 
