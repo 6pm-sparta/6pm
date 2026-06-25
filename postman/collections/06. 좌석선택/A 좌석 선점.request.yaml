@@ -1,0 +1,11 @@
+$kind: http-request
+name: A 좌석 선점 (orderId 반환 확인)
+url: "{{baseUrl}}/api/v1/tickets/shows/{{showId}}/seats/{{seatId}}/hold"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); }); const data = pm.response.json().data; pm.test(\"orderId 반환됨\", function () { pm.expect(data.orderId).to.not.be.undefined; }); pm.collectionVariables.set(\"orderId\", data.orderId);"
+    language: text/javascript
+order: 2000
