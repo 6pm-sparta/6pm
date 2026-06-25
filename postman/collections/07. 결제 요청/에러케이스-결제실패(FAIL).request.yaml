@@ -1,0 +1,15 @@
+$kind: http-request
+name: "에러케이스 - MockPG 결제 실패 시뮬레이션 (Idempotency-Key를 FAIL_ 로 시작)"
+url: "{{orderServiceUrl}}/api/v1/payments"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+  Idempotency-Key: "FAIL_{{$randomUUID}}"
+body:
+  type: json
+  content: "{\"orderId\": \"{{orderId}}\", \"paymentMethod\": \"CARD\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"결제 요청 자체는 201 (비동기 접수)\", function () { pm.response.to.have.status(201); }); pm.collectionVariables.set(\"failPaymentId\", pm.response.json().data.paymentId);"
+    language: text/javascript
+order: 7000

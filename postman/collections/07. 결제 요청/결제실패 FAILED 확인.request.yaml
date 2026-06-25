@@ -1,0 +1,11 @@
+$kind: http-request
+name: "결제실패 확인 - paymentStatus FAILED (웹훅 수신 후 1.5초 정도 지나서 보내세요)"
+url: "{{orderServiceUrl}}/api/v1/payments/{{failPaymentId}}"
+method: GET
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); }); pm.test(\"결제 상태는 FAILED\", function () { pm.expect(pm.response.json().data.paymentStatus).to.eql(\"FAILED\"); });"
+    language: text/javascript
+order: 8000

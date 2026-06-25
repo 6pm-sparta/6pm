@@ -52,6 +52,8 @@ values:
     value: ''
   - key: paymentId
     value: ''
+  - key: failPaymentId
+    value: ''
   - key: idempotencyKey
     value: ''
 color: 0

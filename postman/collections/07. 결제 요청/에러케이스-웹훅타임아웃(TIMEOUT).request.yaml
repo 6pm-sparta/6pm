@@ -1,0 +1,15 @@
+$kind: http-request
+name: "에러케이스 - MockPG 웹훅 미발송 시뮬레이션 (Idempotency-Key를 TIMEOUT_ 로 시작, 결제 상태는 계속 REQUESTED에 머무름)"
+url: "{{orderServiceUrl}}/api/v1/payments"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+  Idempotency-Key: "TIMEOUT_{{$randomUUID}}"
+body:
+  type: json
+  content: "{\"orderId\": \"{{orderId}}\", \"paymentMethod\": \"CARD\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"결제 요청 자체는 201 (비동기 접수)\", function () { pm.response.to.have.status(201); });"
+    language: text/javascript
+order: 9000
