@@ -1,0 +1,14 @@
+$kind: http-request
+name: 내정보변경 성공케이스(Auth 포함)
+url: "{{baseUrl}}/api/v1/members/me"
+method: PATCH
+headers:
+  Authorization: "Bearer {{userA_token}}"
+body:
+  type: json
+  content: "{\"address1\": \"서울시 종로구\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });"
+    language: text/javascript
+order: 10000

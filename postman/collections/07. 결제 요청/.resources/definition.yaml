@@ -1,0 +1,28 @@
+$kind: collection
+description: |-
+  A가 좌석 선점 후 받은 order_id로 결제 요청 → A가 예매 확정 알림 수신
+
+  1. 시나리오 6에서 받은 orderId로 결제 요청
+      
+  2. DB에서 주문 상태 PAYMENT_REQUESTED로 전이 확인
+      
+  3. 1.5초 대기 — MockPG 웹훅 자동 수신
+      
+  4. DB에서 주문 상태 PAID 확인, 결제 승인번호(pg_transaction_id) 채워졌는지 확인
+      
+  5. Kafka UI에서 `order.payment.completed` 이벤트 확인
+      
+  6. Ticketing이 수신 후 좌석 확정 처리 → Kafka UI에서 `ticketing.seat.booked` 확인
+      
+  7. DB에서 주문 상태 CONFIRMED 확인
+      
+  8. DB `order_status_histories`에서 전체 상태 전이 이력 확인 (`PENDING → PAYMENT_REQUESTED → PAID → CONFIRMED`)
+      
+  9. Kafka UI에서 `notification.send` (ORDER_COMPLETED) 확인
+      
+  10. 알림 보관함 조회해서 예매 확정 알림 수신 확인
+      
+  11. 동일 Idempotency-Key로 결제 재요청 → 200 응답 (멱등성 확인)
+      
+
+  notionvc: 2381c0f1-b728-4d98-a387-f190de9d06c7 EndFragment

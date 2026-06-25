@@ -1,0 +1,12 @@
+$kind: http-request
+name: 내정보변경 실패케이스(Auth 헤더 없음)
+url: "{{baseUrl}}/api/v1/members/me"
+method: PATCH
+body:
+  type: json
+  content: "{\"address1\": \"서울시 종로구\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 401\", function () { pm.response.to.have.status(401); });"
+    language: text/javascript
+order: 9000

@@ -1,0 +1,23 @@
+workspace:
+  id: 1953b1af-b31d-4ebc-b8ea-35b690051f0a
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
+cloudResources:
+  collections:
+    ../postman/collections/10. 로그아웃: 55020952-56609c33-0e4d-4fed-b5fd-7b384f40e094
+    ../postman/collections/07. 결제 요청: 55020952-7173b1cd-dca9-4e89-ac4e-eb7ea99a2fd1
+    ../postman/collections/11. 탈퇴: 55020952-86eb950c-02b3-4799-874f-d07bfdeeb034
+    ../postman/collections/09. 동시성 충돌: 55020952-974a4fb2-0631-4287-86cd-1d8f8e9a29f1
+    ../postman/collections/05. 대기열-토큰발급: 55020952-a1b831f3-6a0f-447e-b097-3404d53fd911
+    ../postman/collections/02. 게시글: 55020952-a590b366-1387-4e8c-bb14-7774877ce149
+    ../postman/collections/04. 팔로우 알림: 55020952-a691e2f1-d25e-4f05-9fb1-e6a779f4b74f
+    ../postman/collections/06. 좌석선택: 55020952-b5c4a2f8-1b6f-4200-804e-845ad2700b0d
+    ../postman/collections/03. 팔로우: 55020952-ba1d5e10-ef84-47d5-ab53-fe30e65c8cab
+    ../postman/collections/08. 주문 취소: 55020952-c1df9f85-5318-4b57-a082-ab1993e8f07b
+    ../postman/collections/01. 회원가입-로그인: 55020952-d9f59c0b-a13c-4718-8e1a-7f4dba0d8d52
+  environments:
+    ../postman/environments/환경변수.environment.yaml: 55020952-cd77f8b5-5f08-4538-81fa-1c9b2b5b1e70
+
+localResources:
+  specs: []

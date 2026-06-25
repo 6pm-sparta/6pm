@@ -1,0 +1,12 @@
+$kind: http-request
+name: 일반회원B 가입
+url: "{{baseUrl}}/api/v1/members"
+method: POST
+body:
+  type: json
+  content: "{\"email\": \"{{userB_email}}\", \"password\": \"{{userB_password}}\", \"nickname\": \"userB\", \"zipCode\": \"54321\", \"address1\": \"서울시 마포구\", \"address2\": \"202호\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); }); pm.collectionVariables.set(\"userB_id\", pm.response.json().data.userId);"
+    language: text/javascript
+order: 3000

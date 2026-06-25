@@ -1,0 +1,14 @@
+$kind: http-request
+name: A 디바이스 토큰 등록
+url: "{{baseUrl}}/api/v1/notifications/tokens"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+body:
+  type: json
+  content: "{\"deviceToken\": \"device-token-userA-12345\", \"deviceType\": \"WEB\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200 or 201\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+    language: text/javascript
+order: 8000
