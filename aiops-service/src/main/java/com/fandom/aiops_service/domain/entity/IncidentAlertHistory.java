@@ -42,7 +42,7 @@ public class IncidentAlertHistory extends BaseEntity {
     private Long mttrSeconds;            // resolved_at - fired_at (초)
 
     @Column(name = "ai_summary", columnDefinition = "text")
-    private String aiSummary;            // LLM 분석 결과 (#128에서 채움)
+    private String aiSummary;            // LLM 분석 결과
 
     @Column(name = "ai_root_cause", columnDefinition = "text")
     private String aiRootCause;
@@ -55,28 +55,23 @@ public class IncidentAlertHistory extends BaseEntity {
     private String rawPayload;           // 원본 알림 JSON
 
     @Column(name = "slack_ts", length = 50)
-    private String slackTs;              // Slack 메시지 추적 (#129에서 채움)
+    private String slackTs;              // Slack 메시지 추적
 
     @Builder
     private IncidentAlertHistory(String alertName, String severity, String sourceService,
-
                                  String fingerprint, OffsetDateTime firedAt, String rawPayload) {
         this.alertName = alertName;
         this.severity = severity;
         this.sourceService = sourceService;
         this.fingerprint = fingerprint;
-
         this.firedAt = firedAt;
         this.rawPayload = rawPayload;
     }
 
-    /** LLM 분석이 이미 채워졌는지 — 중복 분석 방지용 */
     public boolean isAiAnalyzed() {
         return this.aiSummary != null;
     }
 
-
-    /** resolved 알림 수신 시: 복구 시각 + MTTR(초) 기록 */
     public void resolve(OffsetDateTime resolvedAt) {
         this.resolvedAt = resolvedAt;
         if (this.firedAt != null && resolvedAt != null) {
@@ -84,11 +79,14 @@ public class IncidentAlertHistory extends BaseEntity {
         }
     }
 
-    /** LLM 분석 결과 채우기 (#128에서 사용) */
-
     public void applyAiAnalysis(String summary, String rootCause, String guide) {
         this.aiSummary = summary;
         this.aiRootCause = rootCause;
         this.aiGuide = guide;
     }
+
+    public void markSlackNotified(String slackTs) {
+        this.slackTs = slackTs;
+    }
+
 }

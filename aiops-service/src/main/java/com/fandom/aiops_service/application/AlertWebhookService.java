@@ -1,6 +1,8 @@
 package com.fandom.aiops_service.application;
 
 
+https://github.com/6pm-sparta/6pm/pull/166/conflict?name=aiops-service%252Fsrc%252Fmain%252Fjava%252Fcom%252Ffandom%252Faiops_service%252Fdomain%252Fentity%252FIncidentAlertHistory.java&base_oid=9001d822304ab7f30bad295b0bb6013e6f18b0da&head_oid=19a0b840b43d8afcd3201c8457d063de58943732<<<<<<< feature/129-slack-notify
+
 import com.fandom.aiops_service.application.event.IncidentDetectedEvent;
 import com.fandom.aiops_service.domain.entity.IncidentAlertHistory;
 import com.fandom.aiops_service.domain.repository.IncidentAlertHistoryRepository;
@@ -8,7 +10,6 @@ import com.fandom.aiops_service.presentation.dto.request.AlertWebhookRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +17,6 @@ import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
-
 
 @Slf4j
 @Service
@@ -26,7 +26,6 @@ public class AlertWebhookService {
     private final IncidentAlertHistoryRepository incidentRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
-
 
     @Transactional
     public void handleWebhook(AlertWebhookRequest request) {
@@ -53,7 +52,6 @@ public class AlertWebhookService {
         // 이미 진행 중인 동일 사건이 있으면 중복 생성 방지 (fingerprint 우선)
         if (findActiveIncident(fingerprint, alertName, sourceService).isPresent()) {
             log.debug("[AIOps] 이미 진행 중인 사건 — 스킵: {} / {} / fp={}", alertName, sourceService, fingerprint);
-
             return;
         }
 
