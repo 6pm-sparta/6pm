@@ -26,7 +26,7 @@ public class UserEventConsumer {
             groupId = "${spring.kafka.consumer.group-id}-followed",
             containerFactory = "followEventKafkaListenerContainerFactory")
     public void onFollowed(FollowEventMessage m) {
-        chatRoomCommandService.handleFollowed(m.followeeId(), m.followerId());
+        chatRoomCommandService.handleFollowed(m.followeeId(), m.followerId(), m.nickname());
     }
 
     @KafkaListener(topics = KafkaTopics.USER_UNFOLLOWED,

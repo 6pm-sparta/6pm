@@ -4,11 +4,14 @@ import com.fandom.chat_service.domain.entity.ChatRoomMember;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ChatRoomMemberJpaRepository extends JpaRepository<ChatRoomMember, UUID> {
 
     boolean existsByRoomIdAndUserId(UUID roomId, UUID userId);
+
+    Optional<ChatRoomMember> findByRoomIdAndUserId(UUID roomId, UUID userId);
 
     List<ChatRoomMember> findAllByUserId(UUID userId);
 

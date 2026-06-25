@@ -2,6 +2,7 @@ package com.fandom.chat_service.application.service;
 
 import com.fandom.chat_service.domain.entity.ChatMessage;
 import com.fandom.chat_service.domain.entity.ChatRoom;
+import com.fandom.chat_service.domain.entity.ChatRoomMember;
 import com.fandom.chat_service.domain.entity.SenderRole;
 import com.fandom.chat_service.domain.exception.ChatErrorCode;
 import com.fandom.chat_service.domain.repository.ChatMessageRepository;
@@ -34,7 +35,9 @@ public class ChatMessageService {
     @Transactional
     public MessageResponse send(UUID roomId, UUID senderId, String content) {
         ChatRoom room = getRoomOrThrow(roomId);
-        requireMember(roomId, senderId);
+        // 멤버십 검증 + 닉네임
+        ChatRoomMember member = memberRepository.findByRoomIdAndUserId(roomId, senderId)
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ACCESS_DENIED));
 
         SenderRole role = room.getCreatorId().equals(senderId) ? SenderRole.CREATOR : SenderRole.MEMBER;
 
@@ -42,6 +45,7 @@ public class ChatMessageService {
                 .roomId(roomId)
                 .senderId(senderId)
                 .senderRole(role)
+                .senderNickname(member.getNickname())
                 .content(content)
                 .build());
         log.info("메시지 저장 room_id={}, sender_id={}, role={}", roomId, senderId, role);

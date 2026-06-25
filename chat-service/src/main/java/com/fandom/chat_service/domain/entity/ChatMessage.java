@@ -35,14 +35,18 @@ public class ChatMessage extends BaseEntity {
     @Column(name = "sender_role", nullable = false, length = 10)
     private SenderRole senderRole;
 
+    @Column(name = "sender_nickname", nullable = false, length = 50)
+    private String senderNickname;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @Builder
-    private ChatMessage(UUID roomId, UUID senderId, SenderRole senderRole, String content) {
+    private ChatMessage(UUID roomId, UUID senderId, SenderRole senderRole, String senderNickname, String content) {
         this.roomId = roomId;
         this.senderId = senderId;
         this.senderRole = senderRole;
+        this.senderNickname = senderNickname;
         this.content = content;
     }
 }
