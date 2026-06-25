@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/feeds/posts/{{postId}}/likes"
+method: POST
+headers:
+  Authorization: Bearer {{userA_token}}
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200 or 201", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); }); pm.test("likeCount 1 이상", function () { pm.expect(pm.response.json().data.likeCount).to.be.at.least(1); });
+    language: text/javascript
+order: 5000
