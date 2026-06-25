@@ -2,6 +2,7 @@ package com.fandom.feed.infra.redis;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.PostReader;
+import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.LikeErrorCode;
 import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
@@ -27,10 +28,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Testcontainers
 @TestPropertySource(properties = "cache.ttl.comment-count=300")
@@ -190,5 +194,32 @@ public class ReactionCacheServiceIntegrationTest {
 
         // Then
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("DB 배치 조회 후 캐시 저장")
+    void fetchFromDbAndCache() {
+        // Given
+        UUID postId = UUID.randomUUID();
+        UUID likeUserId = UUID.randomUUID();
+
+        Post post = mock(Post.class);
+        when(post.getId()).thenReturn(postId);
+        when(post.getCommentCount()).thenReturn(5L);
+        when(postReader.findAllByIds(List.of(postId))).thenReturn(List.of(post));
+        when(likeRepository.findLikeUsersByPostIds(List.of(postId)))
+                .thenReturn(Map.of(postId, List.of(likeUserId)));
+
+        // When
+        List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+                List.of(postId), null, false
+        );
+
+        // Then
+        assertThat(results.getFirst().commentCount()).isEqualTo(5L);
+        assertThat(results.getFirst().likeCount()).isEqualTo(1L);
+
+        assertThat(redisTemplate.opsForValue().get(RedisKeyPrefix.COMMENT_COUNT + postId)).isEqualTo("5");
+        assertThat(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + postId, likeUserId.toString())).isTrue();
     }
 }
