@@ -41,7 +41,6 @@ public class IncidentEventPublisher {
                         }
                     });
         } catch (Exception e) {
-            // send() 호출 자체의 동기 예외(직렬화 오류, 버퍼 풀 + max.block.ms 초과 등)
             log.error("[AIOps] {} (동기 실패) — incidentId={} (사건 기록은 보존됨)",
                     AiopsErrorCode.INCIDENT_EVENT_PUBLISH_FAILED.getMessage(), incidentId, e);
         }
