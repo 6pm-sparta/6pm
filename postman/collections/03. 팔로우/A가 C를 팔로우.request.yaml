@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/follows/{{creatorC_id}}"
+method: POST
+headers:
+  Authorization: Bearer {{userA_token}}
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 201", function () { pm.response.to.have.status(201); });
+    language: text/javascript
+order: 1000
