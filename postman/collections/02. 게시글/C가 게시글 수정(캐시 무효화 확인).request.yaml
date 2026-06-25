@@ -1,0 +1,15 @@
+$kind: http-request
+name: C가 게시글 수정(캐시 무효화 확인)
+url: "{{baseUrl}}/api/v1/feeds/posts/{{postId}}"
+method: PUT
+headers:
+  Authorization: "Bearer {{creatorC_token}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: "{\"content\": \"수정된 게시글 내용입니다.\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });"
+    language: text/javascript
+order: 7000

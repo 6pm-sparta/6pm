@@ -1,0 +1,15 @@
+$kind: http-request
+name: C가 게시글 작성
+url: "{{baseUrl}}/api/v1/feeds/posts"
+method: POST
+headers:
+  Authorization: "Bearer {{creatorC_token}}"
+  Content-Type: application/json
+body:
+  type: json
+  content: "{\"content\": \"안녕하세요! 첫 번째 게시글입니다.\"}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); }); pm.collectionVariables.set(\"postId\", pm.response.json().data.postId);"
+    language: text/javascript
+order: 1000

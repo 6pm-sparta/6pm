@@ -1,0 +1,11 @@
+$kind: http-request
+name: A가 게시글 좋아요
+url: "{{baseUrl}}/api/v1/feeds/posts/{{postId}}/likes"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); });"
+    language: text/javascript
+order: 5000
