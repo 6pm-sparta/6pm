@@ -15,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +32,7 @@ public class ChatMessageService {
     private final ChatRoomRepository roomRepository;
     private final ChatRoomMemberRepository memberRepository;
     private final ChatMessageRepository messageRepository;
+    private final MessageDeliveryService messageDeliveryService;
 
     // 메시지 전송
     @Transactional
@@ -49,7 +52,16 @@ public class ChatMessageService {
                 .content(content)
                 .build());
         log.info("메시지 저장 room_id={}, sender_id={}, role={}", roomId, senderId, role);
-        return MessageResponse.from(saved);
+
+        // 커밋 후 전달
+        MessageResponse response = MessageResponse.from(saved);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                messageDeliveryService.deliver(room, response);
+            }
+        });
+        return response;
     }
 
     // 채팅 내역 조회
