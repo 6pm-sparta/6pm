@@ -1,0 +1,11 @@
+$kind: collection
+description: |-
+  A가 좌석 목록 조회 → 좌석 선택(선점) 성공 → 주문 생성 요청(feign) → 주문 생성 완료 확인
+
+  1. 좌석 목록 조회 (AVAILABLE 상태 확인)
+      
+  2. 좌석 선점 → order_id 반환 확인
+      
+  3. Redis에서 해당 좌석 HOLDING 상태 확인
+      
+  4. DB에서 주문이 PENDING으로 자동 생성됐는지 확인 (Feign 연동)
