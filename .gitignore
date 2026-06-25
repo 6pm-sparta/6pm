@@ -57,3 +57,10 @@ docker_data/
 ## log
 **/logs/
 *.log
+
+## postman (워크스페이스 클라우드 연결 정보·바이너리 데이터셋은 개인/로컬 전용)
+.postman/
+postman/datasets/
+
+## db backup
+backup/
