@@ -1,28 +1,35 @@
-// aiops-service/build.gradle — 표준 와이어링 (인프라 담당 제공)
-// 루트가 plugin/group/Java21/SpringCloud BOM/lombok/test 관리. 여기엔 의존성만 둔다.
+ext {
+	set('springAiVersion', '1.1.8')   // 못 받아지면 최신 1.1.x 로 올리기
+}
+
 dependencies {
-	implementation project(':common')                                                   // ApiResponse, BaseEntity, 예외, 인증(UserIdCard)
+	implementation project(':common')
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	runtimeOnly    'org.postgresql:postgresql'
 
-	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // 서비스 등록/발견 (lb://)
-	implementation 'org.springframework.cloud:spring-cloud-starter-config'                // config-server 설정 수신
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'                // /actuator/health, prometheus
+	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+	implementation 'org.springframework.cloud:spring-cloud-starter-config'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 
-	implementation 'io.micrometer:micrometer-tracing-bridge-brave'                        // 분산추적(Zipkin)
-	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
-	implementation 'io.micrometer:micrometer-registry-prometheus'                         // Prometheus 메트릭
-
-	// === 본인 도메인에 필요한 것만 주석 해제 ===
-	// implementation 'org.springframework.boot:spring-boot-starter-data-redis'           // 캐시/세션 (user/feed/ticketing)
-	// implementation 'org.redisson:redisson-spring-boot-starter:3.35.0'                  // 분산락/대기열 (ticketing)
-	// implementation 'org.springframework.kafka:spring-kafka'                            // 이벤트 (ticketing/order/notification/feed)
-	// implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
-	//
-	// 서비스 간 동기 호출
-
-	// 추적
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
 	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
+
+	implementation 'org.springframework.kafka:spring-kafka'
+	implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
+
+	// 테스트용
+	testImplementation 'org.springframework.kafka:spring-kafka-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:postgresql'
+
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+	}
 }

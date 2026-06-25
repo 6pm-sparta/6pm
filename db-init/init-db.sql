@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS aiops_db.incident_alert_history (
                                                                alert_name      VARCHAR(200) NOT NULL,            -- Alertmanager rule 이름
     severity        VARCHAR(20)  NOT NULL,            -- critical / warning / info
     source_service  VARCHAR(100),                     -- 장애 발생 서비스
+    fingerprint     VARCHAR(255),                     -- (#128) Alertmanager 알림 시리즈 고유키(중복/해소 매칭)
     fired_at        TIMESTAMPTZ  NOT NULL,            -- 알림 발생 시각
     resolved_at     TIMESTAMPTZ,                      -- 해소 시각 (null=진행중)
     mttr_seconds    BIGINT,                           -- resolved_at - fired_at (초)
@@ -73,9 +74,13 @@ CREATE TABLE IF NOT EXISTS aiops_db.incident_alert_history (
 
 CREATE INDEX IF NOT EXISTS idx_incident_fired_at  ON aiops_db.incident_alert_history (fired_at DESC);
 CREATE INDEX IF NOT EXISTS idx_incident_severity  ON aiops_db.incident_alert_history (severity);
+-- (#128) 진행 중(active) 사건을 fingerprint 로 빠르게 매칭 (firing↔resolved 짝짓기/중복 방지)
+CREATE INDEX IF NOT EXISTS idx_incident_fp_active ON aiops_db.incident_alert_history (fingerprint)
+    WHERE resolved_at IS NULL;
 
 -- ---------------------------------------------------------------------
 -- 확인용
 --   SELECT schema_name FROM information_schema.schemata
 --   WHERE schema_name IN ('user_db','auth_db','feed_db','ticket_db','order_db','notify_db','chat_db','aiops_db');
 -- ---------------------------------------------------------------------
+

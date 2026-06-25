@@ -8,6 +8,9 @@ import java.util.UUID;
 
 public interface IncidentAlertHistoryRepository extends JpaRepository<IncidentAlertHistory, UUID> {
 
+    Optional<IncidentAlertHistory> findFirstByFingerprintAndResolvedAtIsNullOrderByFiredAtDesc(
+            String fingerprint);
+
     Optional<IncidentAlertHistory> findFirstByAlertNameAndSourceServiceAndResolvedAtIsNullOrderByFiredAtDesc(
             String alertName, String sourceService);
 }

@@ -19,6 +19,7 @@ public class AlertWebhookController {
     @PostMapping("/webhook")
     public ApiResponse<Void> receive(@RequestBody AlertWebhookRequest request) {
         alertWebhookService.handleWebhook(request);
-        return ApiResponse.success();
+        return ApiResponse.success();   // 200 OK — Alertmanager 재전송 방지
+
     }
 }

@@ -6,10 +6,10 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
-
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AlertWebhookRequest(
-        String status,
+        String status,            // 그룹 전체 상태 (firing / resolved)
+
         List<Alert> alerts
 ) {
     @JsonIgnoreProperties(ignoreUnknown = true)
