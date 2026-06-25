@@ -52,6 +52,9 @@ class PgWebhookServiceTest {
     private PaymentRequestWriter paymentRequestWriter;
 
     @Mock
+    private RefundResultWriter refundResultWriter;
+
+    @Mock
     private OrderEventProducer orderEventProducer;
 
     private final OrderProperties orderProperties = new OrderProperties(
@@ -66,7 +69,8 @@ class PgWebhookServiceTest {
     @BeforeEach
     void setUp() {
         pgWebhookService = new PgWebhookService(
-                signatureVerifier, redisTemplate, orderProperties, paymentRepository, paymentRequestWriter, orderEventProducer);
+                signatureVerifier, redisTemplate, orderProperties, paymentRepository,
+                paymentRequestWriter, refundResultWriter, orderEventProducer);
     }
 
     private Payment requestedPaymentWithPgTransactionId(String pgTransactionId, Long amount) {
@@ -78,6 +82,19 @@ class PgWebhookServiceTest {
                 .idempotencyKey("idem-key")
                 .build();
         payment.recordPgTransactionId(pgTransactionId);
+        ReflectionTestUtils.setField(payment, "id", paymentId);
+        return payment;
+    }
+
+    private Payment approvedPaymentWithPgTransactionId(String pgTransactionId, Long amount) {
+        Payment payment = Payment.builder()
+                .orderId(orderId)
+                .amount(amount)
+                .paymentStatus(PaymentStatus.APPROVED)
+                .paymentMethod(PaymentMethod.CARD)
+                .pgTransactionId(pgTransactionId)
+                .idempotencyKey("idem-key")
+                .build();
         ReflectionTestUtils.setField(payment, "id", paymentId);
         return payment;
     }
@@ -216,5 +233,66 @@ class PgWebhookServiceTest {
 
         // when & then
         assertThatCode(() -> pgWebhookService.receive(request, "good-signature")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("환불 완료(REFUNDED) 콜백을 받으면 applyRefundSuccess를 호출하고 좌석반환+알림 이벤트를 발행한다")
+    void receive_refunded_dispatchesRefundSuccessAndPublishesEvents() {
+        // given
+        UUID userId = UUID.randomUUID();
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "REFUNDED", 50_000L, null);
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-1234"))
+                .willReturn(Optional.of(approvedPaymentWithPgTransactionId("PG-1234", 50_000L)));
+        given(refundResultWriter.applyRefundSuccess(orderId, paymentId)).willReturn(Optional.of(userId));
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(refundResultWriter).applyRefundSuccess(orderId, paymentId);
+        verify(orderEventProducer).publishPaymentCancelled(orderId);
+        verify(orderEventProducer).publishOrderCancelledNotification(orderId, userId);
+    }
+
+    @Test
+    @DisplayName("환불 완료(REFUNDED) 콜백이 이미 처리된 건이면(Writer가 empty 반환) 이벤트를 발행하지 않는다")
+    void receive_refunded_alreadyHandled_doesNotPublishEvents() {
+        // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "REFUNDED", 50_000L, null);
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-1234"))
+                .willReturn(Optional.of(approvedPaymentWithPgTransactionId("PG-1234", 50_000L)));
+        given(refundResultWriter.applyRefundSuccess(orderId, paymentId)).willReturn(Optional.empty());
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(orderEventProducer, never()).publishPaymentCancelled(any());
+        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
+    }
+
+    @Test
+    @DisplayName("환불 거절(REFUND_FAILED) 콜백을 받으면 applyRefundFailure를 호출한다")
+    void receive_refundFailed_dispatchesRefundFailure() {
+        // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-1234", orderId, "REFUND_FAILED", 50_000L, "한도 초과");
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-1234"))
+                .willReturn(Optional.of(approvedPaymentWithPgTransactionId("PG-1234", 50_000L)));
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(refundResultWriter).applyRefundFailure(orderId, "한도 초과");
+        verify(orderEventProducer, never()).publishPaymentCancelled(any());
     }
 }

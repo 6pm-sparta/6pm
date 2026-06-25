@@ -15,6 +15,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,28 +30,6 @@ class MockPaymentGatewayTest {
     @BeforeEach
     void setUp() {
         mockPaymentGateway = new MockPaymentGateway(callbackSender);
-    }
-
-    @Test
-    @DisplayName("pgTransactionId가 있으면 환불에 성공한다")
-    void requestRefund_withTransactionId_returnsSuccess() {
-        // when
-        PgRefundResult result = mockPaymentGateway.requestRefund("PG-1234", 50_000L);
-
-        // then
-        assertThat(result.isSuccess()).isTrue();
-        assertThat(result.failureReason()).isNull();
-    }
-
-    @Test
-    @DisplayName("pgTransactionId가 없으면 환불에 실패한다")
-    void requestRefund_withoutTransactionId_returnsFailure() {
-        // when
-        PgRefundResult result = mockPaymentGateway.requestRefund(null, 50_000L);
-
-        // then
-        assertThat(result.isSuccess()).isFalse();
-        assertThat(result.failureReason()).isNotBlank();
     }
 
     @Test
@@ -107,8 +86,8 @@ class MockPaymentGatewayTest {
     }
 
     @Test
-    @DisplayName("비동기 환불 요청 - pgTransactionId가 있으면 REFUNDED 콜백을 예약한다")
-    void requestRefundAsync_withTransactionId_schedulesRefundedCallback() {
+    @DisplayName("비동기 환불 요청 - 기본 pgTransactionId면 REFUNDED 콜백을 예약한다")
+    void requestRefundAsync_default_schedulesRefundedCallback() {
         // given
         UUID orderId = UUID.randomUUID();
 
@@ -131,5 +110,40 @@ class MockPaymentGatewayTest {
 
         // then
         verify(callbackSender, never()).sendDelayed(any());
+    }
+
+    @Test
+    @DisplayName("승인 시점 idempotencyKey에 REFUND_FAIL_ 마커가 있으면, 그 pgTransactionId로 환불 요청 시 REFUND_FAILED 콜백을 예약한다")
+    void requestRefundAsync_refundFailMarker_schedulesRefundFailedCallback() {
+        // given
+        UUID orderId = UUID.randomUUID();
+        String pgTransactionId = mockPaymentGateway.requestApprovalAsync(
+                orderId, "idem-REFUND_FAIL_xyz", 50_000L, PaymentMethod.CARD);
+
+        // when
+        mockPaymentGateway.requestRefundAsync(orderId, pgTransactionId, 50_000L);
+
+        // then
+        ArgumentCaptor<PgWebhookRequest> captor = ArgumentCaptor.forClass(PgWebhookRequest.class);
+        verify(callbackSender, times(2)).sendDelayed(captor.capture());
+
+        PgWebhookRequest refundCallback = captor.getAllValues().get(1);
+        assertThat(refundCallback.status()).isEqualTo("REFUND_FAILED");
+        assertThat(refundCallback.failureReason()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("승인 시점 idempotencyKey에 REFUND_TIMEOUT_ 마커가 있으면, 그 pgTransactionId로 환불 요청 시 콜백을 보내지 않는다")
+    void requestRefundAsync_refundTimeoutMarker_neverSendsCallback() {
+        // given
+        UUID orderId = UUID.randomUUID();
+        String pgTransactionId = mockPaymentGateway.requestApprovalAsync(
+                orderId, "idem-REFUND_TIMEOUT_xyz", 50_000L, PaymentMethod.CARD);
+
+        // when
+        mockPaymentGateway.requestRefundAsync(orderId, pgTransactionId, 50_000L);
+
+        // then — 승인 콜백 1번만 발송, 환불 콜백은 없음
+        verify(callbackSender, times(1)).sendDelayed(any());
     }
 }

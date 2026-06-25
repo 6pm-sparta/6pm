@@ -62,8 +62,8 @@ order:
   cancellation:
     cancellable-window-hours: 24  # CONFIRMED 취소 가능 시간(확정 시각 기준). 임의값 — 팀 협의 필요(api 명세서 미확정 항목)
   compensation:
-    refund-max-attempts: 3        # SAGA 보상 PG 환불 재시도 최대 횟수 — 컨슈머 스레드를 막는 동기 루프라 짧게 결정
-    refund-retry-backoff-millis: 1000  # 재시도 간 대기(ms) — 3회×1초면 최악의 경우에도 약 2초 안에 끝남
+    refund-max-attempts: 3        # SAGA 보상 PG 환불 재시도 최대 횟수(현재 미사용) — webhook 기반 재시도 도입 시 재사용 예정
+    refund-retry-backoff-millis: 1000  # 재시도 간 대기(ms)(현재 미사용)
   pg-webhook:
     secret-key: "${PG_WEBHOOK_SECRET_KEY:PGWebhookSecret_2026_6pm_fandom_X7mK2vQ8pL9aR4s}"
     callback-url: "http://localhost:${server.port}/api/v1/webhooks/payments"

@@ -19,12 +19,13 @@
 -- 1) 서비스별 스키마 (논리적 DB-per-service)
 -- ---------------------------------------------------------------------
 CREATE SCHEMA IF NOT EXISTS user_db;     -- User Service     (:8081)
+CREATE SCHEMA IF NOT EXISTS auth_db;     -- Auth Service     (:8087)
 CREATE SCHEMA IF NOT EXISTS feed_db;     -- Feed Service     (:8082)
 CREATE SCHEMA IF NOT EXISTS ticket_db;   -- Ticketing Service(:8083)
 CREATE SCHEMA IF NOT EXISTS order_db;    -- Order & Payment  (:8084)
 CREATE SCHEMA IF NOT EXISTS notify_db;   -- Notification     (:8085)
+CREATE SCHEMA IF NOT EXISTS chat_db;     -- Chat Service     (:8088)
 CREATE SCHEMA IF NOT EXISTS aiops_db;    -- AIOps Service    (:8086)
-CREATE SCHEMA IF NOT EXISTS chat_db;   	 -- Chat Service     (:8088)
 
 -- ---------------------------------------------------------------------
 -- 2) (권장) 서비스별 전용 DB 유저 — 운영 단계에서 최소권한 분리
@@ -38,15 +39,17 @@ CREATE SCHEMA IF NOT EXISTS chat_db;   	 -- Chat Service     (:8088)
 --   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'order_svc') THEN CREATE ROLE order_svc LOGIN PASSWORD 'CHANGE_ME'; END IF;
 --   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'notify_svc')THEN CREATE ROLE notify_svc LOGIN PASSWORD 'CHANGE_ME'; END IF;
 --   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'aiops_svc') THEN CREATE ROLE aiops_svc LOGIN PASSWORD 'CHANGE_ME'; END IF;
---   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'chat_svc')  THEN CREATE ROLE chat_svc LOGIN PASSWORD 'CHANGE_ME'; END IF;
+--   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'auth_svc')  THEN CREATE ROLE auth_svc  LOGIN PASSWORD 'CHANGE_ME'; END IF;
+--   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'chat_svc')  THEN CREATE ROLE chat_svc  LOGIN PASSWORD 'CHANGE_ME'; END IF;
 -- END $$;
 -- GRANT ALL ON SCHEMA user_db   TO user_svc;
+-- GRANT ALL ON SCHEMA auth_db   TO auth_svc;
 -- GRANT ALL ON SCHEMA feed_db   TO feed_svc;
 -- GRANT ALL ON SCHEMA ticket_db TO ticket_svc;
 -- GRANT ALL ON SCHEMA order_db  TO order_svc;
 -- GRANT ALL ON SCHEMA notify_db TO notify_svc;
+-- GRANT ALL ON SCHEMA chat_db   TO chat_svc;
 -- GRANT ALL ON SCHEMA aiops_db  TO aiops_svc;
--- GRANT ALL ON SCHEMA chat_db  TO chat_svc;
 
 -- ---------------------------------------------------------------------
 -- 3) AIOps: 장애 분석 리포트 적재 테이블 (MTTR 추적용)
@@ -57,6 +60,7 @@ CREATE TABLE IF NOT EXISTS aiops_db.incident_alert_history (
                                                                alert_name      VARCHAR(200) NOT NULL,            -- Alertmanager rule 이름
     severity        VARCHAR(20)  NOT NULL,            -- critical / warning / info
     source_service  VARCHAR(100),                     -- 장애 발생 서비스
+    fingerprint     VARCHAR(255),                     -- (#128) Alertmanager 알림 시리즈 고유키(중복/해소 매칭)
     fired_at        TIMESTAMPTZ  NOT NULL,            -- 알림 발생 시각
     resolved_at     TIMESTAMPTZ,                      -- 해소 시각 (null=진행중)
     mttr_seconds    BIGINT,                           -- resolved_at - fired_at (초)
@@ -70,9 +74,13 @@ CREATE TABLE IF NOT EXISTS aiops_db.incident_alert_history (
 
 CREATE INDEX IF NOT EXISTS idx_incident_fired_at  ON aiops_db.incident_alert_history (fired_at DESC);
 CREATE INDEX IF NOT EXISTS idx_incident_severity  ON aiops_db.incident_alert_history (severity);
+-- (#128) 진행 중(active) 사건을 fingerprint 로 빠르게 매칭 (firing↔resolved 짝짓기/중복 방지)
+CREATE INDEX IF NOT EXISTS idx_incident_fp_active ON aiops_db.incident_alert_history (fingerprint)
+    WHERE resolved_at IS NULL;
 
 -- ---------------------------------------------------------------------
 -- 확인용
 --   SELECT schema_name FROM information_schema.schemata
---   WHERE schema_name IN ('user_db','feed_db','ticket_db','order_db','notify_db','aiops_db');
+--   WHERE schema_name IN ('user_db','auth_db','feed_db','ticket_db','order_db','notify_db','chat_db','aiops_db');
 -- ---------------------------------------------------------------------
+

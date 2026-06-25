@@ -18,28 +18,17 @@ public interface JpaPostRepository extends JpaRepository<Post, UUID> {
           AND (:keyword IS NULL OR LOWER(p.content) LIKE LOWER(CONCAT('%', :keyword, '%')))
         ORDER BY p.id DESC
     """)
-    List<Post> findLatest(@Param("cursor") UUID cursor,
-                          @Param("authorId") UUID authorId,
-                          @Param("keyword") String keyword,
-                          Pageable pageable);
+    List<Post> findByCursor(@Param("cursor") UUID cursor,
+                            @Param("authorId") UUID authorId,
+                            @Param("keyword") String keyword,
+                            Pageable pageable);
 
     @Query("""
         SELECT p FROM Post p
-        WHERE (:cursor IS NULL OR p.id > :cursor)
-          AND (:authorId IS NULL OR p.authorId = :authorId)
-          AND (:keyword IS NULL OR LOWER(p.content) LIKE LOWER(CONCAT('%', :keyword, '%')))
-        ORDER BY p.id ASC
+        WHERE (:authorId IS NULL OR p.authorId = :authorId)
+        ORDER BY p.id DESC
     """)
-    List<Post> findOldest(@Param("cursor") UUID cursor,
-                          @Param("authorId") UUID authorId,
-                          @Param("keyword") String keyword,
-                          Pageable pageable);
-
-    @Query("SELECT p FROM Post p ORDER BY p.id DESC")
-    List<Post> findTopForWarm(Pageable pageable);
-
-    @Query("SELECT p FROM Post p ORDER BY p.id ASC")
-    List<Post> findBottomForWarm(Pageable pageable);
+    List<Post> findByCursorForWarm(@Param("authorId") UUID authorId, Pageable pageable);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Post p SET p.commentCount = p.commentCount + 1 WHERE p.id = :postId")

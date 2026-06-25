@@ -1,12 +1,10 @@
 package com.fandom.order_service.order.application.cancellation;
 
 import com.fandom.common.exception.CustomException;
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.order.presentation.dto.response.OrderCancelResponse;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
 import com.fandom.order_service.payment.infra.pg.PaymentGateway;
-import com.fandom.order_service.payment.infra.pg.PgRefundResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,15 +15,13 @@ import java.util.UUID;
  * 주문 취소. 락 획득 순서는 결제 요청과 같은 원칙을 따른다(api 명세서 "주문 취소" 고려점 1, 3):
  *
  * 1. orders 비관적 락 + 본인 확인 + 상태 분기 + (필요 시) REFUND_REQUESTED 전이 — 짧은 트랜잭션(OrderCancelWriter.decide)
- * 2. 락 밖에서 PG 환불 호출 (PAID/CONFIRMED인 경우만, 동기, MVP)
- * 3. 환불 결과 반영 — 별도 트랜잭션(OrderCancelWriter.applyRefundSuccess)
- * 4. 환불 완료(REFUNDED) 직후 order.payment.cancelled 발행(#87) — ticketing이 좌석을 해제한다.
- *    동시에 notification.send(ORDER_CANCELED)도 발행해 유저에게 환불 완료를 알린다.
- *    PENDING 즉시 취소(CANCELLED) 케이스의 좌석 반환은 이 이벤트로 다루지 않는다(별도 확인 필요).
+ * 2. 락 밖에서 PG에 비동기 환불 요청을 접수만 시키고 즉시 응답. 실제 환불 완료/거절은 PG 웹훅으로
+ *    비동기 반영된다(RefundResultWriter). 응답 시점엔 아직 REFUND_REQUESTED 상태다.
+ * 3. 환불 완료 후 좌석 반환(order.payment.cancelled)/알림(notification.send) 발행은 webhook 처리
+ *    쪽(PgWebhookService)이 담당.
  *
- * PG 호출을 락 밖에 두는 이유는 결제 요청과 동일하다 — 외부 API 호출 동안 DB 트랜잭션/커넥션을
- * 쥐고 있지 않기 위함. PG 호출이 진행되는 동안 들어오는 동시 취소 요청은 1번 단계에서 주문 상태가
- * 이미 REFUND_REQUESTED(PAID/CONFIRMED 아님)인 것을 보고 즉시 거부된다.
+ * PG 접수 호출이 동기적으로 실패하면(네트워크 오류 등, webhook 자체가 오지 않을
+ * 상황) PG_ERROR(502)로 응답한다.
  */
 @Slf4j
 @Service
@@ -34,7 +30,6 @@ public class OrderCancelService {
 
     private final OrderCancelWriter orderCancelWriter;
     private final PaymentGateway paymentGateway;
-    private final OrderEventProducer orderEventProducer;
 
     public OrderCancelResponse cancelOrder(UUID orderId, UUID requesterId) {
 
@@ -46,21 +41,15 @@ public class OrderCancelService {
         }
 
         Payment payment = decision.paymentToRefund();
-        PgRefundResult pgResult = paymentGateway.requestRefund(payment.getPgTransactionId(), payment.getAmount());
 
-        if (!pgResult.isSuccess()) {
-            // MVP 리스크(api 명세서 미확정 항목): 환불 실패 시 주문은 REFUND_REQUESTED에 머문다.
-            // 복구 배치(스케줄러 + PG 거래 조회)는 별도 이슈로 분리, 현재는 수동 처리 대상으로 로그만 남김.
-            log.error("[주문 취소] PG 환불 실패. orderId={}, paymentId={}, pgTransactionId={}, reason={}",
-                    decision.orderId(), payment.getId(), payment.getPgTransactionId(), pgResult.failureReason());
+        try {
+            paymentGateway.requestRefundAsync(decision.orderId(), payment.getPgTransactionId(), payment.getAmount());
+        } catch (RuntimeException pgFailure) {
+            log.error("[주문 취소] PG 환불 접수 실패. orderId={}, paymentId={}, pgTransactionId={}",
+                    decision.orderId(), payment.getId(), payment.getPgTransactionId(), pgFailure);
             throw new CustomException(PaymentErrorCode.PG_ERROR);
         }
 
-        OrderCancelDecision refunded = orderCancelWriter.applyRefundSuccess(decision.orderId(), payment.getId());
-        orderEventProducer.publishPaymentCancelled(refunded.orderId());
-        orderEventProducer.publishOrderCancelledNotification(refunded.orderId(), requesterId);
-
-        return OrderCancelResponse.refunded(
-                refunded.orderId(), refunded.status(), refunded.refundedPaymentId(), refunded.updatedAt());
+        return OrderCancelResponse.refundRequested(decision.orderId(), payment.getId(), decision.updatedAt());
     }
 }

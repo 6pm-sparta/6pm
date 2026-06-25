@@ -22,7 +22,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("UserWithdrawalKafkaPublisher unit tests")
+@DisplayName("회원 탈퇴 Kafka 발행기 단위 테스트")
 class UserWithdrawalKafkaPublisherTest {
 
     @Mock
@@ -32,7 +32,7 @@ class UserWithdrawalKafkaPublisherTest {
     private UserWithdrawalKafkaPublisher publisher;
 
     @Test
-    @DisplayName("member withdrawal publishes member-withdrawn and deleted events")
+    @DisplayName("일반 회원 탈퇴는 member-withdrawn과 deleted 이벤트를 발행한다")
     void publish_member() {
         UUID userId = UUID.randomUUID();
         ArgumentCaptor<UserWithdrawalMessage> messageCaptor = ArgumentCaptor.forClass(UserWithdrawalMessage.class);
@@ -48,7 +48,7 @@ class UserWithdrawalKafkaPublisherTest {
     }
 
     @Test
-    @DisplayName("creator withdrawal publishes creator-withdrawn and deleted events")
+    @DisplayName("크리에이터 탈퇴는 creator-withdrawn과 deleted 이벤트를 발행한다")
     void publish_creator() {
         UUID userId = UUID.randomUUID();
         ArgumentCaptor<UserWithdrawalMessage> messageCaptor = ArgumentCaptor.forClass(UserWithdrawalMessage.class);

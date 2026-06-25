@@ -170,21 +170,21 @@ class OrderControllerTest {
     }
 
     @Test
-    @DisplayName("PAID 주문 취소는 200과 REFUNDED 상태 + paymentId를 반환한다")
-    void cancelOrder_paid_returnsRefundedWithPaymentId() throws Exception {
+    @DisplayName("PAID 주문 취소는 200과 REFUND_REQUESTED 상태 + paymentId를 반환한다(#110, 환불 완료는 webhook으로 비동기 반영)")
+    void cancelOrder_paid_returnsRefundRequestedWithPaymentId() throws Exception {
         // given
         UUID orderId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         UUID paymentId = UUID.randomUUID();
-        OrderCancelResponse response = OrderCancelResponse.refunded(
-                orderId, OrderStatus.REFUNDED, paymentId, LocalDateTime.now());
+        OrderCancelResponse response = OrderCancelResponse.refundRequested(
+                orderId, paymentId, LocalDateTime.now());
         given(orderCancelService.cancelOrder(eq(orderId), eq(userId))).willReturn(response);
 
         // when & then
         mockMvc.perform(delete("/api/v1/orders/{id}", orderId)
                         .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("REFUNDED"))
+                .andExpect(jsonPath("$.data.status").value("REFUND_REQUESTED"))
                 .andExpect(jsonPath("$.data.paymentId").value(paymentId.toString()));
     }
 

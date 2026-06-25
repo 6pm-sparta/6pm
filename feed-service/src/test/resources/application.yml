@@ -33,6 +33,13 @@ cloud:
       bucket: temp-bucket
       base-url: https://temp-bucket.s3.ap-northeast-2.amazonaws.com/
 
+cache:
+  ttl:
+    default: 600  # 10분
+    post-detail: 3600  # 60분
+    post-list: 300  # 5분
+    comment-count: 300  # 5분
+
 scheduler:
   like-sync:
-    fixed-delay: 300000  # 5분
+    fixed-delay: 300  # 5분

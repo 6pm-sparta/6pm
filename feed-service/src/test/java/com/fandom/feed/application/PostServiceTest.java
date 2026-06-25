@@ -1,20 +1,17 @@
 package com.fandom.feed.application;
 
-import com.fandom.common.dto.ApiResponse;
+import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.global.constant.ReactionSort;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.infra.util.ImageUrlConverter;
-import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +25,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -46,7 +42,16 @@ class PostServiceTest {
     private PostReader postReader;
 
     @Mock
+    private PostAssembler postAssembler;
+
+    @Mock
     private ImageService imageService;
+
+    @Mock
+    private LikeService likeService;
+
+    @Mock
+    private CommentService commentService;
 
     @Mock
     private ImageUrlConverter imageUrlConverter;
@@ -59,9 +64,6 @@ class PostServiceTest {
 
     @Mock
     private PostListCacheService postListCacheService;
-
-    @Mock
-    private UserClient userClient;
 
     @InjectMocks
     private PostService postService;
@@ -93,6 +95,7 @@ class PostServiceTest {
             verify(postRepository).save(any(Post.class));
             verify(imageService).saveImages(any(UUID.class), eq(imageKeys));
             verify(imageUrlConverter).toImageUrls(imageKeys);
+            verify(postListCacheService).addPost(any(), any());
         }
 
         @Test
@@ -109,6 +112,7 @@ class PostServiceTest {
             // then
             verify(postRepository).save(any(Post.class));
             verify(imageService).saveImages(any(), eq(List.of()));
+            verify(postListCacheService).addPost(any(), any());
         }
     }
 
@@ -143,36 +147,34 @@ class PostServiceTest {
     @DisplayName("게시글 목록 조회")
     class GetPosts {
         @Test
-        @DisplayName("검색 조건 있음 - DB 조회")
-        void getPostsWithFilter() {
+        @DisplayName("검색어 있음 - DB 조회")
+        void getPostsWithKeyword() {
             // given
-            UUID authorId = UUID.randomUUID();
-            when(postRepository.findByCursor(any(), any(), eq(authorId), any())).thenReturn(List.of());
+            when(postRepository.findByCursor(any(), any(), any())).thenReturn(List.of());
 
             // when
-            postService.getPosts(null, ReactionSort.LATEST, authorId, null, null);
+            postService.getPosts(null, null, "검색어", null);
 
             // then
-            verify(postRepository).findByCursor(any(), any(), eq(authorId), any());
-            verifyNoInteractions(imageService);
+            verify(postRepository).findByCursor(any(), any(), eq("검색어"));
+            verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
         }
 
         @Test
         @DisplayName("캐시 준비 안됨 - DB 조회 후 캐시 워밍업")
         void getPostsCacheNotReady() {
             // given
-            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(false);
-            when(postRepository.findByCursorForWarm(ReactionSort.LATEST)).thenReturn(List.of());
+            when(postListCacheService.isCacheReady(null)).thenReturn(false);
+            when(postRepository.findByCursorForWarm(null)).thenReturn(List.of());
 
             // when
-            postService.getPosts(null, ReactionSort.LATEST, null, null, null);
+            postService.getPosts(null, null, null, null);
 
             // then
-            verify(postRepository).findByCursorForWarm(ReactionSort.LATEST);
-            verify(postListCacheService, never()).getPostIds(any(), any());
-            verify(postListCacheService, never()).addPost(any(), any());
-            verify(postListCacheService).expireCache(ReactionSort.LATEST);
-            verifyNoInteractions(imageService);
+            verify(postRepository).findByCursorForWarm(null);
+            verify(postListCacheService, never()).addPost(any(), isNull());
+            verify(postListCacheService).expireCache(null);
+            verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
         }
 
         @Test
@@ -181,16 +183,16 @@ class PostServiceTest {
             // given
             UUID cursor = UUID.randomUUID();
 
-            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(ReactionSort.LATEST, cursor)).thenReturn(null);
-            when(postRepository.findByCursor(eq(cursor), any(), isNull(), isNull())).thenReturn(List.of());
+            when(postListCacheService.isCacheReady(null)).thenReturn(true);
+            when(postListCacheService.getPostIds(null, cursor)).thenReturn(null);
+            when(postRepository.findByCursor(eq(cursor), isNull(), isNull())).thenReturn(List.of());
 
             // when
-            postService.getPosts(cursor, ReactionSort.LATEST, null, null, null);
+            postService.getPosts(cursor, null, null, null);
 
             // then
-            verify(postRepository).findByCursor(eq(cursor), any(), isNull(), isNull());
-            verifyNoInteractions(imageService);
+            verify(postRepository).findByCursor(eq(cursor), isNull(), isNull());
+            verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
         }
 
         @Test
@@ -199,70 +201,15 @@ class PostServiceTest {
             // given
             UUID postId = UUID.randomUUID();
 
-            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(List.of(postId));
-            when(postCacheService.getPostDetailBatch(List.of(postId))).thenReturn(List.of(mock(PostCache.Detail.class)));
-            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                    .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+            when(postListCacheService.isCacheReady(null)).thenReturn(true);
+            when(postListCacheService.getPostIds(null, null)).thenReturn(List.of(postId));
 
             // when
-            postService.getPosts(null, ReactionSort.LATEST, null, null, null);
+            postService.getPosts(null, null, null, null);
 
             // then
-            verify(postListCacheService).getPostIds(ReactionSort.LATEST, null);
-            verifyNoInteractions(postRepository);
-        }
-    }
-
-    @Nested
-    @DisplayName("캐시에서 가져온 postId 목록으로 응답 구성")
-    class BuildCacheResponse {
-        @Test
-        @DisplayName("PAGE_SIZE 이하 - hasMore = false, nextCursor = null")
-        void noHasMoreWhenUnderPageSize() {
-            // given
-            UUID postId = UUID.randomUUID();
-
-            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(List.of(postId));
-            when(postCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostCache.Detail.class)));
-            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                    .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
-
-            // when
-            CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, ReactionSort.LATEST, null, null, null
-            );
-
-            // then
-            assertThat(result.hasMore()).isFalse();
-            assertThat(result.nextCursor()).isNull();
-            assertThat(result.content()).hasSize(1);
-        }
-
-        @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
-        void hasMoreWhenExceedsPageSize() {
-            // given
-            List<UUID> postIds = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
-
-            when(postListCacheService.isCacheReady(ReactionSort.LATEST)).thenReturn(true);
-            when(postListCacheService.getPostIds(ReactionSort.LATEST, null)).thenReturn(postIds);
-            when(postCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
-                    .mapToObj(i -> mock(PostCache.Detail.class)).toList());
-            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                    .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
-                    .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
-
-            // when
-            CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, ReactionSort.LATEST, null, null, null
-            );
-
-            // then
-            assertThat(result.hasMore()).isTrue();
-            assertThat(result.nextCursor()).isEqualTo(postIds.get(FeedPolicy.PAGE_SIZE - 1));
-            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
+            verify(postListCacheService).getPostIds(null, null);
+            verify(postAssembler).buildCacheResponse(any(), any());
         }
     }
 
@@ -274,24 +221,13 @@ class PostServiceTest {
         void noHasMoreWhenUnderPageSize() {
             // given
             Post post = mockPost();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
-
-            when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(List.of(post));
-            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                    .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+            when(postRepository.findByCursor(any(), any(), any())).thenReturn(List.of(post));
 
             // when
-            CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, ReactionSort.LATEST, UUID.randomUUID(), null, null
-            );
+            postService.getPosts(null, null, "검색어", null);
 
             // then
-            assertThat(result.hasMore()).isFalse();
-            assertThat(result.nextCursor()).isNull();
-            assertThat(result.content()).hasSize(1);
+            verify(postAssembler).buildDBResponse(any(), isNull(), eq(false), any(), anyBoolean());
         }
 
         @Test
@@ -299,25 +235,14 @@ class PostServiceTest {
         void hasMoreWhenExceedsPageSize() {
             // given
             List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
-
-            when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
-            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(userClient.getUsers(any()).getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                    .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
-                    .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
+            UUID expectedCursor = posts.get(FeedPolicy.PAGE_SIZE - 1).getId();
+            when(postRepository.findByCursor(any(), any(), any())).thenReturn(posts);
 
             // when
-            CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, ReactionSort.LATEST, UUID.randomUUID(), null, null
-            );
+            postService.getPosts(null, null, "검색어", null);
 
             // then
-            assertThat(result.hasMore()).isTrue();
-            assertThat(result.nextCursor()).isEqualTo(posts.get(FeedPolicy.PAGE_SIZE - 1).getId());
-            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
+            verify(postAssembler).buildDBResponse(any(), eq(expectedCursor), eq(true), any(), anyBoolean());
         }
     }
 
@@ -327,97 +252,38 @@ class PostServiceTest {
         // given
         UUID postId = UUID.randomUUID();
         Post post = mock(Post.class);
-        ApiResponse<List<UserResponse>> apiResponse = mock();
 
         when(post.getId()).thenReturn(postId);
-        when(post.getAuthorId()).thenReturn(UUID.randomUUID());
-        when(postRepository.findByCursorForWarm(ReactionSort.LATEST)).thenReturn(List.of(post));
-        when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-        when(userClient.getUsers(any())).thenReturn(apiResponse);
-        when(apiResponse.getData()).thenReturn(List.of());
-        when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+        when(postListCacheService.isCacheReady(null)).thenReturn(false);
+        when(postRepository.findByCursorForWarm(null)).thenReturn(List.of(post));
 
         // when
-        postService.getPosts(null, ReactionSort.LATEST, null, null, null);
+        postService.getPosts(null, null, null, null);
 
         // then
-        verify(postListCacheService).addPost(postId, ReactionSort.LATEST);
-    }
-
-    @Nested
-    @DisplayName("Post 엔티티로 응답 구성")
-    class BuildDBResponse {
-        @Test
-        @DisplayName("image, author, reaction 배치 조회 각 1번씩")
-        void buildDBResponse() {
-            // given
-            List<Post> posts = List.of(mockPost(), mockPost(), mockPost());
-            List<UUID> postIds = posts.stream().map(Post::getId).toList();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
-
-            when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
-            when(imageService.findAllByPostIds(postIds)).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(postIds, null, false))
-                    .thenReturn(List.of(
-                            mock(PostCache.ReactionInfo.class),
-                            mock(PostCache.ReactionInfo.class),
-                            mock(PostCache.ReactionInfo.class)
-                    ));
-
-            // when
-            postService.getPosts(null, ReactionSort.LATEST, UUID.randomUUID(), null, null);
-
-            // then
-            verify(imageService, times(1)).findAllByPostIds(any());
-            verify(userClient, times(1)).getUsers(any());
-            verify(reactionCacheService, times(1)).getReactionInfoBatch(any(), any(), anyBoolean());
-        }
-
-        @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor 설정")
-        void buildDBResponseWhenExceedsPageSize() {
-            // given
-            List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
-
-            when(postRepository.findByCursor(any(), any(), any(), any())).thenReturn(posts);
-            when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
-            when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                    .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
-                    .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
-
-            // when
-            CursorPageResponse<PostResponse.Summary> result = postService.getPosts(
-                    null, ReactionSort.LATEST, UUID.randomUUID(), null, null
-            );
-
-            // then
-            assertThat(result.hasMore()).isTrue();
-            assertThat(result.nextCursor()).isNotNull();
-            assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
-        }
+        verify(postListCacheService).addPostForWarm(postId, null);
+        verify(postListCacheService).expireCache(null);
+        verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
     }
 
     @Nested
     @DisplayName("게시글 수정")
     class UpdatePost {
+        private final UUID userId = UUID.randomUUID();
+        private final UserIdCard idCard = UserIdCard.of(userId, "CREATOR");
+
         @Test
         @DisplayName("작성자 아님 - 예외 발생")
         void updatePostNotAuthor() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "CREATOR");
             Post post = Post.builder().authorId(UUID.randomUUID()).content("기존 내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> postService.updatePost(postId, "새 내용", List.of(), userId))
+            assertThatThrownBy(() -> postService.updatePost(postId, "새 내용", List.of(), idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.FORBIDDEN_POST_UPDATE);
         }
@@ -427,7 +293,6 @@ class PostServiceTest {
         void updatePostWithImageChange() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             List<String> newImageKeys = List.of("key1", "key2");
             Post post = Post.builder().authorId(userId).content("기존 내용").build();
 
@@ -436,7 +301,7 @@ class PostServiceTest {
             when(imageUrlConverter.toImageUrls(newImageKeys)).thenReturn(List.of("url1", "url2"));
 
             // when
-            postService.updatePost(postId, "새 내용", newImageKeys, userId);
+            postService.updatePost(postId, "새 내용", newImageKeys, idCard);
 
             // then
             verify(imageService).syncImages(postId, newImageKeys);
@@ -448,7 +313,6 @@ class PostServiceTest {
         void updatePostWithoutImageChange() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             List<String> existingImageKeys = List.of("key1", "key2");
             Post post = Post.builder().authorId(userId).content("기존 내용").build();
 
@@ -457,7 +321,7 @@ class PostServiceTest {
             when(imageUrlConverter.toImageUrls(existingImageKeys)).thenReturn(List.of("url1", "url2"));
 
             // when
-            postService.updatePost(postId, "새 내용", existingImageKeys, userId);
+            postService.updatePost(postId, "새 내용", existingImageKeys, idCard);
 
             // then
             verify(imageService).syncImages(postId, existingImageKeys);
@@ -468,18 +332,21 @@ class PostServiceTest {
     @Nested
     @DisplayName("게시글 삭제")
     class DeletePost {
+        private final UUID userId = UUID.randomUUID();
+        private final UserIdCard idCard = UserIdCard.of(userId, "CREATOR");
+
         @Test
         @DisplayName("작성자 아님 - 예외 발생")
         void deletePostNotAuthor() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "CREATOR");
             Post post = Post.builder().authorId(UUID.randomUUID()).content("내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> postService.deletePost(postId, userId, false))
+            assertThatThrownBy(() -> postService.deletePost(postId, idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", PostErrorCode.FORBIDDEN_POST_DELETE);
         }
@@ -489,7 +356,6 @@ class PostServiceTest {
         void deletePostImagesInDB() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             List<String> imageKeys = List.of("key1", "key2");
             Post post = Post.builder().authorId(userId).content("내용").build();
 
@@ -497,12 +363,15 @@ class PostServiceTest {
             when(imageService.findAllByPostId(postId)).thenReturn(imageKeys);
 
             // when
-            postService.deletePost(postId, userId, false);
+            postService.deletePost(postId, idCard);
 
             // then
             assertThat(post.isDeleted()).isTrue();
+            verify(likeService).deleteAllByPostId(postId);
+            verify(commentService).deleteAllByPostId(postId, userId);
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(imageKeys);
+            verify(postListCacheService).removePost(postId, userId);
         }
 
         @Test
@@ -510,18 +379,20 @@ class PostServiceTest {
         void deletePostImagesNotInDB() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
             Post post = Post.builder().authorId(userId).content("내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
             when(imageService.findAllByPostId(postId)).thenReturn(List.of());
 
             // when
-            postService.deletePost(postId, userId, false);
+            postService.deletePost(postId, idCard);
 
             // then
+            verify(likeService).deleteAllByPostId(postId);
+            verify(commentService).deleteAllByPostId(postId, userId);
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
+            verify(postListCacheService).removePost(postId, userId);
         }
 
         @Test
@@ -529,18 +400,22 @@ class PostServiceTest {
         void deletePostIsMaster() {
             // given
             UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
-            Post post = Post.builder().authorId(UUID.randomUUID()).content("내용").build();
+            UUID authorId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MASTER");
+            Post post = Post.builder().authorId(authorId).content("내용").build();
 
             when(postReader.findById(postId)).thenReturn(post);
             when(imageService.findAllByPostId(postId)).thenReturn(List.of());
 
             // when
-            postService.deletePost(postId, userId, true);
+            postService.deletePost(postId, idCard);
 
             // then
+            verify(likeService).deleteAllByPostId(postId);
+            verify(commentService).deleteAllByPostId(postId, idCard.getUserId());
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
+            verify(postListCacheService).removePost(postId, authorId);
         }
     }
 

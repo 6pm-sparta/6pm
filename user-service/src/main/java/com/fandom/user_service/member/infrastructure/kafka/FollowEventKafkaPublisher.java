@@ -16,18 +16,18 @@ public class FollowEventKafkaPublisher implements FollowEventPublisher {
     private final KafkaTemplate<String, FollowEventMessage> kafkaTemplate;
 
     @Override
-    public void publishFollowed(UUID followId, UUID followerId, UUID followeeId) {
-        publish(KafkaTopics.USER_FOLLOWED, followId, followerId, followeeId);
+    public void publishFollowed(UUID followId, UUID followerId, UUID followeeId, String nickname) {
+        publish(KafkaTopics.USER_FOLLOWED, followId, followerId, followeeId, nickname);
     }
 
     @Override
     public void publishUnfollowed(UUID followId, UUID followerId, UUID followeeId) {
-        publish(KafkaTopics.USER_UNFOLLOWED, followId, followerId, followeeId);
+        publish(KafkaTopics.USER_UNFOLLOWED, followId, followerId, followeeId, null);
     }
 
-    private void publish(String topic, UUID followId, UUID followerId, UUID followeeId) {
+    private void publish(String topic, UUID followId, UUID followerId, UUID followeeId, String nickname) {
         String key = followId.toString();
-        FollowEventMessage message = new FollowEventMessage(followId, followerId, followeeId);
+        FollowEventMessage message = new FollowEventMessage(followId, followerId, followeeId, nickname);
 
         kafkaTemplate.send(topic, key, message)
                 .whenComplete((result, ex) -> {

@@ -1,4 +1,3 @@
-# aiops-service/src/main/resources/application.yml — 표준 와이어링 (인프라 담당 제공)
 server:
   port: 8086
 
@@ -21,6 +20,33 @@ spring:
         format_sql: true
     show-sql: true
 
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}   # IntelliJ 실행=localhost(EXTERNAL), 컨테이너 실행 시 kafka:29092
+    consumer:
+      group-id: ${AIOPS_KAFKA_GROUP:aiops-analysis}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+
+  ai:
+    google:
+      genai:
+        api-key: ${GEMINI_API_KEY}
+        chat:
+          options:
+            model: gemini-2.5-flash-lite
+            temperature: 0.3            # 분석은 일관성 우선이라 낮게
+
+aiops:
+  kafka:
+    topic:
+      incident-detected: incident.detected
+  slack:
+    webhook-url: ${SLACK_WEBHOOK_URL:}
+
 logging:
   file:
     name: ./logs/aiops-service.log
@@ -31,12 +57,14 @@ logging:
     root: INFO
 
 eureka:
+  #  client:
+  #    service-url:
+  #      defaultZone: http://localhost:8761/eureka/
+  #  instance:
+  #    prefer-ip-address: true
+  #    instance-id: ${spring.application.name}:${random.uuid}
   client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${random.uuid}
+    enabled: false
 
 management:
   endpoints:

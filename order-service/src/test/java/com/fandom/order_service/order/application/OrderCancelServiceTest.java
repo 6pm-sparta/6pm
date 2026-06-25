@@ -1,7 +1,6 @@
 package com.fandom.order_service.order.application;
 
 import com.fandom.common.exception.CustomException;
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.order.application.cancellation.OrderCancelDecision;
 import com.fandom.order_service.order.application.cancellation.OrderCancelService;
 import com.fandom.order_service.order.application.cancellation.OrderCancelWriter;
@@ -12,7 +11,6 @@ import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
 import com.fandom.order_service.payment.infra.pg.PaymentGateway;
-import com.fandom.order_service.payment.infra.pg.PgRefundResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -41,9 +40,6 @@ class OrderCancelServiceTest {
     @Mock
     private PaymentGateway paymentGateway;
 
-    @Mock
-    private OrderEventProducer orderEventProducer;
-
     private OrderCancelService orderCancelService;
 
     private UUID orderId;
@@ -51,7 +47,7 @@ class OrderCancelServiceTest {
 
     @BeforeEach
     void setUp() {
-        orderCancelService = new OrderCancelService(orderCancelWriter, paymentGateway, orderEventProducer);
+        orderCancelService = new OrderCancelService(orderCancelWriter, paymentGateway);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
     }
@@ -83,9 +79,7 @@ class OrderCancelServiceTest {
         // then
         assertThat(response.status()).isEqualTo("CANCELLED");
         assertThat(response.paymentId()).isNull();
-        verify(paymentGateway, never()).requestRefund(any(), any());
-        verify(orderEventProducer, never()).publishPaymentCancelled(any());
-        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
+        verify(paymentGateway, never()).requestRefundAsync(any(), any(), any());
     }
 
     @Test
@@ -101,55 +95,42 @@ class OrderCancelServiceTest {
 
         // then
         assertThat(response.status()).isEqualTo("REFUNDED");
-        verify(paymentGateway, never()).requestRefund(any(), any());
-        verify(orderEventProducer, never()).publishPaymentCancelled(any());
-        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
+        verify(paymentGateway, never()).requestRefundAsync(any(), any(), any());
     }
 
     @Test
-    @DisplayName("PAID 취소는 PG 환불 호출 성공 시 REFUNDED + paymentId로 응답한다")
-    void cancelOrder_refundNeeded_success() {
+    @DisplayName("PAID 취소는 비동기 환불을 접수만 시키고 REFUND_REQUESTED + paymentId로 즉시 응답한다")
+    void cancelOrder_refundNeeded_acceptsAsyncRefundImmediately() {
         // given
         Payment payment = approvedPayment();
+        LocalDateTime refundRequestedAt = LocalDateTime.now();
         given(orderCancelWriter.decide(orderId, userId))
-                .willReturn(OrderCancelDecision.refundNeeded(orderId, payment));
-        given(paymentGateway.requestRefund(payment.getPgTransactionId(), payment.getAmount()))
-                .willReturn(PgRefundResult.success());
-
-        LocalDateTime refundedAt = LocalDateTime.now();
-        given(orderCancelWriter.applyRefundSuccess(orderId, payment.getId()))
-                .willReturn(OrderCancelDecision.refunded(orderId, OrderStatus.REFUNDED, payment.getId(), refundedAt));
+                .willReturn(OrderCancelDecision.refundNeeded(orderId, payment, refundRequestedAt));
 
         // when
         OrderCancelResponse response = orderCancelService.cancelOrder(orderId, userId);
 
-        // then
-        assertThat(response.status()).isEqualTo("REFUNDED");
+        // then — 환불 완료(REFUNDED)를 기다리지 않고 REFUND_REQUESTED로 즉시 응답한다(#110)
+        assertThat(response.status()).isEqualTo("REFUND_REQUESTED");
         assertThat(response.paymentId()).isEqualTo(payment.getId());
-        verify(paymentGateway).requestRefund(payment.getPgTransactionId(), payment.getAmount());
-        verify(orderCancelWriter).applyRefundSuccess(orderId, payment.getId());
-        verify(orderEventProducer).publishPaymentCancelled(orderId);
-        verify(orderEventProducer).publishOrderCancelledNotification(orderId, userId);
+        assertThat(response.updatedAt()).isEqualTo(refundRequestedAt);
+        verify(paymentGateway).requestRefundAsync(orderId, payment.getPgTransactionId(), payment.getAmount());
     }
 
     @Test
-    @DisplayName("PG 환불 실패 시 PG_ERROR(502) 예외를 던지고, applyRefundSuccess는 호출하지 않는다")
-    void cancelOrder_refundNeeded_pgFailure_throwsPgError() {
+    @DisplayName("PG 환불 접수 자체가 실패하면 PG_ERROR(502) 예외를 던진다(주문은 REFUND_REQUESTED에 머문다)")
+    void cancelOrder_refundNeeded_pgAcceptFails_throwsPgError() {
         // given
         Payment payment = approvedPayment();
         given(orderCancelWriter.decide(orderId, userId))
-                .willReturn(OrderCancelDecision.refundNeeded(orderId, payment));
-        given(paymentGateway.requestRefund(payment.getPgTransactionId(), payment.getAmount()))
-                .willReturn(PgRefundResult.failure("PG 사 내부 오류"));
+                .willReturn(OrderCancelDecision.refundNeeded(orderId, payment, LocalDateTime.now()));
+        willThrow(new RuntimeException("connection refused"))
+                .given(paymentGateway).requestRefundAsync(orderId, payment.getPgTransactionId(), payment.getAmount());
 
         // when & then
         assertThatThrownBy(() -> orderCancelService.cancelOrder(orderId, userId))
                 .isInstanceOf(CustomException.class)
                 .extracting(e -> ((CustomException) e).getErrorCode())
                 .isEqualTo(PaymentErrorCode.PG_ERROR);
-
-        verify(orderCancelWriter, never()).applyRefundSuccess(any(), any());
-        verify(orderEventProducer, never()).publishPaymentCancelled(any());
-        verify(orderEventProducer, never()).publishOrderCancelledNotification(any(), any());
     }
 }

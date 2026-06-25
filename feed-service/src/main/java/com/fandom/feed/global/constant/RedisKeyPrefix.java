@@ -5,8 +5,8 @@ import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class RedisKeyPrefix {
-    public static final String POST_LIST_LATEST = "feed:posts:latest";
-    public static final String POST_LIST_OLDEST = "feed:posts:oldest";
+    public static final String POST_LIST = "feed:posts:";
+    public static final String POST_LIST_ALL = POST_LIST + "all";
     public static final String POST_DETAIL = "feed:post:detail";
 
     public static final String COMMENT_COUNT = "feed:comment:count:";

@@ -19,5 +19,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'              // 요청 검증 (@Valid)
 	implementation 'org.redisson:redisson-spring-boot-starter:3.35.0'					 // 분산락/대기열 (ticketing)
 	implementation 'org.springframework.kafka:spring-kafka'                            // 이벤트 (ticketing/order/notification/feed)
-	//implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'          // 서비스 간 동기 호출
+	//implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+	// 서비스 간 동기 호출
+
+	// 추적
+	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
 }

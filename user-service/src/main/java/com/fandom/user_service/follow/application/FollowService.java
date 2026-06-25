@@ -54,7 +54,8 @@ public class FollowService {
 
         increaseFollowingCount(followerId);
         increaseFollowerCount(creatorId);
-        publishFollowedEventAfterCommit(follow.getId(), followerId, creatorId);
+        Profile followerProfile = findProfileByUserId(followerId);
+        publishFollowedEventAfterCommit(follow.getId(), followerId, creatorId, followerProfile.getNickname());
 
         return follow;
     }
@@ -96,7 +97,7 @@ public class FollowService {
 
     public PageResponse<FollowingResponse> getFollowings(UUID memberId, Pageable pageable) {
         User member = findUserById(memberId);
-        validateRole(member, Role.MEMBER, FollowErrorCode.FOLLOWER_MUST_BE_MEMBER);
+        validateFollowerRole(member);
 
         Page<Follow> followingPage = followRepository.findByFollowerId(memberId, pageable);
         Map<UUID, Profile> profilesByUserId = findProfilesByUserIds(
@@ -117,8 +118,14 @@ public class FollowService {
         if (follower.getId().equals(followee.getId())) {
             throw new CustomException(FollowErrorCode.SELF_FOLLOW_NOT_ALLOWED);
         }
-        validateRole(follower, Role.MEMBER, FollowErrorCode.FOLLOWER_MUST_BE_MEMBER);
+        validateFollowerRole(follower);
         validateRole(followee, Role.CREATOR, FollowErrorCode.FOLLOWEE_MUST_BE_CREATOR);
+    }
+
+    private void validateFollowerRole(User user) {
+        if (user.getRole() != Role.MEMBER && user.getRole() != Role.CREATOR) {
+            throw new CustomException(FollowErrorCode.FOLLOWER_MUST_BE_MEMBER_OR_CREATOR);
+        }
     }
 
     private void validateRole(User user, Role role, FollowErrorCode errorCode) {
@@ -143,6 +150,11 @@ public class FollowService {
             throw new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND);
         }
         return profile;
+    }
+
+    private Profile findProfileByUserId(UUID userId) {
+        return profileRepository.findByUserId(userId)
+                .orElseThrow(() -> new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND));
     }
 
     private Follow saveFollow(User follower, User followee) {
@@ -180,15 +192,15 @@ public class FollowService {
         }
     }
 
-    private void publishFollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId) {
+    private void publishFollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId, String nickname) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            followEventPublisher.publishFollowed(followId, followerId, followeeId);
+            followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                followEventPublisher.publishFollowed(followId, followerId, followeeId);
+                followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
             }
         });
     }

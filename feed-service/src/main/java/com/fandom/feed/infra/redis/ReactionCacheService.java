@@ -1,28 +1,42 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.feed.application.PostReader;
+import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.LikeErrorCode;
 import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ReactionCacheService {
+    private final PostReader postReader;
     private final LikeRepository likeRepository;
     private final RedisTemplate<String, String> redisTemplate;
 
+    private static final int COMMENT_COUNT_IDX = 0;
+    private static final int LIKE_COUNT_IDX = 1;
+    private static final int IS_LIKED_IDX = 2;
+
+    @Value("${cache.ttl.comment-count}")
+    private long commentCountTtl;
+
     /**
-     * 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드<br>
-     * TODO: Comment 도메인 연동 필요 [P1]
+     * 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드
      */
     public PostCache.ReactionInfo getReactionInfo(UUID postId, UUID userId) {
         return new PostCache.ReactionInfo(getCommentCount(postId), getLikeCount(postId), isLiked(postId, userId));
@@ -30,7 +44,7 @@ public class ReactionCacheService {
 
     /**
      * 게시글 ID로 캐시에서 게시글 리액션 정보를 배치 조회하는 메서드<br>
-     * TODO: Comment, Like 도메인 연동 필요 [P1]
+     * - isLiked가 true이거나 사용자 ID가 null이면,
      */
     public List<PostCache.ReactionInfo> getReactionInfoBatch(List<UUID> ids, UUID userId, boolean isLiked) {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
@@ -49,26 +63,65 @@ public class ReactionCacheService {
             return null;
         });
 
-        // 사용자 식별자 있으면 3개, 없으면 2개 묶음
-        int step = (userId != null) ? 3 : 2;
-        List<PostCache.ReactionInfo> reactionInfos = new ArrayList<>();
+        // 좋아요 상태 조회 시 3개, 아니면 2개 묶음
+        int step = (!isLiked && (userId != null)) ? 3 : 2;
 
+        // 캐시 미스 ID 수집
+        List<UUID> missedIds = new ArrayList<>();
         for (int i = 0; i < ids.size(); i++) {
             int base = i * step;
 
-            long commentCount = (results.get(base) != null) ? Long.parseLong(results.get(base).toString()) : 0L;
-            long likeCount = (results.get(base + 1) != null) ? (Long) results.get(base + 1) : 0L;
-            boolean liked = isLiked || ((userId != null) && Boolean.TRUE.equals(results.get(base + 2)));
+            // 댓글 수가 null이면 좋아요 수도 없다고 가정
+            if (results.get(base) == null)
+                missedIds.add(ids.get(i));
+        }
 
+        // DB 조회
+        Map<UUID, long[]> dbResultMap = new HashMap<>();
+        if (!missedIds.isEmpty())
+            dbResultMap = fetchFromDbAndCache(missedIds);
+
+        List<PostCache.ReactionInfo> reactionInfos = new ArrayList<>();
+        for (int i = 0; i < ids.size(); i++) {
+            int base = i * step;
+            UUID id = ids.get(i);
+
+            long commentCount;
+            long likeCount;
+
+            if (dbResultMap.containsKey(id)) {
+                long[] dbCounts = dbResultMap.get(id);
+                commentCount = dbCounts[COMMENT_COUNT_IDX];
+                likeCount = dbCounts[LIKE_COUNT_IDX];
+            } else {
+                commentCount = (results.get(base + COMMENT_COUNT_IDX ) != null)
+                        ? Long.parseLong(results.get(base + COMMENT_COUNT_IDX).toString()) : 0L;
+                likeCount = (results.get(base + LIKE_COUNT_IDX) != null)
+                        ? (Long) results.get(base + LIKE_COUNT_IDX) : 0L;
+            }
+
+            boolean liked = isLiked || ((userId != null) && Boolean.TRUE.equals(results.get(base + IS_LIKED_IDX)));
             reactionInfos.add(new PostCache.ReactionInfo(commentCount, likeCount, liked));
         }
 
         return reactionInfos;
     }
 
-    private long getCommentCount(UUID id) {
-        String count = redisTemplate.opsForValue().get(RedisKeyPrefix.COMMENT_COUNT + id);
-        return (count != null) ? Long.parseLong(count) : 0L;
+    /**
+     * 게시글 ID로 캐시에서 댓글 수를 조회하는 메서드<br>
+     * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
+     */
+    private long getCommentCount(UUID postId) {
+        String key = RedisKeyPrefix.COMMENT_COUNT + postId;
+        String count = redisTemplate.opsForValue().get(key);
+
+        if (count == null) {
+            Post post = postReader.findById(postId);
+            long commentCount = post.getCommentCount();
+            redisTemplate.opsForValue().set(key, String.valueOf(commentCount), commentCountTtl, TimeUnit.SECONDS);
+            return commentCount;
+        }
+        return Long.parseLong(count);
     }
 
     /**
@@ -80,19 +133,20 @@ public class ReactionCacheService {
         if (added == null || added == 0L)
             throw new CustomException(LikeErrorCode.DUPLICATE_LIKE);
 
-        return getLikeCount(postId);
+        return getLikeCountFromCache(postId);
     }
 
     /**
      * 게시글 ID로 캐시에서 좋아요 수를 조회하는 메서드<br>
-     * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장 (좋아요 0개 포함)
+     * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     private long getLikeCount(UUID postId) {
         String key = RedisKeyPrefix.LIKE_SET + postId;
+        String commentKey = RedisKeyPrefix.COMMENT_COUNT + postId;
         Long size = redisTemplate.opsForSet().size(key);
 
-        // 캐시 미스 조회
-        if (size == null || size == 0L) {
+        // 댓글 수가 null이면 좋아요 수도 없다고 가정
+        if (redisTemplate.opsForValue().get(commentKey) == null) {
             List<String> userIds = likeRepository.findAllByPostId(postId)
                     .stream().map(like -> like.getUserId().toString()).toList();
 
@@ -103,7 +157,12 @@ public class ReactionCacheService {
             return 0L;
         }
 
-        return size;
+        return (size != null) ? size : 0L;
+    }
+
+    private long getLikeCountFromCache(UUID postId) {
+        Long size = redisTemplate.opsForSet().size(RedisKeyPrefix.LIKE_SET + postId);
+        return (size != null) ? size : 0L;
     }
 
     /**
@@ -111,7 +170,7 @@ public class ReactionCacheService {
      */
     public long removeLike(UUID postId, UUID userId) {
         redisTemplate.opsForSet().remove(RedisKeyPrefix.LIKE_SET + postId, userId.toString());
-        return getLikeCount(postId);
+        return getLikeCountFromCache(postId);
     }
 
     /**
@@ -120,5 +179,45 @@ public class ReactionCacheService {
     private boolean isLiked(UUID id, UUID userId) {
         if (userId == null) return false;
         return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + id, userId.toString()));
+    }
+
+    /**
+     * DB에서 댓글 수와 좋아요 사용자를 배치 조회한 뒤, 캐시에 저장하는 메서드
+     */
+    private Map<UUID, long[]> fetchFromDbAndCache(List<UUID> missedIds) {
+        Map<UUID, Long> commentCounts = postReader.findAllByIds(missedIds)
+                .stream().collect(Collectors.toMap(Post::getId, Post::getCommentCount));
+        Map<UUID, List<UUID>> likeUserMap = likeRepository.findLikeUsersByPostIds(missedIds);
+
+        Map<UUID, long[]> resultMap = new HashMap<>();
+
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            for (UUID id : missedIds) {
+                long commentCount = commentCounts.getOrDefault(id, 0L);
+                List<UUID> likeUsers = likeUserMap.getOrDefault(id, List.of());
+
+                String commentKey = RedisKeyPrefix.COMMENT_COUNT + id;
+                String likeKey = RedisKeyPrefix.LIKE_SET + id;
+
+                connection.stringCommands().setEx(
+                        commentKey.getBytes(),
+                        commentCountTtl,
+                        String.valueOf(commentCount).getBytes()
+                );
+
+                // Set 복원 후 TTL 설정
+                if (!likeUsers.isEmpty()) {
+                    byte[][] memberBytes = likeUsers.stream()
+                            .map(uid -> uid.toString().getBytes())
+                            .toArray(byte[][]::new);
+                    connection.setCommands().sAdd(likeKey.getBytes(), memberBytes);
+                }
+
+                resultMap.put(id, new long[]{commentCount, (long) likeUsers.size()});
+            }
+            return null;
+        });
+
+        return resultMap;
     }
 }
