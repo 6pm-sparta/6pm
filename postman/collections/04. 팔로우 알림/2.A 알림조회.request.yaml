@@ -1,0 +1,11 @@
+$kind: http-request
+name: "A 알림조회 (새 게시글 알림 수신 확인)"
+url: "{{baseUrl}}/api/v1/notifications"
+method: GET
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); }); const list = pm.response.json().data.notifications; pm.test(\"알림이 1건 이상 존재\", function () { pm.expect(list.length).to.be.at.least(1); }); if (list.length > 0) { pm.collectionVariables.set(\"notificationId\", list[0].id); }"
+    language: text/javascript
+order: 1500

@@ -1,0 +1,11 @@
+$kind: http-request
+name: "0. A가 C를 팔로우 (사전조건 - 시나리오3에서 언팔로우했으므로 다시 팔로우)"
+url: "{{baseUrl}}/api/v1/follows/{{creatorC_id}}"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 201 또는 이미 팔로우중이면 409\", function () { pm.expect(pm.response.code).to.be.oneOf([201, 409]); });"
+    language: text/javascript
+order: 500
