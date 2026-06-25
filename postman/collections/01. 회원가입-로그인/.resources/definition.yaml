@@ -1,0 +1,26 @@
+$kind: collection
+name: 01. 회원가입/로그인
+description: |-
+  회원가입 → 로그인 → 디바이스 토큰 등록
+
+  1. 일반회원A, 일반회원B, 크리에이터C 가입(DB에서 확인)
+      
+  2. 로그인(Redis 확인) 후 토큰 발급
+      
+  3. A의 계정으로 디바이스 토큰 등록(알림 관련 시나리오에서 쓰일 예정)
+      
+  4. gateway 인증
+      
+      1. 실패케이스: Auth 헤더 없이 "내 정보 변경" API 쏴보기  
+          성공케이스: Auth 담아서 다시 "내 정보 변경" API 쏴보기
+variables:
+  userA_id: ""
+  userB_id: ""
+  creatorC_id: ""
+  userA_token: ""
+  userA_refresh: ""
+  userB_token: ""
+  userB_refresh: ""
+  creatorC_token: ""
+  creatorC_refresh: ""
+  deviceTokenId: ""

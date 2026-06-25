@@ -1,0 +1,12 @@
+$kind: http-request
+name: 크리에이터C 로그인
+url: "{{baseUrl}}/api/v1/auth/login"
+method: POST
+body:
+  type: json
+  content: '{"email": "{{creatorC_email}}", "password": "{{creatorC_password}}"}'
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); const data = pm.response.json().data; pm.environment.set("creatorC_token", data.accessToken); pm.environment.set("creatorC_refresh", data.refreshToken);
+    language: text/javascript
+order: 6000
