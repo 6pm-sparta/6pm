@@ -27,10 +27,22 @@ public class IncidentEventPublisher {
     public void publish(IncidentDetectedEvent event) {
         String incidentId = event.incidentId().toString();
         try {
-            kafkaTemplate.send(topic, incidentId, incidentId);
-            log.info("[AIOps] 분석 이벤트 발행 → topic={}, incidentId={}", topic, incidentId);
+            kafkaTemplate.send(topic, incidentId, incidentId)
+                    .whenComplete((result, ex) -> {
+                        if (ex == null) {
+                            log.info("[AIOps] 분석 이벤트 발행 완료 → topic={}, partition={}, offset={}, incidentId={}",
+                                    topic,
+                                    result.getRecordMetadata().partition(),
+                                    result.getRecordMetadata().offset(),
+                                    incidentId);
+                        } else {
+                            log.error("[AIOps] {} — incidentId={} (사건 기록은 보존됨)",
+                                    AiopsErrorCode.INCIDENT_EVENT_PUBLISH_FAILED.getMessage(), incidentId, ex);
+                        }
+                    });
         } catch (Exception e) {
-            log.error("[AIOps] {} — incidentId={} (사건 기록은 보존됨)",
+            // send() 호출 자체의 동기 예외(직렬화 오류, 버퍼 풀 + max.block.ms 초과 등)
+            log.error("[AIOps] {} (동기 실패) — incidentId={} (사건 기록은 보존됨)",
                     AiopsErrorCode.INCIDENT_EVENT_PUBLISH_FAILED.getMessage(), incidentId, e);
         }
     }
