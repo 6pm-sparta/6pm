@@ -51,7 +51,7 @@ public class PgWebhookService {
         }
 
         // 이미 처리한 웹훅인지 확인
-        if (!claim(request.pgTransactionId())) {
+        if (!claim(request.pgTransactionId(), request.status())) {
             log.info("[PG Webhook] 중복 수신 — 무시. pgTransactionId={}", request.pgTransactionId());
             return;
         }
@@ -113,9 +113,9 @@ public class PgWebhookService {
         }
     }
 
-    private boolean claim(String pgTransactionId) {
+    private boolean claim(String pgTransactionId, String status) {
 
-        String key = DEDUPE_KEY_PREFIX + pgTransactionId;
+        String key = DEDUPE_KEY_PREFIX + pgTransactionId + ":" + status;
 
         try {
             // SET key "RECEIVED" NX EX {dedupeTtlSeconds} — 같은 pgTransactionId로 먼저 온 콜백이
