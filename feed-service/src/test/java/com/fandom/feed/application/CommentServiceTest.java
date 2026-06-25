@@ -336,10 +336,11 @@ class CommentServiceTest {
         @DisplayName("작성자 - 정상 수정")
         void updateCommentIsAuthor() {
             // given
+            UserIdCard idCard = UserIdCard.of(authorId, "MEMBER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.of(comment));
 
             // when
-            CommentResponse.Update response = commentService.updateComment(commentId, "수정된 내용", authorId);
+            CommentResponse.Update response = commentService.updateComment(commentId, "수정된 내용", idCard);
 
             // then
             assertThat(response.commentId()).isEqualTo(commentId);
@@ -350,11 +351,11 @@ class CommentServiceTest {
         @DisplayName("작성자 아님 - 예외 발생")
         void updateCommentNotAuthor() {
             // given
-            UUID anotherUserId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MEMBER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.of(comment));
 
             // when & then
-            assertThatThrownBy(() -> commentService.updateComment(commentId, "수정된 내용", anotherUserId))
+            assertThatThrownBy(() -> commentService.updateComment(commentId, "수정된 내용", idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", CommentErrorCode.FORBIDDEN_COMMENT_UPDATE);
         }
@@ -363,10 +364,11 @@ class CommentServiceTest {
         @DisplayName("댓글 없음 - 예외 발생")
         void updateCommentNotInDB() {
             // given
+            UserIdCard idCard = UserIdCard.of(authorId, "MEMBER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> commentService.updateComment(commentId, "수정된 내용", authorId))
+            assertThatThrownBy(() -> commentService.updateComment(commentId, "수정된 내용", idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", CommentErrorCode.COMMENT_NOT_FOUND);
         }
@@ -391,11 +393,12 @@ class CommentServiceTest {
         @DisplayName("작성자 - 댓글 삭제 후 이벤트 발행")
         void deleteCommentByAuthor() {
             // given
+            UserIdCard idCard = UserIdCard.of(authorId, "MEMBER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.of(comment));
             when(postReader.findById(postId)).thenReturn(post);
 
             // when
-            CommentResponse.Delete response = commentService.deleteComment(commentId, authorId, false);
+            CommentResponse.Delete response = commentService.deleteComment(commentId, idCard);
 
             // then
             assertThat(response.commentId()).isEqualTo(commentId);
@@ -407,11 +410,12 @@ class CommentServiceTest {
         @DisplayName("게시글 작성자 - 댓글 삭제 후 이벤트 발행")
         void deleteCommentByPostAuthor() {
             // given
+            UserIdCard idCard = UserIdCard.of(postAuthorId, "MEMBER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.of(comment));
             when(postReader.findById(postId)).thenReturn(post);
 
             // when
-            CommentResponse.Delete response = commentService.deleteComment(commentId, postAuthorId, false);
+            CommentResponse.Delete response = commentService.deleteComment(commentId, idCard);
 
             // then
             assertThat(response.commentId()).isEqualTo(commentId);
@@ -423,12 +427,12 @@ class CommentServiceTest {
         @DisplayName("MASTER 사용자 - 댓글 삭제 후 이벤트 발행")
         void deleteCommentByMaster() {
             // given
-            UUID masterId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MASTER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.of(comment));
             when(postReader.findById(postId)).thenReturn(post);
 
             // when
-            CommentResponse.Delete response = commentService.deleteComment(commentId, masterId, true);
+            CommentResponse.Delete response = commentService.deleteComment(commentId, idCard);
 
             // then
             assertThat(response.commentId()).isEqualTo(commentId);
@@ -440,12 +444,12 @@ class CommentServiceTest {
         @DisplayName("권한 없음 - 예외 발생")
         void deleteCommentForbidden() {
             // given
-            UUID anotherUserId = UUID.randomUUID();
+            UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MEMBER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.of(comment));
             when(postReader.findById(postId)).thenReturn(post);
 
             // when & then
-            assertThatThrownBy(() -> commentService.deleteComment(commentId, anotherUserId, false))
+            assertThatThrownBy(() -> commentService.deleteComment(commentId, idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", CommentErrorCode.FORBIDDEN_COMMENT_DELETE);
 
@@ -457,10 +461,11 @@ class CommentServiceTest {
         @DisplayName("댓글 없음 - 예외 발생")
         void deleteCommentNotInDB() {
             // given
+            UserIdCard idCard = UserIdCard.of(authorId, "MEMBER");
             when(commentRepository.findById(commentId)).thenReturn(Optional.empty());
 
             // when & then
-            assertThatThrownBy(() -> commentService.deleteComment(commentId, authorId, false))
+            assertThatThrownBy(() -> commentService.deleteComment(commentId, idCard))
                     .isInstanceOf(CustomException.class)
                     .hasFieldOrPropertyWithValue("errorCode", CommentErrorCode.COMMENT_NOT_FOUND);
 

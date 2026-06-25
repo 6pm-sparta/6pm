@@ -35,9 +35,7 @@ public class LikeService {
         return LikeResponse.of(postId, likeCount);
     }
 
-    public CursorPageResponse<PostResponse.Summary> getLikes(
-            UUID cursor, ReactionSort sort, UUID userId
-    ) {
+    public CursorPageResponse<PostResponse.Summary> getLikes(UUID cursor, ReactionSort sort, UUID userId) {
         List<Like> likes = likeRepository.findByCursorAndUserId(cursor, sort, userId);
 
         boolean hasMore = likes.size() > FeedPolicy.PAGE_SIZE;

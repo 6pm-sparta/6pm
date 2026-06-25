@@ -40,15 +40,15 @@ class JpaPostRepositoryTest {
     }
 
     @Nested
-    @DisplayName("최신순 조회")
-    class FindLatest {
+    @DisplayName("커서 기반 조회")
+    class FindByCursor {
         private final Pageable pageable = PageRequest.of(0, 10);
 
         @Test
         @DisplayName("cursor 없음 - 전체 게시글 대상")
-        void findLatestWithoutCursor() {
+        void findByCursorWithout() {
             // when
-            List<Post> results = jpaPostRepository.findLatest(null, null, null, pageable);
+            List<Post> results = jpaPostRepository.findByCursor(null, null, null, pageable);
 
             // then
             assertThat(results).hasSize(3);
@@ -57,13 +57,13 @@ class JpaPostRepositoryTest {
 
         @Test
         @DisplayName("cursor 있음 - cursor 이전 게시글 대상")
-        void findLatestWithCursor() {
+        void findByCursorWith() {
             // given
             List<UUID> sortedIds = savedPosts.stream().map(Post::getId).sorted().toList();
             UUID cursor = sortedIds.get(1);
 
             // when
-            List<Post> results = jpaPostRepository.findLatest(cursor, null, null, pageable);
+            List<Post> results = jpaPostRepository.findByCursor(cursor, null, null, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -72,12 +72,12 @@ class JpaPostRepositoryTest {
 
         @Test
         @DisplayName("authorId 필터 조회")
-        void findLatestWithAuthorId() {
+        void findByCursorWithAuthorId() {
             // given
             UUID targetAuthorId = savedPosts.getFirst().getAuthorId();
 
             // when
-            List<Post> results = jpaPostRepository.findLatest(null, targetAuthorId, null, pageable);
+            List<Post> results = jpaPostRepository.findByCursor(null, targetAuthorId, null, pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -86,9 +86,9 @@ class JpaPostRepositoryTest {
 
         @Test
         @DisplayName("keyword 필터 조회")
-        void findLatestWithKeyword() {
+        void findByCursorWithKeyword() {
             // when
-            List<Post> results = jpaPostRepository.findLatest(null, null, "첫번째", pageable);
+            List<Post> results = jpaPostRepository.findByCursor(null, null, "첫번째", pageable);
 
             // then
             assertThat(results).hasSize(1);
@@ -97,57 +97,33 @@ class JpaPostRepositoryTest {
     }
 
     @Nested
-    @DisplayName("오래된순 조회")
-    class FindOldest {
-        private final Pageable pageable = PageRequest.of(0, 10);
-
+    @DisplayName("워밍업용 100개 조회")
+    class FindByCursorForWarm {
         @Test
-        @DisplayName("cursor 없음 - 전체 게시글 대상")
-        void findOldestWithoutCursor() {
+        @DisplayName("authorId 없음 - 전체 게시글 대상")
+        void findTopForWarmWithoutAuthorId() {
             // when
-            List<Post> results = jpaPostRepository.findOldest(null, null, null, pageable);
+            List<Post> results = jpaPostRepository.findByCursorForWarm(null, PageRequest.of(0, 100));
 
             // then
             assertThat(results).hasSize(3);
-            assertThat(results.get(0).getId()).isLessThan(results.get(1).getId());
+            assertThat(results.get(0).getId()).isGreaterThan(results.get(1).getId());
         }
 
         @Test
-        @DisplayName("cursor 있음 - cursor 이후 게시글 대상")
-        void findOldestWithCursor() {
+        @DisplayName("authorId 있음 - 작성자 게시글 대상")
+        void findTopForWarmWithAuthorId() {
             // given
-            List<UUID> sortedIds = savedPosts.stream().map(Post::getId).sorted().toList();
-            UUID cursor = sortedIds.get(1);
+            UUID authorId = UUID.randomUUID();
+            Post post = Post.builder().content("첫번째 게시글").authorId(authorId).build();
+            jpaPostRepository.save(post);
 
             // when
-            List<Post> results = jpaPostRepository.findOldest(cursor, null, null, pageable);
+            List<Post> results = jpaPostRepository.findByCursorForWarm(authorId, PageRequest.of(0, 100));
 
             // then
             assertThat(results).hasSize(1);
-            results.forEach(post -> assertThat(post.getId()).isGreaterThan(cursor));
         }
-    }
-
-    @Test
-    @DisplayName("워밍업용 최신순 100개 조회")
-    void findTopForWarm() {
-        // when
-        List<Post> results = jpaPostRepository.findTopForWarm(PageRequest.of(0, 100));
-
-        // then
-        assertThat(results).hasSize(3);
-        assertThat(results.get(0).getId()).isGreaterThan(results.get(1).getId());
-    }
-
-    @Test
-    @DisplayName("워밍업용 오래된순 100개 조회")
-    void findBottomForWarm() {
-        // when
-        List<Post> results = jpaPostRepository.findBottomForWarm(PageRequest.of(0, 100));
-
-        // then
-        assertThat(results).hasSize(3);
-        assertThat(results.get(0).getId()).isLessThan(results.get(1).getId());
     }
 
     @Nested
