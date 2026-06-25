@@ -54,7 +54,8 @@ public class FollowService {
 
         increaseFollowingCount(followerId);
         increaseFollowerCount(creatorId);
-        publishFollowedEventAfterCommit(follow.getId(), followerId, creatorId);
+        Profile followerProfile = findProfileByUserId(followerId);
+        publishFollowedEventAfterCommit(follow.getId(), followerId, creatorId, followerProfile.getNickname());
 
         return follow;
     }
@@ -151,6 +152,11 @@ public class FollowService {
         return profile;
     }
 
+    private Profile findProfileByUserId(UUID userId) {
+        return profileRepository.findByUserId(userId)
+                .orElseThrow(() -> new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND));
+    }
+
     private Follow saveFollow(User follower, User followee) {
         try {
             return followRepository.saveAndFlush(
@@ -186,15 +192,15 @@ public class FollowService {
         }
     }
 
-    private void publishFollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId) {
+    private void publishFollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId, String nickname) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            followEventPublisher.publishFollowed(followId, followerId, followeeId);
+            followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                followEventPublisher.publishFollowed(followId, followerId, followeeId);
+                followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
             }
         });
     }
