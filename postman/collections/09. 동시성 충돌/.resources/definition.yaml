@@ -1,4 +1,5 @@
 $kind: collection
+name: 09. 동시성 충돌
 description: |-
   새 좌석으로 선점 → 결제 → PAID 상태 주문 준비, 이번엔 Ticketing 좌석 확정 실패 상황을 수동으로 재현(A가 예매 중이라고 가정)
 
@@ -10,8 +11,8 @@ description: |-
       
   4. DB에서 주문 상태 REFUNDED 확인
       
-  5. DB `order_status_histories`에서 전체 보상 이력 확인 (`PAID → COMPENSATING → REFUND_REQUESTED → REFUNDED`)
+  5. \[수동\] DB `order_status_histories`에서 전체 보상 이력 확인 (`PAID → COMPENSATING → REFUND_REQUESTED → REFUNDED`)
       
-  6. Kafka UI에서 `order.payment.cancelled` 확인 (좌석 반환)
+  6. \[수동\] Kafka UI에서 `order.payment.cancelled` 확인 (좌석 반환)
       
-  7. Kafka UI에서 `notification.send` (ORDER_CANCELED) 확인
+  7. \[수동\] Kafka UI에서 `notification.send` (ORDER_CANCELED) 확인

@@ -1,8 +1,9 @@
 $kind: collection
+name: 11. 탈퇴
 description: |-
   A 탈퇴, C 탈퇴
 
-  1. DB에서 soft_delete됐는지 확인
+  1. DB에서 soft_delete됐는지 확인 (user-service status DELETED 인지)
       
   2. 탈퇴 관련 이벤트 발행 및 후처리가 일어났는지 kafka ui랑 db에서 확인
       
