@@ -1,7 +1,8 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.common.exception.CustomException;
-import com.fandom.feed.domain.entity.Like;
+import com.fandom.feed.application.PostReader;
+import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.LikeErrorCode;
 import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
@@ -19,6 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.testcontainers.containers.GenericContainer;
@@ -26,16 +28,22 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @Testcontainers
+@TestPropertySource(properties = "cache.ttl.comment-count=300")
 @ExtendWith(SpringExtension.class)
 @Import({ReactionCacheService.class, RedisConfig.class, RedisAutoConfiguration.class})
 public class ReactionCacheServiceIntegrationTest {
+    @MockitoBean
+    private PostReader postReader;
+
     @MockitoBean
     private LikeRepository likeRepository;
 
@@ -116,16 +124,17 @@ public class ReactionCacheServiceIntegrationTest {
         }
 
         @Test
-        @DisplayName("isLiked = true - liked 항상 true")
+        @DisplayName("isLiked = true - userId 있어도 liked 항상 true")
         void getReactionInfoBatchWithIsLiked() {
             // Given
             UUID postId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
             redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId, "2");
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
             List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
-                    List.of(postId), null, true
+                    List.of(postId), userId, true
             );
 
             // Then
@@ -169,43 +178,47 @@ public class ReactionCacheServiceIntegrationTest {
         }
     }
 
-    @Nested
-    @DisplayName("캐시에 userId 삭제")
-    class RemoveLike {
-        @Test
-        @DisplayName("userId 삭제 후 좋아요 수 반환")
-        void removeLike() {
-            // Given
-            UUID postId = UUID.randomUUID();
-            UUID userA = UUID.randomUUID();
-            UUID userB = UUID.randomUUID();
+    @Test
+    @DisplayName("캐시에서 userId 삭제 후 좋아요 수 반환")
+    void removeLike() {
+        // Given
+        UUID postId = UUID.randomUUID();
+        UUID userA = UUID.randomUUID();
+        UUID userB = UUID.randomUUID();
 
-            reactionCacheService.addLike(postId, userA);
-            reactionCacheService.addLike(postId, userB);
+        reactionCacheService.addLike(postId, userA);
+        reactionCacheService.addLike(postId, userB);
 
-            // When
-            long count = reactionCacheService.removeLike(postId, userA);
+        // When
+        long count = reactionCacheService.removeLike(postId, userA);
 
-            // Then
-            assertThat(count).isEqualTo(1);
-        }
+        // Then
+        assertThat(count).isEqualTo(1);
+    }
 
-        @Test
-        @DisplayName("캐시 미스 - DB에서 복구")
-        void removeLikeCacheMiss() {
-            // Given
-            UUID postId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
+    @Test
+    @DisplayName("DB 배치 조회 후 캐시 저장")
+    void fetchFromDbAndCache() {
+        // Given
+        UUID postId = UUID.randomUUID();
+        UUID likeUserId = UUID.randomUUID();
+        Post post = mock(Post.class);
 
-            when(likeRepository.findAllByPostId(postId))
-                    .thenReturn(List.of(Like.builder().postId(postId).userId(userId).build()));
+        when(post.getId()).thenReturn(postId);
+        when(post.getCommentCount()).thenReturn(5L);
+        when(postReader.findAllByIds(List.of(postId))).thenReturn(List.of(post));
+        when(likeRepository.findLikeUsersByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of(likeUserId)));
 
-            // When
-            long count = reactionCacheService.removeLike(postId, UUID.randomUUID());
+        // When
+        List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+                List.of(postId), null, false
+        );
 
-            // Then
-            assertThat(count).isEqualTo(1);
-            assertThat(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + postId, userId.toString())).isTrue();
-        }
+        // Then
+        assertThat(results.getFirst().commentCount()).isEqualTo(5L);
+        assertThat(results.getFirst().likeCount()).isEqualTo(1L);
+
+        assertThat(redisTemplate.opsForValue().get(RedisKeyPrefix.COMMENT_COUNT + postId)).isEqualTo("5");
+        assertThat(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + postId, likeUserId.toString())).isTrue();
     }
 }

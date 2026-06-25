@@ -3,6 +3,7 @@ package com.fandom.feed.infra.redis;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PostListCacheService {
     private final RedisTemplate<String, String> redisTemplate;
+
+    @Value("${cache.ttl.post-list}")
+    private long postListTtl;
 
     /**
      * 작성자 ID에 따라 게시글 ID 목록을 조회하는 메서드<br>
@@ -110,7 +114,6 @@ public class PostListCacheService {
      * TTL를 설정하는 메서드
      */
     public void expireCache(UUID authorId) {
-        Duration ttl = Duration.ofMinutes(3);
-        redisTemplate.expire(resolveKey(authorId), ttl);
+        redisTemplate.expire(resolveKey(authorId), Duration.ofSeconds(postListTtl));
     }
 }

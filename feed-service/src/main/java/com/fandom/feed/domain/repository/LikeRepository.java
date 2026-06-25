@@ -4,6 +4,7 @@ import com.fandom.feed.domain.entity.Like;
 import com.fandom.feed.global.constant.ReactionSort;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public interface LikeRepository extends BaseRepository<Like, UUID> {
@@ -12,4 +13,5 @@ public interface LikeRepository extends BaseRepository<Like, UUID> {
     List<Like> findByCursorAndUserId(UUID cursor, ReactionSort sort, UUID userId);
     List<Like> findAll();
     void deleteAllByPostId(UUID postId);
+    Map<UUID, List<UUID>> findLikeUsersByPostIds(List<UUID> postIds);
 }
