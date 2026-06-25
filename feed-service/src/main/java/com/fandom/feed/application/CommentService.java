@@ -71,11 +71,11 @@ public class CommentService {
     }
 
     @Transactional
-    public CommentResponse.Update updateComment(UUID commentId, String content, UUID userId) {
+    public CommentResponse.Update updateComment(UUID commentId, String content, UserIdCard idCard) {
         Comment comment = findById(commentId);
 
         // 권한 검증
-        if (!userId.equals(comment.getAuthorId()))
+        if (!idCard.isMe(comment.getAuthorId()))
             throw new CustomException(CommentErrorCode.FORBIDDEN_COMMENT_UPDATE);
 
         comment.update(content);
@@ -84,15 +84,15 @@ public class CommentService {
     }
 
     @Transactional
-    public CommentResponse.Delete deleteComment(UUID commentId, UUID userId, boolean isMaster) {
+    public CommentResponse.Delete deleteComment(UUID commentId, UserIdCard idCard) {
         Comment comment = findById(commentId);
         Post post = postReader.findById(comment.getPostId());
 
         // 권한 검증
-        if (!userId.equals(comment.getAuthorId()) && !userId.equals(post.getAuthorId()) && !isMaster)
+        if (!idCard.isMe(comment.getAuthorId()) && !idCard.isMe(post.getAuthorId()) && !idCard.isMaster())
             throw new CustomException(CommentErrorCode.FORBIDDEN_COMMENT_DELETE);
 
-        comment.softDelete(userId);
+        comment.softDelete(idCard.getUserId());
 
         postUpdater.decrementCommentCount(post.getId());
 

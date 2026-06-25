@@ -83,3 +83,4 @@ CREATE INDEX IF NOT EXISTS idx_incident_fp_active ON aiops_db.incident_alert_his
 --   SELECT schema_name FROM information_schema.schemata
 --   WHERE schema_name IN ('user_db','auth_db','feed_db','ticket_db','order_db','notify_db','chat_db','aiops_db');
 -- ---------------------------------------------------------------------
+
