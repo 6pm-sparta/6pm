@@ -54,6 +54,8 @@ values:
     value: ''
   - key: failPaymentId
     value: ''
+  - key: deviceTokenId
+    value: ''
   - key: idempotencyKey
     value: ''
 color: 0

@@ -9,6 +9,6 @@ body:
   content: "{\"deviceToken\": \"device-token-userA-12345\", \"deviceType\": \"WEB\"}"
 scripts:
   - type: afterResponse
-    code: "pm.test(\"Status code is 200 or 201\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+    code: "pm.test(\"Status code is 200 or 201\", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); }); pm.collectionVariables.set(\"deviceTokenId\", pm.response.json().data.id);"
     language: text/javascript
 order: 8000
