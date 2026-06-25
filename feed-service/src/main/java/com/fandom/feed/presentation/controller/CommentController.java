@@ -75,7 +75,7 @@ public class CommentController {
             @RequestBody @Valid CommentRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
-        CommentResponse.Update response = commentService.updateComment(commentId, request.content(), idCard.getUserId());
+        CommentResponse.Update response = commentService.updateComment(commentId, request.content(), idCard);
         return ApiResponse.success(response);
     }
 
@@ -85,7 +85,7 @@ public class CommentController {
             @PathVariable UUID commentId,
             @CurrentIdCard UserIdCard idCard
     ) {
-        CommentResponse.Delete response = commentService.deleteComment(commentId, idCard.getUserId(), idCard.isMaster());
+        CommentResponse.Delete response = commentService.deleteComment(commentId, idCard);
         return ApiResponse.success(response);
     }
 }

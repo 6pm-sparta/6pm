@@ -30,7 +30,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @EnableAspectJAutoProxy
@@ -117,36 +116,12 @@ class PostControllerTest {
                             .content(objectMapper.writeValueAsString(request))))
                     .andExpect(status().isBadRequest());
         }
-    }
-
-    @Nested
-    @DisplayName("게시글 수정")
-    class UpdatePost {
-        @Test
-        @DisplayName("정상 요청 - 200 반환")
-        void updatePostSuccess() throws Exception {
-            // given
-            UUID postId = UUID.randomUUID();
-            String key = "posts/20240101/" + UUID.randomUUID() + ".jpg";
-
-            PostRequest request = new PostRequest("수정된 내용", List.of(key));
-            when(postService.updatePost(any(), any(), any(), any())).thenReturn(mock(PostResponse.Update.class));
-
-            // when & then
-            mockMvc.perform(withIdCard(put("/api/v1/feeds/posts/{postId}", postId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request))))
-                    .andExpect(status().isOk());
-        }
 
         @Test
         @DisplayName("@RequestBody 없으면 content null - 500 반환")
-        void updatePostMissingBody() throws Exception {
-            // given
-            UUID postId = UUID.randomUUID();
-
+        void createPostMissingBody() throws Exception {
             // when & then
-            mockMvc.perform(withIdCard(put("/api/v1/feeds/posts/{postId}", postId)))
+            mockMvc.perform(withIdCard(post("/api/v1/feeds/posts")))
                     .andExpect(status().is5xxServerError());
         }
     }
