@@ -39,12 +39,13 @@ class FollowEventKafkaPublisherTest {
         given(kafkaTemplate.send(anyString(), anyString(), any(FollowEventMessage.class)))
                 .willReturn(CompletableFuture.completedFuture(null));
 
-        publisher.publishFollowed(followId, followerId, followeeId);
+        publisher.publishFollowed(followId, followerId, followeeId, "member");
 
         verify(kafkaTemplate).send(eq(KafkaTopics.USER_FOLLOWED), eq(followId.toString()), messageCaptor.capture());
         assertThat(messageCaptor.getValue().followId()).isEqualTo(followId);
         assertThat(messageCaptor.getValue().followerId()).isEqualTo(followerId);
         assertThat(messageCaptor.getValue().followeeId()).isEqualTo(followeeId);
+        assertThat(messageCaptor.getValue().nickname()).isEqualTo("member");
     }
 
     @Test
@@ -63,5 +64,6 @@ class FollowEventKafkaPublisherTest {
         assertThat(messageCaptor.getValue().followId()).isEqualTo(followId);
         assertThat(messageCaptor.getValue().followerId()).isEqualTo(followerId);
         assertThat(messageCaptor.getValue().followeeId()).isEqualTo(followeeId);
+        assertThat(messageCaptor.getValue().nickname()).isNull();
     }
 }
