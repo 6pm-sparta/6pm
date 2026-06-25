@@ -1,0 +1,11 @@
+$kind: http-request
+name: "주문상태 REFUNDED 확인 (MockPG 환불 웹훅 수신 후 1.5초 정도 지나서 보내세요)"
+url: "{{baseUrl}}/api/v1/orders/{{orderId}}"
+method: GET
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); }); pm.test(\"주문 상태는 REFUNDED\", function () { pm.expect(pm.response.json().data.status).to.eql(\"REFUNDED\"); });"
+    language: text/javascript
+order: 2000
