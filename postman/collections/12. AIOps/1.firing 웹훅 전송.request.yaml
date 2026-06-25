@@ -1,0 +1,12 @@
+$kind: http-request
+name: "firing 웹훅 전송 (ticketing-service / critical) - gateway 미라우팅, aiops-service 직접 호출"
+url: "{{aiopsServiceUrl}}/api/v1/alerts/webhook"
+method: POST
+body:
+  type: json
+  content: "{\"status\": \"firing\", \"alerts\": [{\"status\": \"firing\", \"labels\": {\"alertname\": \"HighErrorRate\", \"severity\": \"critical\", \"job\": \"ticketing-service\", \"instance\": \"ticketing-service:8083\"}, \"annotations\": {\"summary\": \"ticketing-service 5xx 에러율 급증\", \"description\": \"5분간 5xx 비율이 임계치를 초과했습니다.\"}, \"startsAt\": \"2026-06-26T00:00:00Z\", \"endsAt\": \"0001-01-01T00:00:00Z\", \"fingerprint\": \"{{fingerprint}}\"}]}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); });"
+    language: text/javascript
+order: 1000
