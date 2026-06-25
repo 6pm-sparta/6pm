@@ -9,6 +9,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record AlertWebhookRequest(
         String status,            // 그룹 전체 상태 (firing / resolved)
+
         List<Alert> alerts
 ) {
     @JsonIgnoreProperties(ignoreUnknown = true)

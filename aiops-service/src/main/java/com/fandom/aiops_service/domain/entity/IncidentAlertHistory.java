@@ -59,11 +59,13 @@ public class IncidentAlertHistory extends BaseEntity {
 
     @Builder
     private IncidentAlertHistory(String alertName, String severity, String sourceService,
+
                                  String fingerprint, OffsetDateTime firedAt, String rawPayload) {
         this.alertName = alertName;
         this.severity = severity;
         this.sourceService = sourceService;
         this.fingerprint = fingerprint;
+
         this.firedAt = firedAt;
         this.rawPayload = rawPayload;
     }
@@ -72,6 +74,7 @@ public class IncidentAlertHistory extends BaseEntity {
     public boolean isAiAnalyzed() {
         return this.aiSummary != null;
     }
+
 
     /** resolved 알림 수신 시: 복구 시각 + MTTR(초) 기록 */
     public void resolve(OffsetDateTime resolvedAt) {
@@ -82,6 +85,7 @@ public class IncidentAlertHistory extends BaseEntity {
     }
 
     /** LLM 분석 결과 채우기 (#128에서 사용) */
+
     public void applyAiAnalysis(String summary, String rootCause, String guide) {
         this.aiSummary = summary;
         this.aiRootCause = rootCause;

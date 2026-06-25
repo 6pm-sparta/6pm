@@ -1,5 +1,6 @@
 package com.fandom.aiops_service.application;
 
+
 import com.fandom.aiops_service.application.event.IncidentDetectedEvent;
 import com.fandom.aiops_service.domain.entity.IncidentAlertHistory;
 import com.fandom.aiops_service.domain.repository.IncidentAlertHistoryRepository;
@@ -7,6 +8,7 @@ import com.fandom.aiops_service.presentation.dto.request.AlertWebhookRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
+
 
 @Slf4j
 @Service
@@ -23,6 +26,7 @@ public class AlertWebhookService {
     private final IncidentAlertHistoryRepository incidentRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+
 
     @Transactional
     public void handleWebhook(AlertWebhookRequest request) {
@@ -49,6 +53,7 @@ public class AlertWebhookService {
         // 이미 진행 중인 동일 사건이 있으면 중복 생성 방지 (fingerprint 우선)
         if (findActiveIncident(fingerprint, alertName, sourceService).isPresent()) {
             log.debug("[AIOps] 이미 진행 중인 사건 — 스킵: {} / {} / fp={}", alertName, sourceService, fingerprint);
+
             return;
         }
 
