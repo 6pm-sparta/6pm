@@ -1,0 +1,11 @@
+$kind: http-request
+name: "결제상세조회 - PAID + pgTransactionId 확인 (MockPG 웹훅 수신 후 1.5초 정도 지나서 보내세요)"
+url: "{{orderServiceUrl}}/api/v1/payments/{{paymentId}}"
+method: GET
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); }); const data = pm.response.json().data; pm.test(\"결제 상태는 PAID\", function () { pm.expect(data.paymentStatus).to.eql(\"PAID\"); }); pm.test(\"pgTransactionId 채워짐\", function () { pm.expect(data.pgTransactionId).to.not.be.null; });"
+    language: text/javascript
+order: 3000

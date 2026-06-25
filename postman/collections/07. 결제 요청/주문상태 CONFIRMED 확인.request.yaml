@@ -1,0 +1,11 @@
+$kind: http-request
+name: "주문상태 CONFIRMED 확인 (Kafka UI에서 order.payment.completed -> ticketing.seat.booked 확인 후)"
+url: "{{baseUrl}}/api/v1/orders/{{orderId}}"
+method: GET
+headers:
+  Authorization: "Bearer {{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () { pm.response.to.have.status(200); }); pm.test(\"주문 상태는 CONFIRMED\", function () { pm.expect(pm.response.json().data.status).to.eql(\"CONFIRMED\"); });"
+    language: text/javascript
+order: 4000

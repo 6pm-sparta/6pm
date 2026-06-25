@@ -1,0 +1,18 @@
+$kind: http-request
+name: "A 결제 요청 (gateway에 /api/v1/payments 라우팅 없어 order-service 직접 호출)"
+url: "{{orderServiceUrl}}/api/v1/payments"
+method: POST
+headers:
+  Authorization: "Bearer {{userA_token}}"
+  Idempotency-Key: "{{idempotencyKey}}"
+body:
+  type: json
+  content: "{\"orderId\": \"{{orderId}}\", \"paymentMethod\": \"CARD\"}"
+scripts:
+  - type: preRequest
+    code: "if (!pm.collectionVariables.get(\"idempotencyKey\")) { pm.collectionVariables.set(\"idempotencyKey\", require('uuid').v4()); }"
+    language: text/javascript
+  - type: afterResponse
+    code: "pm.test(\"Status code is 201\", function () { pm.response.to.have.status(201); }); const data = pm.response.json().data; pm.collectionVariables.set(\"paymentId\", data.paymentId);"
+    language: text/javascript
+order: 1000

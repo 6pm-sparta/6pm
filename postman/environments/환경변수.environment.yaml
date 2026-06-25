@@ -2,6 +2,8 @@ name: 환경변수
 values:
   - key: baseUrl
     value: http://localhost:8080
+  - key: orderServiceUrl
+    value: http://localhost:8084
   - key: userA_email
     value: userA@example.com
   - key: userA_password
