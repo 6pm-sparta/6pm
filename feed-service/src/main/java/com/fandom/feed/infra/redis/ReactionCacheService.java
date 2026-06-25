@@ -28,6 +28,10 @@ public class ReactionCacheService {
     private final LikeRepository likeRepository;
     private final RedisTemplate<String, String> redisTemplate;
 
+    private static final int COMMENT_COUNT_IDX = 0;
+    private static final int LIKE_COUNT_IDX = 1;
+    private static final int IS_LIKED_IDX = 2;
+
     @Value("${cache.ttl.comment-count}")
     private long commentCountTtl;
 
@@ -87,14 +91,16 @@ public class ReactionCacheService {
 
             if (dbResultMap.containsKey(id)) {
                 long[] dbCounts = dbResultMap.get(id);
-                commentCount = dbCounts[0];
-                likeCount = dbCounts[1];
+                commentCount = dbCounts[COMMENT_COUNT_IDX];
+                likeCount = dbCounts[LIKE_COUNT_IDX];
             } else {
-                commentCount = (results.get(base) != null) ? Long.parseLong(results.get(base).toString()) : 0L;
-                likeCount = (results.get(base + 1) != null) ? (Long) results.get(base + 1) : 0L;
+                commentCount = (results.get(base + COMMENT_COUNT_IDX ) != null)
+                        ? Long.parseLong(results.get(base + COMMENT_COUNT_IDX).toString()) : 0L;
+                likeCount = (results.get(base + LIKE_COUNT_IDX) != null)
+                        ? (Long) results.get(base + LIKE_COUNT_IDX) : 0L;
             }
 
-            boolean liked = isLiked || ((userId != null) && Boolean.TRUE.equals(results.get(base + 2)));
+            boolean liked = isLiked || ((userId != null) && Boolean.TRUE.equals(results.get(base + IS_LIKED_IDX)));
             reactionInfos.add(new PostCache.ReactionInfo(commentCount, likeCount, liked));
         }
 
