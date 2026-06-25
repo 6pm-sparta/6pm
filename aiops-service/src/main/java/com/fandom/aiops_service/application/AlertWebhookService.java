@@ -1,6 +1,8 @@
 package com.fandom.aiops_service.application;
 
+
 https://github.com/6pm-sparta/6pm/pull/166/conflict?name=aiops-service%252Fsrc%252Fmain%252Fjava%252Fcom%252Ffandom%252Faiops_service%252Fdomain%252Fentity%252FIncidentAlertHistory.java&base_oid=9001d822304ab7f30bad295b0bb6013e6f18b0da&head_oid=19a0b840b43d8afcd3201c8457d063de58943732<<<<<<< feature/129-slack-notify
+
 import com.fandom.aiops_service.application.event.IncidentDetectedEvent;
 import com.fandom.aiops_service.domain.entity.IncidentAlertHistory;
 import com.fandom.aiops_service.domain.repository.IncidentAlertHistoryRepository;
