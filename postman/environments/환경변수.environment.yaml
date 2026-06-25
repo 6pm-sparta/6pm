@@ -4,6 +4,10 @@ values:
     value: http://localhost:8080
   - key: orderServiceUrl
     value: http://localhost:8084
+  - key: aiopsServiceUrl
+    value: http://localhost:8086
+  - key: fingerprint
+    value: demo-fingerprint-001
   - key: userA_email
     value: userA@example.com
   - key: userA_password
