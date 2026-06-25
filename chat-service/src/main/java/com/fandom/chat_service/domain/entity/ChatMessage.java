@@ -3,6 +3,8 @@ package com.fandom.chat_service.domain.entity;
 import com.fandom.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -29,14 +31,15 @@ public class ChatMessage extends BaseEntity {
     @Column(name = "sender_id", nullable = false)
     private UUID senderId;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "sender_role", nullable = false, length = 10)
-    private String senderRole;
+    private SenderRole senderRole;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @Builder
-    private ChatMessage(UUID roomId, UUID senderId, String senderRole, String content) {
+    private ChatMessage(UUID roomId, UUID senderId, SenderRole senderRole, String content) {
         this.roomId = roomId;
         this.senderId = senderId;
         this.senderRole = senderRole;
