@@ -5,6 +5,8 @@ import com.fandom.chat_service.domain.repository.ChatRoomRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -27,5 +29,10 @@ public class ChatRoomRepositoryImpl implements ChatRoomRepository {
     @Override
     public Optional<ChatRoom> findByCreatorId(UUID creatorId) {
         return jpaRepository.findByCreatorId(creatorId);
+    }
+
+    @Override
+    public List<ChatRoom> findAllByIdIn(Collection<UUID> ids) {
+        return jpaRepository.findAllByIdIn(ids);
     }
 }

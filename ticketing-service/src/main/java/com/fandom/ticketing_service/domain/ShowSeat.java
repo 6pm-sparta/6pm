@@ -1,4 +1,4 @@
-package com.fandom.ticketing_service.seat.domain.entity;
+package com.fandom.ticketing_service.domain;
 
 import com.fandom.common.entity.BaseEntity;
 import jakarta.persistence.Column;

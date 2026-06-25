@@ -4,10 +4,10 @@ import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.client.OrderClient;
 import com.fandom.ticketing_service.order.dto.CreateOrderRequest;
-import com.fandom.ticketing_service.queue.service.PurchaseTokenService;
-import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
-import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
+import com.fandom.ticketing_service.domain.ShowSeat;
+import com.fandom.ticketing_service.domain.ShowSeatRepository;
 import com.fandom.ticketing_service.seat.dto.HoldResponse;
+import com.fandom.ticketing_service.seat.dto.PurchaseLimitResponse;
 import com.fandom.ticketing_service.seat.dto.ShowSeatResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +29,7 @@ public class SeatService {
     private static final String OWNER_KEY = "show:%d:seat:%s:owner";
     private static final String INVENTORY_KEY = "inventory:%d";
     private static final String PURCHASE_COUNT_KEY = "purchase-count:%s:%d";
-    private static final int MAX_PER_USER = 2;
+    private static final int MAX_PER_USER = 4;
 
     // owner 값은 "{userId}:{status}" 형태. 주문 생성(orderClient.create) 도중엔 PENDING으로 두어
     // releaseHold가 끼어들어 DB에는 orderId가 박히는데 Redis는 이미 풀려버리는 레이스를 막는다.
@@ -77,7 +77,6 @@ public class SeatService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ShowSeatRepository showSeatRepository;
     private final OrderClient orderClient;
-    private final PurchaseTokenService purchaseTokenService;
 
     public List<ShowSeatResponse> getSeats(Long showId) {
         List<ShowSeat> seats = showSeatRepository.findAllByShowId(showId);
@@ -100,10 +99,6 @@ public class SeatService {
     public HoldResponse hold(UUID showSeatId, UUID userId) {
         ShowSeat seat = showSeatRepository.findById(showSeatId)
                 .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
-
-        if (!purchaseTokenService.exists(seat.getShowId(), userId)) {
-            throw new CustomException(TicketingErrorCode.PURCHASE_TOKEN_NOT_FOUND);
-        }
 
         String seatKey = SEAT_KEY.formatted(seat.getShowId(), showSeatId);
         String ownerKey = OWNER_KEY.formatted(seat.getShowId(), showSeatId);
@@ -162,6 +157,14 @@ public class SeatService {
 
         seat.releaseOrder();
         log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
+    }
+
+    public PurchaseLimitResponse getPurchaseLimit(Long showId, UUID userId) {
+        String countKey = PURCHASE_COUNT_KEY.formatted(userId, showId);
+        String count = redisTemplate.opsForValue().get(countKey);
+        int purchased = count != null ? Integer.parseInt(count) : 0;
+        int remaining = Math.max(MAX_PER_USER - purchased, 0);
+        return new PurchaseLimitResponse(MAX_PER_USER, purchased, remaining);
     }
 
     // seatKey가 DEL이 아닌 TTL 만료로 사라졌을 때만 호출됨(SeatHoldExpirationListener) → 결제 미완료 상태로 방치된 선점만 해제 대상
