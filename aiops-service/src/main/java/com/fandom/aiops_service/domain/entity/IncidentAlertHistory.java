@@ -88,5 +88,4 @@ public class IncidentAlertHistory extends BaseEntity {
     public void markSlackNotified(String slackTs) {
         this.slackTs = slackTs;
     }
-
 }

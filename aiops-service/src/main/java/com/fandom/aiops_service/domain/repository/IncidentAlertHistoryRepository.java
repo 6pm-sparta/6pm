@@ -13,4 +13,6 @@ public interface IncidentAlertHistoryRepository extends JpaRepository<IncidentAl
 
     Optional<IncidentAlertHistory> findFirstByAlertNameAndSourceServiceAndResolvedAtIsNullOrderByFiredAtDesc(
             String alertName, String sourceService);
+
+    long countByResolvedAtIsNull();
 }

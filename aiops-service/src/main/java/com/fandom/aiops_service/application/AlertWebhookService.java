@@ -1,11 +1,9 @@
 package com.fandom.aiops_service.application;
 
-
-https://github.com/6pm-sparta/6pm/pull/166/conflict?name=aiops-service%252Fsrc%252Fmain%252Fjava%252Fcom%252Ffandom%252Faiops_service%252Fdomain%252Fentity%252FIncidentAlertHistory.java&base_oid=9001d822304ab7f30bad295b0bb6013e6f18b0da&head_oid=19a0b840b43d8afcd3201c8457d063de58943732<<<<<<< feature/129-slack-notify
-
 import com.fandom.aiops_service.application.event.IncidentDetectedEvent;
 import com.fandom.aiops_service.domain.entity.IncidentAlertHistory;
 import com.fandom.aiops_service.domain.repository.IncidentAlertHistoryRepository;
+import com.fandom.aiops_service.infrastructure.metrics.IncidentMetrics;
 import com.fandom.aiops_service.presentation.dto.request.AlertWebhookRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +24,7 @@ public class AlertWebhookService {
     private final IncidentAlertHistoryRepository incidentRepository;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final IncidentMetrics incidentMetrics;
 
     @Transactional
     public void handleWebhook(AlertWebhookRequest request) {
@@ -49,7 +48,6 @@ public class AlertWebhookService {
         String fingerprint = alert.fingerprint();
         OffsetDateTime firedAt = alert.startsAt() != null ? alert.startsAt() : OffsetDateTime.now();
 
-        // 이미 진행 중인 동일 사건이 있으면 중복 생성 방지 (fingerprint 우선)
         if (findActiveIncident(fingerprint, alertName, sourceService).isPresent()) {
             log.debug("[AIOps] 이미 진행 중인 사건 — 스킵: {} / {} / fp={}", alertName, sourceService, fingerprint);
             return;
@@ -65,10 +63,9 @@ public class AlertWebhookService {
                 .build();
         incidentRepository.save(incident);
         log.info("[AIOps] 사건 기록(DETECTED): {} / {} / {} / fp={}", alertName, severity, sourceService, fingerprint);
+        incidentMetrics.recordDetected(sourceService, severity);   // #130 집계
 
-        // #128: LLM 분석을 비동기로 위임. 커밋 후 Kafka publish 되도록 도메인 이벤트만 발행.
         eventPublisher.publishEvent(new IncidentDetectedEvent(incident.getId()));
-        // #129(후속): 분석 결과 Slack 통보(notification.send)
     }
 
     private void resolveIncident(AlertWebhookRequest.Alert alert) {
@@ -83,15 +80,14 @@ public class AlertWebhookService {
                             incident.resolve(resolvedAt);   // 더티체킹으로 update
                             log.info("[AIOps] 사건 해소(RESOLVED): {} / {} / MTTR {}s",
                                     alertName, sourceService, incident.getMttrSeconds());
+                            incidentMetrics.recordResolved(   // #130 집계 (MTTR 기록)
+                                    incident.getSourceService(), incident.getSeverity(), incident.getMttrSeconds());
                         },
                         () -> log.warn("[AIOps] 해소 알림이지만 매칭되는 진행중 사건 없음: {} / {} / fp={}",
                                 alertName, sourceService, fingerprint)
                 );
     }
 
-    /**
-     * 진행 중(active) 사건 조회: fingerprint 가 있으면 그것으로, 없으면 alert_name+job 폴백.
-     */
     private Optional<IncidentAlertHistory> findActiveIncident(String fingerprint,
                                                               String alertName, String sourceService) {
         if (StringUtils.hasText(fingerprint)) {
