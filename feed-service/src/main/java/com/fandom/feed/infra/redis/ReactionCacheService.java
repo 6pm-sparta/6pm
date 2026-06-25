@@ -6,6 +6,7 @@ import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,9 @@ import java.util.UUID;
 public class ReactionCacheService {
     private final LikeRepository likeRepository;
     private final RedisTemplate<String, String> redisTemplate;
+
+    @Value("${cache.ttl.comment-count}")
+    private long commentCountTtl;
 
     /**
      * 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드<br>
