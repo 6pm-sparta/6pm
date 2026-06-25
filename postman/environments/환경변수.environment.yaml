@@ -40,6 +40,12 @@ values:
     value: '1'
   - key: seatId
     value: ''
+  - key: soldOutSeatId
+    value: ''
+  - key: queueRank
+    value: ''
+  - key: queueIsReady
+    value: ''
   - key: orderId
     value: ''
   - key: paymentId
