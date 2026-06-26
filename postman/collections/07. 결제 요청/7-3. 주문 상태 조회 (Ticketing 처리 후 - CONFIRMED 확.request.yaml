@@ -1,6 +1,6 @@
 $kind: http-request
 name: 7-3. 주문 상태 조회 (Ticketing 처리 후 - CONFIRMED 확인)
-url: "{{BASE_URL}}/api/v1/orders/{{ORDER_ID}}"
+url: "{{BASE_URL}}/api/v1/orders/{{orderId}}"
 method: GET
 headers:
   Authorization: Bearer {{MEMBER_A_TOKEN}}
