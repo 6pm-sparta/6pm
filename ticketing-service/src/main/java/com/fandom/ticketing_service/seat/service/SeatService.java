@@ -3,6 +3,7 @@ package com.fandom.ticketing_service.seat.service;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.client.OrderClient;
+import com.fandom.ticketing_service.queue.service.PurchaseTokenService;
 import com.fandom.ticketing_service.order.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.domain.ShowSeat;
 import com.fandom.ticketing_service.domain.ShowSeatRepository;
@@ -77,6 +78,7 @@ public class SeatService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ShowSeatRepository showSeatRepository;
     private final OrderClient orderClient;
+    private final PurchaseTokenService purchaseTokenService;
 
     public List<ShowSeatResponse> getSeats(Long showId) {
         List<ShowSeat> seats = showSeatRepository.findAllByShowId(showId);
@@ -99,6 +101,10 @@ public class SeatService {
     public HoldResponse hold(UUID showSeatId, UUID userId) {
         ShowSeat seat = showSeatRepository.findById(showSeatId)
                 .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
+
+        if (!purchaseTokenService.exists(seat.getShowId(), userId)) {
+            throw new CustomException(TicketingErrorCode.PURCHASE_TOKEN_NOT_FOUND);
+        }
 
         String seatKey = SEAT_KEY.formatted(seat.getShowId(), showSeatId);
         String ownerKey = OWNER_KEY.formatted(seat.getShowId(), showSeatId);

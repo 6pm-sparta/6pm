@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/feeds/posts"
+method: POST
+headers:
+  Authorization: Bearer {{creatorC_token}}
+body:
+  type: json
+  content: '{"content": "오늘 첫 게시글입니다!", "imageKeys": []}'
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200 or 201", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); }); pm.collectionVariables.set("postId", pm.response.json().data.postId);
+    language: text/javascript
+order: 1000

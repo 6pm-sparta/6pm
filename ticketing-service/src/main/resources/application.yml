@@ -27,6 +27,17 @@ spring:
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
 
+# kafka 직렬화 문제 해결을 위한 임시 설정 추후 팀 컨벤션에 맞추어 수정 예정
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: ticketing-service
+
 logging:
   file:
     name: ./logs/ticketing-service.log

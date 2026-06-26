@@ -1,0 +1,7 @@
+$kind: collection
+description: |-
+  A가 C를 팔로우 → C가 게시글 작성 → A에게 알림이 가는지 확인
+
+  1. 알림 조회/읽음/삭제 확인
+variables:
+  postId: ""

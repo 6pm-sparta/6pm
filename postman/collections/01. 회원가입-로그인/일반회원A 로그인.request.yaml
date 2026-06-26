@@ -1,0 +1,18 @@
+$kind: http-request
+name: 일반회원A 로그인
+url: "{{baseUrl}}/api/v1/auth/login"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"email\": \"{{userA_email}}\",\r
+
+    \    \"password\": \"{{userA_password}}\"\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); const data = pm.response.json().data; pm.environment.set("userA_token", data.accessToken); pm.environment.set("userA_refresh", data.refreshToken);
+    language: text/javascript
+order: 4000
