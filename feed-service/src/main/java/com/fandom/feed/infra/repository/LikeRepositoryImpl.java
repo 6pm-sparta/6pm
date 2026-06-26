@@ -9,7 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Repository
 public class LikeRepositoryImpl extends BaseRepositoryImpl<Like, UUID, JpaLikeRepository> implements LikeRepository {
@@ -45,5 +47,15 @@ public class LikeRepositoryImpl extends BaseRepositoryImpl<Like, UUID, JpaLikeRe
     @Override
     public void deleteAllByPostId(UUID postId) {
         jpaRepository.deleteAllByPostId(postId);
+    }
+
+    @Override
+    public Map<UUID, List<UUID>> findLikeUsersByPostIds(List<UUID> postIds) {
+        return jpaRepository.findLikeUsersByPostIds(postIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        row -> (UUID) row[0],
+                        Collectors.mapping(row -> (UUID) row[1], Collectors.toList())
+                ));
     }
 }

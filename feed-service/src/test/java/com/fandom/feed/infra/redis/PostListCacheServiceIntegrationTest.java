@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -26,6 +27,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Testcontainers
+@TestPropertySource(properties = "cache.ttl.post-list=300")
 @ExtendWith(SpringExtension.class)
 @Import({PostListCacheService.class, RedisConfig.class, RedisAutoConfiguration.class})
 class PostListCacheServiceIntegrationTest {

@@ -1,0 +1,11 @@
+$kind: http-request
+name: "주문상태 COMPENSATING 확인 (5번: Kafka UI에서 ticketing.seat.book.failed 수동 produce 후 실행)"
+url: "{{baseUrl}}/api/v1/orders/{{orderId}}"
+method: GET
+headers:
+  Authorization: Bearer {{userA_token}}
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); pm.test("주문 상태는 COMPENSATING 또는 이미 전이된 REFUND_REQUESTED/REFUNDED", function () { pm.expect(["COMPENSATING","REFUND_REQUESTED","REFUNDED"]).to.include(pm.response.json().data.status); });
+    language: text/javascript
+order: 5000

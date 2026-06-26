@@ -1,0 +1,17 @@
+$kind: collection
+description: |-
+  새 좌석으로 선점 → 결제 → PAID 상태 주문 준비, 이번엔 Ticketing 좌석 확정 실패 상황을 수동으로 재현(A가 예매 중이라고 가정)
+
+  1. Kafka UI에서 `ticketing.seat.book.failed` 이벤트 수동 produce
+      
+  2. DB에서 주문 상태 COMPENSATING 전이 확인
+      
+  3. 1.5초 대기 — MockPG 환불 웹훅 자동 수신
+      
+  4. DB에서 주문 상태 REFUNDED 확인
+      
+  5. \[수동\] DB `order_status_histories`에서 전체 보상 이력 확인 (`PAID → COMPENSATING → REFUND_REQUESTED → REFUNDED`)
+      
+  6. \[수동\] Kafka UI에서 `order.payment.cancelled` 확인 (좌석 반환)
+      
+  7. \[수동\] Kafka UI에서 `notification.send` (ORDER_CANCELED) 확인

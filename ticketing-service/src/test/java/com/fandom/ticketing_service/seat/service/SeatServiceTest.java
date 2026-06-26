@@ -5,6 +5,7 @@ import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.client.OrderClient;
 import com.fandom.ticketing_service.order.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.order.dto.CreateOrderResponse;
+import com.fandom.ticketing_service.queue.service.PurchaseTokenService;
 import com.fandom.ticketing_service.domain.ShowSeat;
 import com.fandom.ticketing_service.domain.ShowSeatRepository;
 import com.fandom.ticketing_service.seat.dto.HoldResponse;
@@ -46,6 +47,9 @@ class SeatServiceTest {
 
     @Mock
     private OrderClient orderClient;
+
+    @Mock
+    private PurchaseTokenService purchaseTokenService;
 
     @InjectMocks
     private SeatService seatService;
@@ -118,6 +122,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
             given(orderClient.create(any(CreateOrderRequest.class))).willReturn(new CreateOrderResponse(orderId));
 
@@ -142,6 +147,23 @@ class SeatServiceTest {
         }
 
         @Test
+        @DisplayName("구매 토큰이 없으면 PURCHASE_TOKEN_NOT_FOUND 예외가 발생한다")
+        void hold_noPurchaseToken() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(anyLong(), any())).willReturn(false);
+
+            // when & then
+            assertThatThrownBy(() -> seatService.hold(seatId, UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.PURCHASE_TOKEN_NOT_FOUND);
+        }
+
+        @Test
         @DisplayName("이미 선점된 좌석이면 SEAT_ALREADY_HELD 예외가 발생한다")
         void hold_alreadyHeld() {
             // given
@@ -149,6 +171,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(0L);
 
             // when & then
@@ -166,6 +189,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-1L);
 
             // when & then
@@ -183,6 +207,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-2L);
 
             // when & then
@@ -201,6 +226,7 @@ class SeatServiceTest {
             ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
             given(orderClient.create(any())).willThrow(new RuntimeException("order-service 연결 실패"));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);

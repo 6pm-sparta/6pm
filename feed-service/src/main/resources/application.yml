@@ -67,6 +67,13 @@ cloud:
       bucket: ${AWS_S3_BUCKET}
       base-url: https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/
 
+cache:
+  ttl:
+    default: 600  # 10분
+    post-detail: 3600  # 60분
+    post-list: 300  # 5분
+    comment-count: 300  # 5분
+
 scheduler:
   like-sync:
-    fixed-delay: 300000  # 5분
+    fixed-delay: 300  # 5분

@@ -23,7 +23,7 @@ public class LikeSyncScheduler {
     private final LikeRepository likeRepository;
     private final RedisTemplate<String, String> redisTemplate;
 
-    @Scheduled(fixedDelayString = "${scheduler.like-sync.fixed-delay}")
+    @Scheduled(fixedDelayString = "#{${scheduler.like-sync.fixed-delay} * 1000}")
     public void syncLikes() {
         Map<UUID, Set<UUID>> dbLikes = likeRepository.findAll()
                 .stream()

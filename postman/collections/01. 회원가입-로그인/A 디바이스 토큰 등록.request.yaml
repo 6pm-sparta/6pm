@@ -1,0 +1,13 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/notifications/tokens"
+method: POST
+headers:
+  Authorization: Bearer {{userA_token}}
+body:
+  type: json
+  content: '{"deviceToken": "device-token-userA-12345", "deviceType": "WEB"}'
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200 or 201", function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); }); pm.collectionVariables.set("deviceTokenId", pm.response.json().data.id);
+    language: text/javascript
+order: 7000

@@ -167,6 +167,12 @@ services:
     profiles: ["apps", "all"]
     container_name: 6pm-ticketing
     ports: ["8083:8083"]
+    environment:
+      # 대기열 스케줄러 주기(ms). 기본 60000(운영값). 로컬 .env에 QUEUE_SCHEDULER_DELAY=2000 등을 넣으면
+      # Postman 테스트 시 대기열 진입 후 빠르게 isReady=true로 전환되어 대기 시간을 줄일 수 있다.
+      # env에 QUEUE_SCHEDULER_DELAY=2000 넣어야 작동
+      # 시연용 임시 설정이므로 추후 제거
+      - QUEUE_SCHEDULER_DELAY=${QUEUE_SCHEDULER_DELAY:-60000}
 
   order-service:
     build:
