@@ -1,5 +1,6 @@
 $kind: http-request
-url: "{{BASE_URL}}/api/v1/payments"
+name: 7-5. [멱등성] 동일 Idempotency-Key 재요청 → 200
+url: "{{b}}/api/v1/payments"
 method: POST
 headers:
   Content-Type: application/json

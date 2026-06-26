@@ -1,5 +1,6 @@
 $kind: http-request
-url: "{{BASE_URL}}/api/v1/payments"
+name: 7-1. 결제 요청 (Idempotency-Key 고정 후 메모해둘 것)
+url: "{{B}}/api/v1/payments"
 method: POST
 headers:
   Content-Type: application/json

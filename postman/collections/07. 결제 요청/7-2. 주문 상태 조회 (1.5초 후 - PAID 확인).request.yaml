@@ -1,6 +1,6 @@
 $kind: http-request
 name: 7-2. 주문 상태 조회 (1.5초 후 - PAID 확인)
-url: "{{BASE_URL}}/api/v1/orders/{{orderId}}"
+url: "{{baseUrl}}/api/v1/orders/{{orderId}}"
 method: GET
 headers:
   Authorization: Bearer {{MEMBER_A_TOKEN}}

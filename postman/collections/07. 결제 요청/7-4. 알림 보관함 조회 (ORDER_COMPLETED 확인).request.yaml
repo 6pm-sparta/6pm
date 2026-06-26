@@ -1,5 +1,6 @@
 $kind: http-request
-url: "{{BASE_URL}}/api/v1/notifications"
+name: 7-4. 알림 보관함 조회 (ORDER_COMPLETED 확인)
+url: "{{b}}/api/v1/notifications"
 method: GET
 headers:
   Authorization: Bearer {{MEMBER_A_TOKEN}}
