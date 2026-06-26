@@ -93,7 +93,7 @@ public class ImageService {
      * 게시글 ID로 이미지 목록을 삭제하는 메서드
      */
     public void deleteAllByPostId(UUID postId) {
-        imageRepository.deleteAllByPostId(postId);
+        deleteAllByPostIds(List.of(postId));
     }
 
     /**

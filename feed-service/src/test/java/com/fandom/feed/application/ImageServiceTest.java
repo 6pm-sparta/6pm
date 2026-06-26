@@ -178,7 +178,7 @@ class ImageServiceTest {
 
             // then
             assertThat(result).containsExactly("key1", "key2");
-            verify(imageRepository, never()).deleteAllByPostId(any());
+            verify(imageRepository, never()).deleteAllByPostIdIn(any());
             verify(imageRepository, never()).saveAll(any());
             verifyNoInteractions(applicationEventPublisher);
         }
@@ -201,7 +201,7 @@ class ImageServiceTest {
 
             // then
             assertThat(result).containsExactly("key2", "key3");
-            verify(imageRepository).deleteAllByPostId(postId);
+            verify(imageRepository).deleteAllByPostIdIn(List.of(postId));
             verify(imageRepository).saveAll(any());
             verify(applicationEventPublisher).publishEvent(new Event.S3ImageDelete(List.of("key1")));
         }
@@ -222,7 +222,7 @@ class ImageServiceTest {
 
             // then
             assertThat(result).isEmpty();
-            verify(imageRepository).deleteAllByPostId(postId);
+            verify(imageRepository).deleteAllByPostIdIn(List.of(postId));
             verify(imageRepository, never()).saveAll(any());
             verify(applicationEventPublisher).publishEvent(new Event.S3ImageDelete(List.of("key1")));
         }
@@ -241,7 +241,7 @@ class ImageServiceTest {
 
             // then
             assertThat(result).containsExactly("key1", "key2");
-            verify(imageRepository).deleteAllByPostId(postId);
+            verify(imageRepository).deleteAllByPostIdIn(List.of(postId));
             verify(imageRepository).saveAll(any());
             verifyNoInteractions(applicationEventPublisher);
         }
