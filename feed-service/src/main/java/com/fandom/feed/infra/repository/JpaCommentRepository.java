@@ -7,7 +7,6 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,12 +50,6 @@ public interface JpaCommentRepository extends JpaRepository<Comment, UUID> {
     List<Comment> findOldestByAuthorId(@Param("cursor") UUID cursor,
                                        @Param("authorId") UUID authorId,
                                        Pageable pageable);
-
-    @Modifying
-    @Query("UPDATE Comment c SET c.deletedBy = :userId, c.deletedAt = :deletedAt WHERE c.postId = :postId")
-    void softDeleteAllByPostId(@Param("postId") UUID postId,
-                               @Param("userId") UUID userId,
-                               @Param("deletedAt") LocalDateTime deletedAt);
 
     @Modifying
     @Query("UPDATE Comment c SET c.authorId = null WHERE c.authorId = :authorId")

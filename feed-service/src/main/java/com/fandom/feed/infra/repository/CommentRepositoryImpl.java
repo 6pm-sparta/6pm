@@ -8,7 +8,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,11 +38,6 @@ public class CommentRepositoryImpl extends BaseRepositoryImpl<Comment, UUID, Jpa
     @Override
     public void anonymizeByAuthorId(UUID authorId) {
         jpaRepository.anonymizeByAuthorId(authorId);
-    }
-
-    @Override
-    public void softDeleteAllByPostId(UUID postId, UUID userId) {
-        jpaRepository.softDeleteAllByPostId(postId, userId, LocalDateTime.now());
     }
 
     @Override

@@ -7,6 +7,5 @@ public class Event {
     public record S3ImageDelete(List<String> imageKeys) {}
     public record CommentCreated(UUID postId) {}
     public record CommentDeleted(UUID postId) {}
-    public record CommentAllDeleted(UUID postId) {}
-    public record CommentAllDeletedBatch(List<UUID> postIds) {}
+    public record CommentAllDeleted(List<UUID> postIds) {}
 }

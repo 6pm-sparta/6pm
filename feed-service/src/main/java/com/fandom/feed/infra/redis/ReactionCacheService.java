@@ -43,7 +43,7 @@ public class ReactionCacheService {
     }
 
     /**
-     * 게시글 ID 목록으로 캐시에서 게시글 리액션 정보를 배치 조회하는 메서드
+     * 게시글 ID 목록으로 캐시에서 게시글 리액션 정보를 조회하는 메서드
      */
     public List<ReactionInfoCache> getReactionInfoBatch(List<UUID> postIds, UUID userId, boolean isLiked) {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
@@ -191,13 +191,6 @@ public class ReactionCacheService {
     }
 
     /**
-     * 게시글 ID로 캐시에서 좋아요 Set을 삭제하는 메서드
-     */
-    public void deleteLikeSet(UUID postId) {
-        redisTemplate.delete(RedisKeyPrefix.LIKE_SET + postId);
-    }
-
-    /**
      * 게시글 ID 목록으로 캐시에서 좋아요 Set을 삭제하는 메서드
      */
     public void deleteLikeSetBatch(List<UUID> postIds) {
@@ -218,7 +211,7 @@ public class ReactionCacheService {
     }
 
     /**
-     * DB에서 댓글 수와 좋아요 사용자를 배치 조회한 뒤, 캐시에 저장하는 메서드
+     * DB에서 댓글 수와 좋아요 사용자를 조회한 뒤, 캐시에 저장하는 메서드
      */
     private Map<UUID, long[]> fetchFromDbAndCache(List<UUID> missedIds) {
         Map<UUID, Long> commentCounts = postReader.findAllByIds(missedIds)

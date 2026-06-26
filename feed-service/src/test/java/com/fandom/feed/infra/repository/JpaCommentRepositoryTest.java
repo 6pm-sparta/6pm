@@ -204,12 +204,11 @@ class JpaCommentRepositoryTest {
     }
 
     @Test
-    @DisplayName("postId에 해당하는 댓글 전체 삭제")
-    void softDeleteAllByPostId() {
+    @DisplayName("postId 목록에 해당하는 댓글 전체 삭제")
+    void softDeleteAllByPostIds() {
         // given
         UUID postId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        LocalDateTime deletedAt = LocalDateTime.now();
 
         Comment c1 = Comment.builder().postId(postId).content("댓글1").build();
         Comment c2 = Comment.builder().postId(postId).content("댓글2").build();
@@ -217,7 +216,7 @@ class JpaCommentRepositoryTest {
         jpaCommentRepository.saveAll(List.of(c1, c2, other));
 
         // when
-        jpaCommentRepository.softDeleteAllByPostId(postId, userId, deletedAt);
+        jpaCommentRepository.softDeleteAllByPostIds(List.of(postId), userId);
 
         // then
         List<Comment> result = jpaCommentRepository.findAll();
@@ -225,7 +224,7 @@ class JpaCommentRepositoryTest {
         assertThat(result).filteredOn(c -> c.getPostId().equals(postId))
                 .allSatisfy(c -> {
                     assertThat(c.getDeletedBy()).isEqualTo(userId);
-                    assertThat(c.getDeletedAt()).isEqualTo(deletedAt);
+                    assertThat(c.getDeletedAt()).isNotNull();
                 });
 
         assertThat(result).filteredOn(c -> !c.getPostId().equals(postId))

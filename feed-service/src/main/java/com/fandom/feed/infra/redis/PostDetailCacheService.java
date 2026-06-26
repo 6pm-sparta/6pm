@@ -49,7 +49,7 @@ public class PostDetailCacheService {
     }
 
     /**
-     * 게시글 ID 목록으로 캐시에서 게시글 상세를 배치 조회하는 메서드<br>
+     * 게시글 ID 목록으로 캐시에서 게시글 상세를 조회하는 메서드<br>
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     public List<PostDetailCache> getPostDetailBatch(List<UUID> postIds) {

@@ -74,8 +74,7 @@ public class LikeService {
      */
     @Transactional
     public void deleteAllByPostId(UUID postId) {
-        likeRepository.deleteAllByPostId(postId);
-        reactionCacheService.deleteLikeSet(postId);
+        deleteAllByPostIds(List.of(postId));
     }
 
     /**

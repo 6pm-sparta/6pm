@@ -143,8 +143,7 @@ public class CommentService {
      */
     @Transactional
     public void deleteAllByPostId(UUID postId, UUID userId) {
-        commentRepository.softDeleteAllByPostId(postId, userId);
-        applicationEventPublisher.publishEvent(new Event.CommentAllDeleted(postId));
+        deleteAllByPostIds(List.of(postId), userId);
     }
 
     /**
@@ -153,6 +152,6 @@ public class CommentService {
     @Transactional
     public void deleteAllByPostIds(List<UUID> postIds, UUID userId) {
         commentRepository.softDeleteAllByPostIds(postIds, userId);
-        applicationEventPublisher.publishEvent(new Event.CommentAllDeletedBatch(postIds));
+        applicationEventPublisher.publishEvent(new Event.CommentAllDeleted(postIds));
     }
 }
