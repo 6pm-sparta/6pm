@@ -5,7 +5,7 @@ import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.LikeErrorCode;
 import com.fandom.feed.domain.repository.LikeRepository;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;

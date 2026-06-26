@@ -6,7 +6,7 @@ import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.PostCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;

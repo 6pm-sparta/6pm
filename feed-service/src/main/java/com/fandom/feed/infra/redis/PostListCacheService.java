@@ -1,7 +1,7 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;

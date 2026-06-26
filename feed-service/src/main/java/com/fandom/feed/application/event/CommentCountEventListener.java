@@ -1,7 +1,7 @@
 package com.fandom.feed.application.event;
 
-import com.fandom.feed.global.constant.RedisKeyPrefix;
-import com.fandom.feed.global.constant.RedisScript;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisScript;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;

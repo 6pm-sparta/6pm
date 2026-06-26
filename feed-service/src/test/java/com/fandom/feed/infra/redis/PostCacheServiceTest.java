@@ -4,7 +4,7 @@ import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.ImageService;
 import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.dto.PostCache;

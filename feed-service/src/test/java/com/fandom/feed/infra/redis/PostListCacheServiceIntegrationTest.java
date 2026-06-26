@@ -1,7 +1,7 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.config.RedisConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;

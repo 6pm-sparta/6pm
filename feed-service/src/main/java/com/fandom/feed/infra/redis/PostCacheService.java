@@ -3,7 +3,7 @@ package com.fandom.feed.infra.redis;
 import com.fandom.feed.application.ImageService;
 import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.util.ImageUrlConverter;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;

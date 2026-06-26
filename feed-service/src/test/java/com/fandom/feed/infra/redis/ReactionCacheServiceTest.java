@@ -4,7 +4,7 @@ import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Like;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.LikeRepository;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

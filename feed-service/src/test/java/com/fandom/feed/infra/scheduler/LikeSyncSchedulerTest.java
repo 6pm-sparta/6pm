@@ -2,7 +2,7 @@ package com.fandom.feed.infra.scheduler;
 
 import com.fandom.feed.domain.entity.Like;
 import com.fandom.feed.domain.repository.LikeRepository;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
