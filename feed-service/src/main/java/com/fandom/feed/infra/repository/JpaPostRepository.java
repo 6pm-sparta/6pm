@@ -31,11 +31,11 @@ public interface JpaPostRepository extends JpaRepository<Post, UUID> {
     """)
     List<Post> findByCursorForWarm(@Param("authorId") UUID authorId, Pageable pageable);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Post p SET p.commentCount = p.commentCount + 1 WHERE p.id = :postId")
     void incrementCommentCount(@Param("postId") UUID postId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Post p SET p.commentCount = GREATEST(p.commentCount - 1, 0) WHERE p.id = :postId")
     void decrementCommentCount(@Param("postId") UUID postId);
 
