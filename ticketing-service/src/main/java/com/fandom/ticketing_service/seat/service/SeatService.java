@@ -111,6 +111,8 @@ public class SeatService {
         String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
         String countKey = PURCHASE_COUNT_KEY.formatted(userId, seat.getShowId());
 
+        ensureInventoryInitialized(seat.getShowId(), inventoryKey);
+
         Long result = redisTemplate.execute(HOLD_SCRIPT,
                 List.of(seatKey, inventoryKey, countKey, ownerKey),
                 String.valueOf(MAX_PER_USER), userId.toString(), OWNER_STATUS_PENDING);
@@ -124,9 +126,9 @@ public class SeatService {
         }
 
         try {
-            // TODO: holdId는 order-service의 1차 멱등성 방어(Redis) 키로 쓰이는데, 현재는 호출마다
-            // 새로 발급해 재시도 시 중복 차단 효과가 없다. 좌석 선점 시점에 안정적인 holdId를 발급/전달하는
-            // 흐름을 별도로 설계해야 한다. (2차 방어인 seatId UNIQUE 인덱스로는 정합성 자체는 보장됨)
+            // holdId는 order-service의 1차 멱등성 방어(Redis 클레임) 키. 이 호출 단위로만 유효하면 되므로
+            // 매 hold() 시도마다 새로 발급한다. (Feign 재시도가 없고, 위 SETNX로 동시 중복 호출 자체가
+            // 막히므로 같은 좌석에 holdId가 두 번 쓰일 일이 없다 — 정합성은 order-service의 seatId UNIQUE로도 보장)
             var request = new CreateOrderRequest(UUID.randomUUID(), showSeatId, userId, (long) seat.getPrice());
             var order = orderClient.create(request).getData();
             seat.assignOrder(order.orderId());
@@ -167,6 +169,18 @@ public class SeatService {
 
         seat.releaseOrder();
         log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
+    }
+
+    // inventory 키는 쇼/좌석 생성 시점에 초기화되는 곳이 없어서, hold 시점에 없으면 DB 기준으로 lazy 초기화한다.
+    // SETNX라서 동시 요청이 몰려도 한 번만 세팅된다.
+    private void ensureInventoryInitialized(Long showId, String inventoryKey) {
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(inventoryKey))) {
+            return;
+        }
+        long availableCount = showSeatRepository.findAllByShowId(showId).stream()
+                .filter(seat -> seat.getOrderId() == null)
+                .count();
+        redisTemplate.opsForValue().setIfAbsent(inventoryKey, String.valueOf(availableCount));
     }
 
     public PurchaseLimitResponse getPurchaseLimit(Long showId, UUID userId) {
