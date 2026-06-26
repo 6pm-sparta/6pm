@@ -174,6 +174,13 @@ public class ReactionCacheService {
     }
 
     /**
+     * 게시글 ID로 캐시에서 좋아요 Set을 삭제하는 메서드
+     */
+    public void deleteLikeSet(UUID postId) {
+        redisTemplate.delete(RedisKeyPrefix.LIKE_SET + postId);
+    }
+
+    /**
      * 캐시에서 좋아요 상태를 조회하는 메서드
      */
     private boolean isLiked(UUID id, UUID userId) {

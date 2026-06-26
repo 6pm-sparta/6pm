@@ -24,4 +24,9 @@ public class CommentCountEventListener {
     public void handleCommentDeleted(Event.CommentDeleted event) {
         redisTemplate.execute(RedisScript.DECREMENT_MIN_ZERO, List.of(RedisKeyPrefix.COMMENT_COUNT + event.postId()));
     }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleCommentAllDeleted(Event.CommentAllDeleted event) {
+        redisTemplate.delete(RedisKeyPrefix.COMMENT_COUNT + event.postId());
+    }
 }

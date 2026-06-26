@@ -130,8 +130,12 @@ public class CommentService {
         return CursorPageResponse.of(content, nextCursor, hasMore);
     }
 
+    /**
+     * 게시글 ID로 모든 댓글을 삭제하는 메서드
+     */
     @Transactional
     public void deleteAllByPostId(UUID postId, UUID userId) {
         commentRepository.softDeleteAllByPostId(postId, userId);
+        applicationEventPublisher.publishEvent(new Event.CommentAllDeleted(postId));
     }
 }
