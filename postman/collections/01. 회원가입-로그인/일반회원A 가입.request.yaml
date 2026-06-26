@@ -1,4 +1,5 @@
 $kind: http-request
+name: 일반회원A 가입
 url: "{{baseUrl}}/api/v1/members"
 method: POST
 body:
@@ -20,6 +21,6 @@ body:
     }"
 scripts:
   - type: afterResponse
-    code: pm.test("Status code is 201", function () { pm.response.to.have.status(201); }); pm.collectionVariables.set("userA_id", pm.response.json().data.userId);
+    code: pm.test("Status code is 201", function () { pm.response.to.have.status(201); }); pm.environment.set("userA_id", pm.response.json().data.userId);
     language: text/javascript
 order: 1000

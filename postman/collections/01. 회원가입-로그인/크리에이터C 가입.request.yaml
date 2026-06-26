@@ -1,4 +1,5 @@
 $kind: http-request
+name: 크리에이터C 가입
 url: "{{baseUrl}}/api/v1/creators"
 method: POST
 body:
@@ -6,6 +7,6 @@ body:
   content: '{"email": "{{creatorC_email}}", "password": "{{creatorC_password}}", "nickname": "creatorC", "agencyName": "6pm기획사", "zipCode": "67890", "address1": "서울시 용산구", "address2": "303호"}'
 scripts:
   - type: afterResponse
-    code: pm.test("Status code is 201", function () { pm.response.to.have.status(201); }); pm.collectionVariables.set("creatorC_id", pm.response.json().data.userId);
+    code: pm.test("Status code is 201", function () { pm.response.to.have.status(201); }); pm.environment.set("creatorC_id", pm.response.json().data.userId);
     language: text/javascript
 order: 3000
