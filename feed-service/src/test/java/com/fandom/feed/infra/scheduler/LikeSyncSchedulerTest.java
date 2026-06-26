@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,6 +35,12 @@ class LikeSyncSchedulerTest {
 
     @InjectMocks
     LikeSyncScheduler scheduler;
+
+    @Test
+    @DisplayName("좋아요 동기화 스케줄러 정상 실행")
+    void schedulerRuns() {
+        assertDoesNotThrow(() -> scheduler.syncLikes());
+    }
 
     @Test
     @DisplayName("Redis에만 있는 좋아요 - DB에 insert")
