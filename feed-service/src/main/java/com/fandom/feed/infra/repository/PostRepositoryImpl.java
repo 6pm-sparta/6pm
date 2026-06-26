@@ -7,7 +7,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -41,7 +40,7 @@ public class PostRepositoryImpl extends BaseRepositoryImpl<Post, UUID, JpaPostRe
 
     @Override
     public void softDeleteAllByAuthorId(UUID authorId) {
-        jpaRepository.softDeleteAllByAuthorId(authorId, LocalDateTime.now());
+        jpaRepository.softDeleteAllByAuthorId(authorId);
     }
 
     @Override
