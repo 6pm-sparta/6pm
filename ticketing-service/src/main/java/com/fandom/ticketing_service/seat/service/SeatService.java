@@ -124,7 +124,11 @@ public class SeatService {
         }
 
         try {
-            var order = orderClient.create(new CreateOrderRequest(userId, seat.getShowId(), showSeatId, seat.getPrice()));
+            // TODO: holdId는 order-service의 1차 멱등성 방어(Redis) 키로 쓰이는데, 현재는 호출마다
+            // 새로 발급해 재시도 시 중복 차단 효과가 없다. 좌석 선점 시점에 안정적인 holdId를 발급/전달하는
+            // 흐름을 별도로 설계해야 한다. (2차 방어인 seatId UNIQUE 인덱스로는 정합성 자체는 보장됨)
+            var request = new CreateOrderRequest(UUID.randomUUID(), showSeatId, userId, (long) seat.getPrice());
+            var order = orderClient.create(request).getData();
             seat.assignOrder(order.orderId());
             showSeatRepository.save(seat);
             redisTemplate.execute(CONFIRM_OWNER_SCRIPT, List.of(ownerKey), userId.toString(), OWNER_STATUS_CONFIRMED);
