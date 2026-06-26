@@ -124,6 +124,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
             given(orderClient.create(any(CreateOrderRequest.class))).willReturn(ApiResponse.created(new CreateOrderResponse(orderId)));
 
@@ -173,6 +174,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(0L);
 
             // when & then
@@ -191,6 +193,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-1L);
 
             // when & then
@@ -209,6 +212,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-2L);
 
             // when & then
