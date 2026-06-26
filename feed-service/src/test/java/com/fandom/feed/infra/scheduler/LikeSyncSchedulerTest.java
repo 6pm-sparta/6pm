@@ -47,7 +47,7 @@ class LikeSyncSchedulerTest {
     }
 
     @Test
-    @DisplayName("Redis에만 있는 좋아요가 DB에 동기화된다")
+    @DisplayName("Redis에만 있는 좋아요가 DB에 동기화")
     void syncLikes() {
         // Given
         UUID postId = UUID.randomUUID();

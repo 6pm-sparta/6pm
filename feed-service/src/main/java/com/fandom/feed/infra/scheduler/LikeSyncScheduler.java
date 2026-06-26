@@ -3,6 +3,7 @@ package com.fandom.feed.infra.scheduler;
 import com.fandom.feed.domain.entity.Like;
 import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.global.constant.RedisKeyPrefix;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
@@ -24,6 +25,7 @@ public class LikeSyncScheduler {
     private final LikeRepository likeRepository;
     private final RedisTemplate<String, String> redisTemplate;
 
+    @Transactional
     @Scheduled(fixedDelayString = "#{${scheduler.like-sync.fixed-delay} * 1000}")
     public void syncLikes() {
         // Redis scan으로 LIKE_SET 키 전체 수집

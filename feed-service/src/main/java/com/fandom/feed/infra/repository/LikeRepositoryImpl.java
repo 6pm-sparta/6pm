@@ -50,11 +50,6 @@ public class LikeRepositoryImpl extends BaseRepositoryImpl<Like, UUID, JpaLikeRe
     }
 
     @Override
-    public List<Like> findAll() {
-        return jpaRepository.findAll();
-    }
-
-    @Override
     public void deleteAllByPostId(UUID postId) {
         jpaRepository.deleteAllByPostId(postId);
     }
