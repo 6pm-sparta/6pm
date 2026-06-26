@@ -20,19 +20,30 @@ public class UserConsumer {
     private final PostService postService;
     private final CommentService commentService;
     private final LikeService likeService;
+    private final ProcessedEventRepository processedEventRepository;
 
     @KafkaListener(topics = KafkaTopic.MEMBER_WITHDRAWN)
     public void handleMemberWithdrawn(@Header(KafkaHeaders.RECEIVED_KEY) String userId) {
+        String eventKey = KafkaTopic.MEMBER_WITHDRAWN + ":" + userId;
+        if (processedEventRepository.existsByEventKey(eventKey)) return;
+
         UUID uuid = UUID.fromString(userId);
         commentService.anonymizeByAuthorId(uuid);
         likeService.deleteAllByUserId(uuid);
+
+        processedEventRepository.save(ProcessedEvent.builder().eventKey(eventKey).build());
     }
 
     @KafkaListener(topics = KafkaTopic.CREATOR_WITHDRAWN)
     public void handleCreatorWithdrawn(@Header(KafkaHeaders.RECEIVED_KEY) String userId) {
+        String eventKey = KafkaTopic.CREATOR_WITHDRAWN + ":" + userId;
+        if (processedEventRepository.existsByEventKey(eventKey)) return;
+
         UUID uuid = UUID.fromString(userId);
         commentService.anonymizeByAuthorId(uuid);
         likeService.deleteAllByUserId(uuid);
         postService.deleteAllByAuthorId(uuid);
+
+        processedEventRepository.save(ProcessedEvent.builder().eventKey(eventKey).build());
     }
 }

@@ -28,6 +28,12 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: feed-service
+    listener:
+      retry:
+        max-attempts: 3
+        backoff:
+          initial-interval: 1000
+          multiplier: 2.0
 
 logging:
   file:
