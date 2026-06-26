@@ -10,4 +10,5 @@ public interface JpaImageRepository extends JpaRepository<Image, UUID> {
     List<Image> findAllByPostIdOrderByOrderIndexAsc(UUID postId);
     List<Image> findAllByPostIdInOrderByOrderIndexAsc(List<UUID> postIds);
     void deleteAllByPostId(UUID postId);
+    void deleteAllByPostIdIn(List<UUID> postIds);
 }

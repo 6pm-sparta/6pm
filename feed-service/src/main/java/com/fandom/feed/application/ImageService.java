@@ -44,6 +44,14 @@ public class ImageService {
     }
 
     /**
+     * 게시글 ID 목록으로 이미지 목록을 조회한 후, 이미지 키를 반환하는 메서드
+     */
+    public List<String> findAllKeysByPostIds(List<UUID> postIds) {
+        return imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)
+                .stream().map(Image::getImageKey).toList();
+    }
+
+    /**
      * Image 객체를 생성한 후, 저장하는 메서드
      */
     public void saveImages(UUID postId, List<String> imageKeys) {
@@ -86,6 +94,13 @@ public class ImageService {
      */
     public void deleteAllByPostId(UUID postId) {
         imageRepository.deleteAllByPostId(postId);
+    }
+
+    /**
+     * 게시글 ID 목록으로 이미지 목록을 삭제하는 메서드
+     */
+    public void deleteAllByPostIds(List<UUID> postIds) {
+        imageRepository.deleteAllByPostIdIn(postIds);
     }
 
     /**

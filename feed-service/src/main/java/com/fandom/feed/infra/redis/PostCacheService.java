@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -30,8 +32,8 @@ public class PostCacheService {
     private final ImageService imageService;
     private final ImageUrlConverter imageUrlConverter;
     private final UserClient userClient;
-
     private final CacheManager cacheManager;
+    private final RedisTemplate<String, String> redisTemplate;
 
     /**
      * 게시글 ID로 캐시에서 게시글 상세를 조회하는 메서드<br>
@@ -47,7 +49,7 @@ public class PostCacheService {
     }
 
     /**
-     * 게시글 ID 목록으로 캐시에서 게시글 상세를 배치 조회하는 메서드
+     * 게시글 ID 목록으로 캐시에서 게시글 상세를 배치 조회하는 메서드<br>
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     public List<PostCache.Detail> getPostDetailBatch(List<UUID> postIds) {
@@ -88,5 +90,17 @@ public class PostCacheService {
         }
 
         return postIds.stream().map(cachedMap::get).toList();
+    }
+
+    /**
+     * 게시글 ID 목록으로 케시에서 케시글 상세를 삭제하는 메서드
+     */
+    public void deleteAll(List<UUID> postIds) {
+        redisTemplate.executePipelined((RedisCallback<?>) connection -> {
+            postIds.forEach(postId ->
+                    connection.keyCommands().del((RedisKeyPrefix.POST_DETAIL + postId).getBytes())
+            );
+            return null;
+        });
     }
 }

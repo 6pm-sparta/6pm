@@ -131,11 +131,28 @@ public class CommentService {
     }
 
     /**
+     * 작성자 ID로 모든 댓글을 익명 처리하는 메서드
+     */
+    @Transactional
+    public void anonymizeByAuthorId(UUID authorId) {
+        commentRepository.anonymizeByAuthorId(authorId);
+    }
+
+    /**
      * 게시글 ID로 모든 댓글을 삭제하는 메서드
      */
     @Transactional
     public void deleteAllByPostId(UUID postId, UUID userId) {
         commentRepository.softDeleteAllByPostId(postId, userId);
         applicationEventPublisher.publishEvent(new Event.CommentAllDeleted(postId));
+    }
+
+    /**
+     * 게시글 ID 목록으로 모든 댓글을 삭제하는 메서드
+     */
+    @Transactional
+    public void deleteAllByPostIds(List<UUID> postIds, UUID userId) {
+        commentRepository.softDeleteAllByPostIds(postIds, userId);
+        applicationEventPublisher.publishEvent(new Event.CommentAllDeletedBatch(postIds));
     }
 }

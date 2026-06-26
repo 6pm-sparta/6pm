@@ -82,7 +82,7 @@ public class PostListCacheService {
     }
 
     /**
-     * 캐시에 게시글 ID를 삭제하는 메서드
+     * 캐시에서 게시글 ID를 삭제하는 메서드
      */
     public void removePost(UUID postId, UUID authorId) {
         String member = postId.toString();
@@ -90,6 +90,20 @@ public class PostListCacheService {
 
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             keys.forEach(key -> connection.zSetCommands().zRem(key.getBytes(), member.getBytes()));
+            return null;
+        });
+    }
+
+    /**
+     * 캐시에서 작성자 ID 게시글 ID를 삭제하는 메서드
+     */
+    public void removeAllByAuthorId(List<UUID> postIds, UUID authorId) {
+        List<String> keys = allKeys(authorId);
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            postIds.forEach(postId -> {
+                byte[] member = postId.toString().getBytes();
+                keys.forEach(key -> connection.zSetCommands().zRem(key.getBytes(), member));
+            });
             return null;
         });
     }

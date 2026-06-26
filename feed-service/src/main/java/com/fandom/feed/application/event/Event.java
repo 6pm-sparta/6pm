@@ -8,4 +8,5 @@ public class Event {
     public record CommentCreated(UUID postId) {}
     public record CommentDeleted(UUID postId) {}
     public record CommentAllDeleted(UUID postId) {}
+    public record CommentAllDeletedBatch(List<UUID> postIds) {}
 }

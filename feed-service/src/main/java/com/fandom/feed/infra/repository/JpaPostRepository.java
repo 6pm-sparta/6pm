@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,4 +38,11 @@ public interface JpaPostRepository extends JpaRepository<Post, UUID> {
     @Modifying
     @Query("UPDATE Post p SET p.commentCount = GREATEST(p.commentCount - 1, 0) WHERE p.id = :postId")
     void decrementCommentCount(@Param("postId") UUID postId);
+
+    @Modifying
+    @Query("UPDATE Post p SET p.deletedBy = :authorId, p.deletedAt = :deletedAt WHERE p.authorId = :authorId")
+    void softDeleteAllByAuthorId(@Param("authorId") UUID authorId, @Param("deletedAt") LocalDateTime deletedAt);
+
+    @Query("SELECT p.id FROM Post p WHERE p.authorId = :authorId")
+    List<UUID> findAllIdsByAuthorId(@Param("authorId") UUID authorId);
 }

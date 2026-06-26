@@ -60,11 +60,30 @@ public class LikeService {
     }
 
     /**
+     * 사용자 ID로 모든 좋아요를 삭제하는 메서드
+     */
+    @Transactional
+    public void deleteAllByUserId(UUID userId) {
+        List<UUID> postIds = likeRepository.findPostIdsByUserId(userId);
+        likeRepository.deleteAllByUserId(userId);
+        reactionCacheService.removeLikeBatch(postIds, userId);
+    }
+
+    /**
      * 게시글 ID로 모든 좋아요를 삭제하는 메서드
      */
     @Transactional
     public void deleteAllByPostId(UUID postId) {
         likeRepository.deleteAllByPostId(postId);
         reactionCacheService.deleteLikeSet(postId);
+    }
+
+    /**
+     * 게시글 ID 목록으로 모든 좋아요를 삭제하는 메서드
+     */
+    @Transactional
+    public void deleteAllByPostIds(List<UUID> postIds) {
+        likeRepository.deleteAllByPostIdIn(postIds);
+        reactionCacheService.deleteLikeSetBatch(postIds);
     }
 }

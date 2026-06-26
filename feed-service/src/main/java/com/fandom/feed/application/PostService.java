@@ -130,16 +130,38 @@ public class PostService {
      * DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드
      */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
-        List<Post> allPosts = postRepository.findByCursorForWarm(authorId);
+        List<Post> posts = postRepository.findByCursorForWarm(authorId);
 
-        allPosts.forEach(post -> postListCacheService.addPostForWarm(post.getId(), authorId));
+        posts.forEach(post -> postListCacheService.addPostForWarm(post.getId(), authorId));
 
         postListCacheService.expireCache(authorId);
 
-        boolean hasMore = allPosts.size() > FeedPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? allPosts.subList(0, FeedPolicy.PAGE_SIZE) : allPosts;
+        boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
         UUID nextCursor = hasMore ? page.getLast().getId() : null;
         return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
+    }
+
+    /**
+     * 작성자 ID로 모든 게시글을 삭제하는 메서드
+     */
+    @Transactional
+    public void deleteAllByAuthorId(UUID authorId) {
+        List<UUID> postIds = postRepository.findAllIdsByAuthorId(authorId);
+
+        if (postIds.isEmpty()) return;
+
+        commentService.deleteAllByPostIds(postIds, authorId);
+        likeService.deleteAllByPostIds(postIds);
+
+        postRepository.softDeleteAllByAuthorId(authorId);
+
+        List<String> imageKeys = imageService.findAllKeysByPostIds(postIds);
+        imageService.deleteAllByPostIds(postIds);
+        imageService.publishS3DeleteEvent(imageKeys);
+
+        postListCacheService.removeAllByAuthorId(postIds, authorId);
+        postCacheService.deleteAll(postIds);
     }
 }

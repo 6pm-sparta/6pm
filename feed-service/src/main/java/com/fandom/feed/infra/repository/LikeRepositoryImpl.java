@@ -30,11 +30,6 @@ public class LikeRepositoryImpl extends BaseRepositoryImpl<Like, UUID, JpaLikeRe
     }
 
     @Override
-    public List<Like> findAllByPostId(UUID postId) {
-        return jpaRepository.findAllByPostId(postId);
-    }
-
-    @Override
     public void deleteByPostIdAndUserId(UUID postId, UUID userId) {
         jpaRepository.deleteByPostIdAndUserId(postId, userId);
     }
@@ -47,11 +42,6 @@ public class LikeRepositoryImpl extends BaseRepositoryImpl<Like, UUID, JpaLikeRe
             case LATEST -> jpaRepository.findLatestByUserId(cursor, userId, pageable);
             case OLDEST -> jpaRepository.findOldestByUserId(cursor, userId, pageable);
         };
-    }
-
-    @Override
-    public void deleteAllByPostId(UUID postId) {
-        jpaRepository.deleteAllByPostId(postId);
     }
 
     @Override
@@ -87,5 +77,30 @@ public class LikeRepositoryImpl extends BaseRepositoryImpl<Like, UUID, JpaLikeRe
                 return likes.size();
             }
         });
+    }
+
+    @Override
+    public List<Like> findAllByPostId(UUID postId) {
+        return jpaRepository.findAllByPostId(postId);
+    }
+
+    @Override
+    public void deleteAllByPostId(UUID postId) {
+        jpaRepository.deleteAllByPostId(postId);
+    }
+
+    @Override
+    public void deleteAllByUserId(UUID userId) {
+        jpaRepository.deleteAllByUserId(userId);
+    }
+
+    @Override
+    public List<UUID> findPostIdsByUserId(UUID userId) {
+        return jpaRepository.findPostIdsByUserId(userId);
+    }
+
+    @Override
+    public void deleteAllByPostIdIn(List<UUID> postIds) {
+        jpaRepository.deleteAllByPostIdIn(postIds);
     }
 }

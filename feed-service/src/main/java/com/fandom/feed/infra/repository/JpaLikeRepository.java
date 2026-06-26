@@ -3,6 +3,7 @@ package com.fandom.feed.infra.repository;
 import com.fandom.feed.domain.entity.Like;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,6 +13,9 @@ import java.util.UUID;
 public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
     List<Like> findAllByPostId(UUID postId);
     void deleteByPostIdAndUserId(UUID postId, UUID userId);
+    void deleteAllByPostId(UUID postId);
+    void deleteAllByUserId(UUID userId);
+    void deleteAllByPostIdIn(List<UUID> postIds);
 
     @Query("""
         SELECT l FROM Like l
@@ -33,8 +37,9 @@ public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
                                   @Param("userId") UUID userId,
                                   Pageable pageable);
 
-    void deleteAllByPostId(UUID postId);
-
     @Query("SELECT l.postId, l.userId FROM Like l WHERE l.postId IN :postIds")
     List<Object[]> findLikeUsersByPostIds(@Param("postIds") List<UUID> postIds);
+
+    @Query("SELECT l.postId FROM Like l WHERE l.userId = :userId")
+    List<UUID> findPostIdsByUserId(@Param("userId") UUID userId);
 }

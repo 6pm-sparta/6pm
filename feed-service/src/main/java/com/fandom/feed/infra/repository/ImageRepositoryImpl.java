@@ -27,4 +27,9 @@ public class ImageRepositoryImpl extends BaseRepositoryImpl<Image, UUID, JpaImag
     public void deleteAllByPostId(UUID postId) {
         jpaRepository.deleteAllByPostId(postId);
     }
+
+    @Override
+    public void deleteAllByPostIdIn(List<UUID> postIds) {
+        jpaRepository.deleteAllByPostIdIn(postIds);
+    }
 }
