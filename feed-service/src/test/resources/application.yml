@@ -42,4 +42,4 @@ cache:
 
 scheduler:
   like-sync:
-    fixed-delay: 300  # 5분
+    fixed-delay: 5  # 5초
