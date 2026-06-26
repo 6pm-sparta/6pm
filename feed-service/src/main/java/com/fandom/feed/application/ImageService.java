@@ -3,7 +3,7 @@ package com.fandom.feed.application;
 import com.fandom.feed.application.event.Event;
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.repository.ImageRepository;
-import com.fandom.feed.infra.util.ImageUrlConverter;
+import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;

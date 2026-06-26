@@ -8,7 +8,7 @@ import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.dto.PostCache;
-import com.fandom.feed.infra.util.ImageUrlConverter;
+import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
