@@ -163,20 +163,20 @@ class PaymentControllerTest {
                 .andExpect(status().isBadGateway());
     }
 
-//    @Test
-//    @DisplayName("Idempotency-Key 헤더가 없으면 400을 반환한다")
-//    void requestPayment_missingIdempotencyKey_returns400() throws Exception {
-//        // given
-//        UUID userId = UUID.randomUUID();
-//        UUID orderId = UUID.randomUUID();
-//
-//        // when & then
-//        mockMvc.perform(post("/api/v1/payments")
-//                        .contentType("application/json")
-//                        .content(body(orderId))
-//                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
-//                .andExpect(status().isBadRequest());
-//    }
+    @Test
+    @DisplayName("Idempotency-Key 헤더가 없으면 400을 반환한다")
+    void requestPayment_missingIdempotencyKey_returns400() throws Exception {
+        // given
+        UUID userId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+
+        // when & then
+        mockMvc.perform(post("/api/v1/payments")
+                        .contentType("application/json")
+                        .content(body(orderId))
+                        .requestAttr(IdCardVerificationFilter.ID_CARD_ATTRIBUTE, UserIdCard.of(userId, "MEMBER")))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     @DisplayName("인증 정보(userIdCard attribute)가 없으면 401을 반환한다")

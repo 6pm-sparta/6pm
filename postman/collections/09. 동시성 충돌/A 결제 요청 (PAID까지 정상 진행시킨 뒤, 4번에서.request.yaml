@@ -1,0 +1,15 @@
+$kind: http-request
+name: A 결제 요청 (PAID까지 정상 진행시킨 뒤, 4번에서 Ticketing 확정 실패를 수동 재현)
+url: "{{orderServiceUrl}}/api/v1/payments"
+method: POST
+headers:
+  Authorization: Bearer {{userA_token}}
+  Idempotency-Key: "{{$randomUUID}}"
+body:
+  type: json
+  content: '{"orderId": "{{orderId}}", "paymentMethod": "CARD"}'
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 201", function () { pm.response.to.have.status(201); }); pm.collectionVariables.set("paymentId", pm.response.json().data.paymentId);
+    language: text/javascript
+order: 3000

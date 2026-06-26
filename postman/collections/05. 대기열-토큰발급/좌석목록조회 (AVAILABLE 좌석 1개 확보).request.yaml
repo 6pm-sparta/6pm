@@ -1,0 +1,43 @@
+$kind: http-request
+name: 좌석목록조회 (AVAILABLE 좌석 1개 확보)
+url: "{{baseUrl}}/api/v1/tickets/shows/{{showId}}/seats"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Status code is 200\", function () {\r
+
+      \    pm.response.to.have.status(200);\r
+
+      });\r
+
+      \r
+
+      const seats = pm.response.json().data;\r
+
+      const available = seats.find(s => s.status === \"AVAILABLE\");\r
+
+      \r
+
+      if (available) {\r
+
+      \    pm.environment.set(\"seatId\", available.seatId);\r
+
+      } else {\r
+
+      \    pm.environment.set(\"seatId\", pm.environment.get(\"soldOutSeatId\"));\r
+
+      }\r
+
+      \r
+
+      pm.test(\"Seat is available\", function () {\r
+
+      \    pm.expect(available).to.not.be.undefined;\r
+
+      });"
+    language: text/javascript
+order: 3000

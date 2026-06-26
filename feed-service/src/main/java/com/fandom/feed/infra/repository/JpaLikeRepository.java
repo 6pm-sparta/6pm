@@ -34,4 +34,7 @@ public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
                                   Pageable pageable);
 
     void deleteAllByPostId(UUID postId);
+
+    @Query("SELECT l.postId, l.userId FROM Like l WHERE l.postId IN :postIds")
+    List<Object[]> findLikeUsersByPostIds(@Param("postIds") List<UUID> postIds);
 }

@@ -12,12 +12,15 @@ import com.fandom.user_service.profile.domain.exception.ProfileErrorCode;
 import com.fandom.user_service.profile.domain.repository.ProfileRepository;
 import com.fandom.user_service.profile.presentation.dto.request.CreatorProfileUpdateRequest;
 import com.fandom.user_service.profile.presentation.dto.request.MemberProfileUpdateRequest;
+import com.fandom.user_service.member.presentation.dto.response.InternalUserResponse;
 import com.fandom.user_service.profile.presentation.dto.response.CreatorProfileResponse;
 import com.fandom.user_service.profile.presentation.dto.response.MemberProfileResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -39,6 +42,30 @@ public class ProfileService {
                         .nickname(nickname)
                         .build()
         );
+    }
+
+    /**
+     * 내부 사용자 단건 조회. (feed-service 등 서비스 간 통신 전용)
+     * 탈퇴(soft-delete)한 회원은 조회되지 않으며, 없으면 404를 던진다.
+     */
+    public InternalUserResponse getUserForInternal(UUID userId) {
+        Profile profile = profileRepository.findByUserId(userId)
+                .filter(p -> !p.getUser().isWithdrawn())
+                .orElseThrow(() -> new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND));
+
+        return InternalUserResponse.from(profile);
+    }
+
+    /**
+     * 내부 사용자 배치 조회. (feed-service 등 서비스 간 통신 전용)
+     * 살아있는 회원만 반환하며, 없거나 탈퇴한 userId는 결과에서 제외한다.
+     * (호출 측이 누락분을 "탈퇴한 사용자" 등으로 보완한다)
+     */
+    public List<InternalUserResponse> getUsersForInternal(Set<UUID> userIds) {
+        return profileRepository.findAllByUserIdIn(userIds).stream()
+                .filter(p -> !p.getUser().isWithdrawn())
+                .map(InternalUserResponse::from)
+                .toList();
     }
 
     public MemberProfileResponse getMemberProfile(UUID userId) {

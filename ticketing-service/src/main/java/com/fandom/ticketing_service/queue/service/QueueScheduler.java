@@ -24,7 +24,8 @@ public class QueueScheduler {
     private final PurchaseTokenService purchaseTokenService;
 
     // 대기열이 실제로 존재하는 공연만 처리 대상으로 삼는다 (대기열 키는 enter() 시점에 생성되고, 비워지면 자동으로 사라짐)
-    @Scheduled(fixedDelay = 60_000)
+    // 기본 주기는 60초. Postman 등 빠른 테스트가 필요하면 환경변수 QUEUE_SCHEDULER_DELAY(ms)로 오버라이드 (예: QUEUE_SCHEDULER_DELAY=2000)
+    @Scheduled(fixedDelayString = "${queue.scheduler.delay:60000}")
     public void processQueue() {
         for (Long showId : findActiveShowIds()) {
             processShowQueue(showId);
