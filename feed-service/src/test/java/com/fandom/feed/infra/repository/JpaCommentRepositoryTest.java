@@ -204,6 +204,33 @@ class JpaCommentRepositoryTest {
     }
 
     @Test
+    @DisplayName("authorId로 댓글 익명 처리")
+    void anonymizeByAuthorId() {
+        // given
+        UUID authorId = UUID.randomUUID();
+        UUID postId = UUID.randomUUID();
+        List<Comment> comments = List.of(
+                Comment.builder().authorId(authorId).postId(postId).content("내용1").build(),
+                Comment.builder().authorId(authorId).postId(postId).content("내용2").build(),
+                Comment.builder().authorId(UUID.randomUUID()).postId(postId).content("다른 작성자").build()
+        );
+        jpaCommentRepository.saveAll(comments);
+
+        // when
+        jpaCommentRepository.anonymizeByAuthorId(authorId);
+        jpaCommentRepository.flush();
+
+        // then
+        List<Comment> anonymized = jpaCommentRepository.findAllById(
+                comments.subList(0, 2).stream().map(Comment::getId).toList()
+        );
+        assertThat(anonymized).allSatisfy(comment -> assertThat(comment.getAuthorId()).isNull());
+
+        Comment other = jpaCommentRepository.findById(comments.get(2).getId()).orElseThrow();
+        assertThat(other.getAuthorId()).isNotNull();
+    }
+
+    @Test
     @DisplayName("postId 목록에 해당하는 댓글 전체 삭제")
     void softDeleteAllByPostIds() {
         // given

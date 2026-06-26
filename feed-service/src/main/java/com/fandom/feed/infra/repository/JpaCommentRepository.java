@@ -51,7 +51,7 @@ public interface JpaCommentRepository extends JpaRepository<Comment, UUID> {
                                        @Param("authorId") UUID authorId,
                                        Pageable pageable);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Comment c SET c.authorId = null WHERE c.authorId = :authorId")
     void anonymizeByAuthorId(@Param("authorId") UUID authorId);
 
