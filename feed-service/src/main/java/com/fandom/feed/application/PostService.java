@@ -10,8 +10,8 @@ import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
 import com.fandom.feed.infra.s3.util.ImageUrlConverter;
-import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
@@ -50,8 +50,8 @@ public class PostService {
     }
 
     public PostResponse.Detail getPost(UUID postId, UUID userId) {
-        PostCache.Detail cachedPost = postDetailCacheService.getPostDetail(postId);
-        PostCache.ReactionInfo reactionInfo = reactionCacheService.getReactionInfo(postId, userId);
+        PostDetailCache cachedPost = postDetailCacheService.getPostDetail(postId);
+        ReactionInfoCache reactionInfo = reactionCacheService.getReactionInfo(postId, userId);
         return PostResponse.Detail.of(cachedPost, reactionInfo);
     }
 

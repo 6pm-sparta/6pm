@@ -10,7 +10,8 @@ import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,8 +127,8 @@ class PostServiceTest {
         LocalDateTime at = LocalDateTime.now();
         UserResponse author = new UserResponse(userId, "닉네임");
 
-        PostCache.Detail cachedPost = new PostCache.Detail(postId, author, "내용", List.of(), at, at);
-        PostCache.ReactionInfo reactionInfo = new PostCache.ReactionInfo(10L, 5L, true);
+        PostDetailCache cachedPost = new PostDetailCache(postId, author, "내용", List.of(), at, at);
+        ReactionInfoCache reactionInfo = new ReactionInfoCache(10L, 5L, true);
 
         when(postDetailCacheService.getPostDetail(postId)).thenReturn(cachedPost);
         when(reactionCacheService.getReactionInfo(postId, userId)).thenReturn(reactionInfo);

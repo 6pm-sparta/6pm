@@ -7,7 +7,7 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
 import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -66,7 +66,7 @@ class PostDetailCacheServiceTest {
         when(imageUrlConverter.toImageUrls(anyList())).thenReturn(List.of());
 
         // When
-        PostCache.Detail result = postDetailCacheService.getPostDetail(postId);
+        PostDetailCache result = postDetailCacheService.getPostDetail(postId);
 
         // Then
         assertThat(result.postId()).isEqualTo(post.getId());
@@ -84,13 +84,13 @@ class PostDetailCacheServiceTest {
         void getPostDetailBatchAllCacheHit() {
             // Given
             UUID id = UUID.randomUUID();
-            PostCache.Detail cached = mock(PostCache.Detail.class);
+            PostDetailCache cached = mock(PostDetailCache.class);
 
             when(cacheManager.getCache(RedisKeyPrefix.POST_DETAIL)).thenReturn(cache);
-            when(cache.get(id, PostCache.Detail.class)).thenReturn(cached);
+            when(cache.get(id, PostDetailCache.class)).thenReturn(cached);
 
             // When
-            List<PostCache.Detail> results = postDetailCacheService.getPostDetailBatch(List.of(id));
+            List<PostDetailCache> results = postDetailCacheService.getPostDetailBatch(List.of(id));
 
             // Then
             assertThat(results).containsExactly(cached);
@@ -108,7 +108,7 @@ class PostDetailCacheServiceTest {
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(cacheManager.getCache(RedisKeyPrefix.POST_DETAIL)).thenReturn(cache);
-            when(cache.get(id, PostCache.Detail.class)).thenReturn(null);
+            when(cache.get(id, PostDetailCache.class)).thenReturn(null);
             when(postReader.findAllByIds(List.of(id))).thenReturn(List.of(post));
             when(post.getId()).thenReturn(id);
             when(post.getAuthorId()).thenReturn(authorId);
@@ -123,7 +123,7 @@ class PostDetailCacheServiceTest {
             // Then
             verify(postReader).findAllByIds(List.of(id));
             verify(userClient).getUsers(Set.of(authorId));
-            verify(cache).put(eq(id), any(PostCache.Detail.class));
+            verify(cache).put(eq(id), any(PostDetailCache.class));
         }
 
         @Test
@@ -132,14 +132,14 @@ class PostDetailCacheServiceTest {
             // Given
             UUID hitId = UUID.randomUUID();
             UUID missId = UUID.randomUUID();
-            PostCache.Detail cached = mock(PostCache.Detail.class);
+            PostDetailCache cached = mock(PostDetailCache.class);
             Post post = mock(Post.class);
             UUID authorId = UUID.randomUUID();
             ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(cacheManager.getCache(RedisKeyPrefix.POST_DETAIL)).thenReturn(cache);
-            when(cache.get(hitId, PostCache.Detail.class)).thenReturn(cached);
-            when(cache.get(missId, PostCache.Detail.class)).thenReturn(null);
+            when(cache.get(hitId, PostDetailCache.class)).thenReturn(cached);
+            when(cache.get(missId, PostDetailCache.class)).thenReturn(null);
             when(postReader.findAllByIds(List.of(missId))).thenReturn(List.of(post));
             when(post.getId()).thenReturn(missId);
             when(post.getAuthorId()).thenReturn(authorId);

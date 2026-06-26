@@ -6,7 +6,7 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.LikeErrorCode;
 import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;
@@ -38,14 +38,14 @@ public class ReactionCacheService {
     /**
      * 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드
      */
-    public PostCache.ReactionInfo getReactionInfo(UUID postId, UUID userId) {
-        return new PostCache.ReactionInfo(getCommentCount(postId), getLikeCount(postId), isLiked(postId, userId));
+    public ReactionInfoCache getReactionInfo(UUID postId, UUID userId) {
+        return new ReactionInfoCache(getCommentCount(postId), getLikeCount(postId), isLiked(postId, userId));
     }
 
     /**
      * 게시글 ID 목록으로 캐시에서 게시글 리액션 정보를 배치 조회하는 메서드
      */
-    public List<PostCache.ReactionInfo> getReactionInfoBatch(List<UUID> postIds, UUID userId, boolean isLiked) {
+    public List<ReactionInfoCache> getReactionInfoBatch(List<UUID> postIds, UUID userId, boolean isLiked) {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
         List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             postIds.forEach(postId -> {
@@ -80,7 +80,7 @@ public class ReactionCacheService {
         if (!missedIds.isEmpty())
             dbResultMap = fetchFromDbAndCache(missedIds);
 
-        List<PostCache.ReactionInfo> reactionInfos = new ArrayList<>();
+        List<ReactionInfoCache> reactionInfos = new ArrayList<>();
         for (int i = 0; i < postIds.size(); i++) {
             int base = i * step;
             UUID postId = postIds.get(i);
@@ -100,7 +100,7 @@ public class ReactionCacheService {
             }
 
             boolean liked = isLiked || ((userId != null) && Boolean.TRUE.equals(results.get(base + IS_LIKED_IDX)));
-            reactionInfos.add(new PostCache.ReactionInfo(commentCount, likeCount, liked));
+            reactionInfos.add(ReactionInfoCache.of(commentCount, likeCount, liked));
         }
 
         return reactionInfos;

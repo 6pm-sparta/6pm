@@ -7,7 +7,7 @@ import com.fandom.feed.domain.exception.LikeErrorCode;
 import com.fandom.feed.domain.repository.LikeRepository;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.config.RedisConfig;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -87,7 +87,7 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId2, "other");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+            List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                     List.of(postId1, postId2), userId, false
             );
 
@@ -112,7 +112,7 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+            List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                     List.of(postId), null, false
             );
 
@@ -133,7 +133,7 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+            List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                     List.of(postId), userId, true
             );
 
@@ -210,7 +210,7 @@ public class ReactionCacheServiceIntegrationTest {
         when(likeRepository.findLikeUsersByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of(likeUserId)));
 
         // When
-        List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+        List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                 List.of(postId), null, false
         );
 

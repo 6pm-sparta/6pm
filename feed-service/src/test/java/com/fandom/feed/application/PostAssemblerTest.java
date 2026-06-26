@@ -7,7 +7,8 @@ import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -55,9 +56,9 @@ class PostAssemblerTest {
             // given
             UUID postId = UUID.randomUUID();
 
-            when(postDetailCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostCache.Detail.class)));
+            when(postDetailCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostDetailCache.class)));
             when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
-                    .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
+                    .thenReturn(List.of(mock(ReactionInfoCache.class)));
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postAssembler.buildCacheResponse(List.of(postId), null);
@@ -75,10 +76,10 @@ class PostAssemblerTest {
             List<UUID> postIds = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
 
             when(postDetailCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
-                    .mapToObj(i -> mock(PostCache.Detail.class)).toList());
+                    .mapToObj(i -> mock(PostDetailCache.class)).toList());
             when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
                     .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
-                            .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
+                            .mapToObj(i -> mock(ReactionInfoCache.class)).toList());
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postAssembler.buildCacheResponse(postIds, null);
@@ -106,9 +107,9 @@ class PostAssemblerTest {
             when(apiResponse.getData()).thenReturn(List.of());
             when(reactionCacheService.getReactionInfoBatch(postIds, null, false))
                     .thenReturn(List.of(
-                            mock(PostCache.ReactionInfo.class),
-                            mock(PostCache.ReactionInfo.class),
-                            mock(PostCache.ReactionInfo.class)
+                            mock(ReactionInfoCache.class),
+                            mock(ReactionInfoCache.class),
+                            mock(ReactionInfoCache.class)
                     ));
 
             // when
@@ -133,7 +134,7 @@ class PostAssemblerTest {
             when(apiResponse.getData()).thenReturn(List.of());
             when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
                     .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
-                            .mapToObj(i -> mock(PostCache.ReactionInfo.class)).toList());
+                            .mapToObj(i -> mock(ReactionInfoCache.class)).toList());
 
             // when
             CursorPageResponse<PostResponse.Summary> result = postAssembler.buildDBResponse(
