@@ -32,6 +32,8 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -417,6 +419,59 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
             verify(postListCacheService).removePost(postId, authorId);
+        }
+    }
+
+    @Nested
+    @DisplayName("작성자 ID로 모든 게시글 삭제")
+    class DeleteAllByAuthorId {
+        private UUID authorId;
+        private List<UUID> postIds;
+        private List<String> imageKeys;
+
+        @BeforeEach
+        void setUp() {
+            authorId = UUID.randomUUID();
+            postIds = List.of(UUID.randomUUID(), UUID.randomUUID());
+            imageKeys = List.of("posts/20240101/uuid1.jpg", "posts/20240101/uuid2.jpg");
+        }
+
+        @Test
+        @DisplayName("게시글 있음 - 관련 데이터 일괄 삭제")
+        void deleteAllByAuthorIdWithPost() {
+            // given
+            given(postRepository.findAllIdsByAuthorId(authorId)).willReturn(postIds);
+            given(imageService.findAllKeysByPostIds(postIds)).willReturn(imageKeys);
+
+            // when
+            postService.deleteAllByAuthorId(authorId);
+
+            // then
+            then(commentService).should().deleteAllByPostIds(postIds, authorId);
+            then(likeService).should().deleteAllByPostIds(postIds);
+            then(postRepository).should().softDeleteAllByAuthorId(authorId);
+            then(imageService).should().deleteAllByPostIds(postIds);
+            then(imageService).should().publishS3DeleteEvent(imageKeys);
+            then(postListCacheService).should().removeAllByAuthorId(postIds, authorId);
+            then(postDetailCacheService).should().deleteAll(postIds);
+        }
+
+        @Test
+        @DisplayName("게시글 없음 - 아무것도 실행하지 않음")
+        void deleteAllByAuthorIdWhenEmpty() {
+            // given
+            given(postRepository.findAllIdsByAuthorId(authorId)).willReturn(List.of());
+
+            // when
+            postService.deleteAllByAuthorId(authorId);
+
+            // then
+            then(commentService).shouldHaveNoInteractions();
+            then(likeService).shouldHaveNoInteractions();
+            then(postRepository).should(never()).softDeleteAllByAuthorId(any());
+            then(imageService).shouldHaveNoInteractions();
+            then(postListCacheService).shouldHaveNoInteractions();
+            then(postDetailCacheService).shouldHaveNoInteractions();
         }
     }
 
