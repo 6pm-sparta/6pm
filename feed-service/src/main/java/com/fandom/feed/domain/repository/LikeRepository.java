@@ -14,4 +14,5 @@ public interface LikeRepository extends BaseRepository<Like, UUID> {
     List<Like> findAll();
     void deleteAllByPostId(UUID postId);
     Map<UUID, List<UUID>> findLikeUsersByPostIds(List<UUID> postIds);
+    void batchInsertOnConflictDoNothing(List<Like> likes);
 }
