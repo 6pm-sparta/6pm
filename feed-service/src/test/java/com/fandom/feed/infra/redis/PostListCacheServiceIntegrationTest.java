@@ -152,7 +152,7 @@ class PostListCacheServiceIntegrationTest {
     }
 
     @Nested
-    @DisplayName("캐시에 postId 추가")
+    @DisplayName("캐시에 게시글 ID 추가")
     class AddPost {
         private final UUID authorId = UUID.randomUUID();
         private final String authorKey = RedisKeyPrefix.POST_LIST + authorId;
@@ -232,5 +232,26 @@ class PostListCacheServiceIntegrationTest {
             assertThat(allScore).isNull();
             assertThat(authorScore).isNotNull();
         }
+    }
+
+    @Test
+    @DisplayName("캐시에서 작성자 ID의 모든 게시글 ID 제거")
+    void removeAllByAuthorId() {
+        // given
+        UUID authorId = UUID.randomUUID();
+        UUID postId1 = UUID.randomUUID();
+        UUID postId2 = UUID.randomUUID();
+
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_ALL, postId1.toString(), 1);
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_ALL, postId2.toString(), 2);
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST + authorId, postId1.toString(), 1);
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST + authorId, postId2.toString(), 2);
+
+        // when
+        postListCacheService.removeAllByAuthorId(List.of(postId1, postId2), authorId);
+
+        // then
+        assertThat(redisTemplate.opsForZSet().size(RedisKeyPrefix.POST_LIST_ALL)).isZero();
+        assertThat(redisTemplate.opsForZSet().size(RedisKeyPrefix.POST_LIST + authorId)).isZero();
     }
 }

@@ -93,7 +93,7 @@ public class PostDetailCacheService {
     }
 
     /**
-     * 게시글 ID 목록으로 케시에서 케시글 상세를 삭제하는 메서드
+     * 게시글 ID 목록으로 케시에서 게시글 상세를 삭제하는 메서드
      */
     public void deleteAll(List<UUID> postIds) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {

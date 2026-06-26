@@ -95,21 +95,25 @@ public class PostListCacheService {
     }
 
     /**
-     * 캐시에서 작성자 ID 게시글 ID를 삭제하는 메서드
+     * 캐시에서 작성자 ID의 모든 게시글 ID를 삭제하는 메서드
      */
     public void removeAllByAuthorId(List<UUID> postIds, UUID authorId) {
-        List<String> keys = allKeys(authorId);
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            postIds.forEach(postId -> {
-                byte[] member = postId.toString().getBytes();
-                keys.forEach(key -> connection.zSetCommands().zRem(key.getBytes(), member));
-            });
+            // feed:posts:all는 하나씩 제거
+            postIds.forEach(postId ->
+                    connection.zSetCommands().zRem(
+                            RedisKeyPrefix.POST_LIST_ALL.getBytes(),
+                            postId.toString().getBytes()
+                    )
+            );
+            // feed:posts:{authorId}는 한번에 삭제
+            connection.keyCommands().del((RedisKeyPrefix.POST_LIST + authorId).getBytes());
             return null;
         });
     }
 
     /**
-     * 작성자 ID에 따라 Redis 키를 반환하는 메서드
+     * 작성자 ID에 따라 Redis 키를 반환하는 메서드<br>
      * - 작성자 ID가 null이면, feed:posts:all
      */
     private String resolveKey(UUID authorId) {

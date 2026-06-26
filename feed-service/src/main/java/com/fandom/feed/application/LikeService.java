@@ -78,7 +78,7 @@ public class LikeService {
     }
 
     /**
-     * 게시글 ID 목록으로 모든 좋아요를 삭제하는 메서드
+     * 게시글 ID 목록으로 좋아요를 삭제하는 메서드
      */
     @Transactional
     public void deleteAllByPostIds(List<UUID> postIds) {

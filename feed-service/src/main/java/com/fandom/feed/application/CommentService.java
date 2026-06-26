@@ -147,7 +147,7 @@ public class CommentService {
     }
 
     /**
-     * 게시글 ID 목록으로 모든 댓글을 삭제하는 메서드
+     * 게시글 ID 목록으로 댓글을 삭제하는 메서드
      */
     @Transactional
     public void deleteAllByPostIds(List<UUID> postIds, UUID userId) {
