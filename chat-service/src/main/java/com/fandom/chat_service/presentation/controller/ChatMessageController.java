@@ -30,7 +30,7 @@ public class ChatMessageController {
     private final ChatMessageService chatMessageService;
     private final ChatRoomQueryService chatRoomQueryService;
 
-    // 메시지 전송
+    // 메시지 전송 - test용, ws으로 대체 완료.
     @PostMapping("/rooms/{roomId}/messages")
     public ApiResponse<MessageResponse> send(
             @PathVariable UUID roomId,

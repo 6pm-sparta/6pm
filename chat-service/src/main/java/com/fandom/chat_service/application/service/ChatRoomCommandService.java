@@ -39,13 +39,14 @@ public class ChatRoomCommandService {
         memberRepository.save(ChatRoomMember.builder()
                 .roomId(room.getId())
                 .userId(creatorId)
+                .nickname(nickname)
                 .build());
         log.info("채팅방 생성 room_id={}, creator_id={}", room.getId(), creatorId);
     }
 
     // 팔로우
     @Transactional
-    public void handleFollowed(UUID followeeId, UUID followerId) {
+    public void handleFollowed(UUID followeeId, UUID followerId, String nickname) {
         if (followeeId == null || followerId == null) {
             log.warn("followed id 누락 - 스킵 followee_id={}, follower_id={}", followeeId, followerId);
             return;
@@ -58,6 +59,7 @@ public class ChatRoomCommandService {
         memberRepository.save(ChatRoomMember.builder()
                 .roomId(room.getId())
                 .userId(followerId)
+                .nickname(nickname)
                 .build());
         log.info("입장 room_id={}, user_id={}", room.getId(), followerId);
     }

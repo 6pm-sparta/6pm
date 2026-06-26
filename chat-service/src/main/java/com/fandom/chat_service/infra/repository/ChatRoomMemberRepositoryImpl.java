@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -22,6 +23,11 @@ public class ChatRoomMemberRepositoryImpl implements ChatRoomMemberRepository {
     @Override
     public boolean existsByRoomIdAndUserId(UUID roomId, UUID userId) {
         return jpaRepository.existsByRoomIdAndUserId(roomId, userId);
+    }
+
+    @Override
+    public Optional<ChatRoomMember> findByRoomIdAndUserId(UUID roomId, UUID userId) {
+        return jpaRepository.findByRoomIdAndUserId(roomId, userId);
     }
 
     @Override

@@ -29,9 +29,13 @@ public class ChatRoomMember extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    @Column(nullable = false, length = 50)
+    private String nickname;
+
     @Builder
-    private ChatRoomMember(UUID roomId, UUID userId) {
+    private ChatRoomMember(UUID roomId, UUID userId, String nickname) {
         this.roomId = roomId;
         this.userId = userId;
+        this.nickname = nickname;
     }
 }

@@ -8,6 +8,9 @@ public final class KafkaTopics {
     public static final String USER_UNFOLLOWED = "user.unfollowed";
     public static final String USER_DELETED = "user.deleted";
 
+    // notification-service
+    public static final String NOTIFICATION_SEND = "notification.send";
+
     private KafkaTopics() {
     }
 }
