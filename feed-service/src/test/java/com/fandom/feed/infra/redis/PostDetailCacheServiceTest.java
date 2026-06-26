@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class PostCacheServiceTest {
+class PostDetailCacheServiceTest {
     @Mock
     private PostReader postReader;
 
@@ -48,7 +48,7 @@ class PostCacheServiceTest {
     private Cache cache;
 
     @InjectMocks
-    private PostCacheService postCacheService;
+    private PostDetailCacheService postDetailCacheService;
 
     @Test
     @DisplayName("게시글 상세 조회")
@@ -66,7 +66,7 @@ class PostCacheServiceTest {
         when(imageUrlConverter.toImageUrls(anyList())).thenReturn(List.of());
 
         // When
-        PostCache.Detail result = postCacheService.getPostDetail(postId);
+        PostCache.Detail result = postDetailCacheService.getPostDetail(postId);
 
         // Then
         assertThat(result.postId()).isEqualTo(post.getId());
@@ -90,7 +90,7 @@ class PostCacheServiceTest {
             when(cache.get(id, PostCache.Detail.class)).thenReturn(cached);
 
             // When
-            List<PostCache.Detail> results = postCacheService.getPostDetailBatch(List.of(id));
+            List<PostCache.Detail> results = postDetailCacheService.getPostDetailBatch(List.of(id));
 
             // Then
             assertThat(results).containsExactly(cached);
@@ -118,7 +118,7 @@ class PostCacheServiceTest {
             when(author.userId()).thenReturn(authorId);
 
             // When
-            postCacheService.getPostDetailBatch(List.of(id));
+            postDetailCacheService.getPostDetailBatch(List.of(id));
 
             // Then
             verify(postReader).findAllByIds(List.of(id));
@@ -148,7 +148,7 @@ class PostCacheServiceTest {
             when(apiResponse.getData()).thenReturn(List.of());
 
             // When
-            postCacheService.getPostDetailBatch(List.of(hitId, missId));
+            postDetailCacheService.getPostDetailBatch(List.of(hitId, missId));
 
             // Then
             verify(postReader).findAllByIds(List.of(missId));

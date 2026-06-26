@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class PostCacheService {
+public class PostDetailCacheService {
     private final PostReader postReader;
     private final ImageService imageService;
     private final ImageUrlConverter imageUrlConverter;

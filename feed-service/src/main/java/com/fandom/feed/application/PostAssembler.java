@@ -4,7 +4,7 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
-import com.fandom.feed.infra.redis.PostCacheService;
+import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
@@ -24,7 +24,7 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class PostAssembler {
     private final ImageService imageService;
-    private final PostCacheService postCacheService;
+    private final PostDetailCacheService postDetailCacheService;
     private final ReactionCacheService reactionCacheService;
     private final UserClient userClient;
 
@@ -35,7 +35,7 @@ public class PostAssembler {
         boolean hasMore = postIds.size() > FeedPolicy.PAGE_SIZE;
         List<UUID> pageIds = hasMore ? postIds.subList(0, FeedPolicy.PAGE_SIZE) : postIds;
 
-        List<PostCache.Detail> posts = postCacheService.getPostDetailBatch(pageIds);
+        List<PostCache.Detail> posts = postDetailCacheService.getPostDetailBatch(pageIds);
         List<PostCache.ReactionInfo> reactionInfos = reactionCacheService.getReactionInfoBatch(pageIds, userId, false);
 
         List<PostResponse.Summary> summaries = IntStream.range(0, pageIds.size())

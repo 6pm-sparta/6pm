@@ -5,7 +5,7 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
-import com.fandom.feed.infra.redis.PostCacheService;
+import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
@@ -35,7 +35,7 @@ class PostAssemblerTest {
     private ImageService imageService;
 
     @Mock
-    private PostCacheService postCacheService;
+    private PostDetailCacheService postDetailCacheService;
 
     @Mock
     private ReactionCacheService reactionCacheService;
@@ -55,7 +55,7 @@ class PostAssemblerTest {
             // given
             UUID postId = UUID.randomUUID();
 
-            when(postCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostCache.Detail.class)));
+            when(postDetailCacheService.getPostDetailBatch(any())).thenReturn(List.of(mock(PostCache.Detail.class)));
             when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
                     .thenReturn(List.of(mock(PostCache.ReactionInfo.class)));
 
@@ -74,7 +74,7 @@ class PostAssemblerTest {
             // given
             List<UUID> postIds = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
 
-            when(postCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
+            when(postDetailCacheService.getPostDetailBatch(any())).thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                     .mapToObj(i -> mock(PostCache.Detail.class)).toList());
             when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
                     .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)

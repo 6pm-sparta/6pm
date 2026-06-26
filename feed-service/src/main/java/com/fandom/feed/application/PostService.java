@@ -6,8 +6,8 @@ import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
+import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.PostCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.s3.util.ImageUrlConverter;
@@ -30,7 +30,7 @@ public class PostService {
     private final PostAssembler postAssembler;
     private final PostRepository postRepository;
     private final ImageService imageService;
-    private final PostCacheService postCacheService;
+    private final PostDetailCacheService postDetailCacheService;
     private final CommentService commentService;
     private final LikeService likeService;
     private final PostListCacheService postListCacheService;
@@ -50,7 +50,7 @@ public class PostService {
     }
 
     public PostResponse.Detail getPost(UUID postId, UUID userId) {
-        PostCache.Detail cachedPost = postCacheService.getPostDetail(postId);
+        PostCache.Detail cachedPost = postDetailCacheService.getPostDetail(postId);
         PostCache.ReactionInfo reactionInfo = reactionCacheService.getReactionInfo(postId, userId);
         return PostResponse.Detail.of(cachedPost, reactionInfo);
     }
@@ -162,6 +162,6 @@ public class PostService {
         imageService.publishS3DeleteEvent(imageKeys);
 
         postListCacheService.removeAllByAuthorId(postIds, authorId);
-        postCacheService.deleteAll(postIds);
+        postDetailCacheService.deleteAll(postIds);
     }
 }

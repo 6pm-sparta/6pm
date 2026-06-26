@@ -7,7 +7,7 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
 import com.fandom.feed.infra.client.dto.UserResponse;
-import com.fandom.feed.infra.redis.PostCacheService;
+import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostCache;
@@ -57,7 +57,7 @@ class PostServiceTest {
     private ImageUrlConverter imageUrlConverter;
 
     @Mock
-    private PostCacheService postCacheService;
+    private PostDetailCacheService postDetailCacheService;
 
     @Mock
     private ReactionCacheService reactionCacheService;
@@ -129,7 +129,7 @@ class PostServiceTest {
         PostCache.Detail cachedPost = new PostCache.Detail(postId, author, "내용", List.of(), at, at);
         PostCache.ReactionInfo reactionInfo = new PostCache.ReactionInfo(10L, 5L, true);
 
-        when(postCacheService.getPostDetail(postId)).thenReturn(cachedPost);
+        when(postDetailCacheService.getPostDetail(postId)).thenReturn(cachedPost);
         when(reactionCacheService.getReactionInfo(postId, userId)).thenReturn(reactionInfo);
 
         // When
@@ -140,7 +140,7 @@ class PostServiceTest {
         assertThat(result.likeCount()).isEqualTo(5L);
         assertThat(result.liked()).isTrue();
 
-        verify(postCacheService).getPostDetail(postId);
+        verify(postDetailCacheService).getPostDetail(postId);
     }
 
     @Nested
