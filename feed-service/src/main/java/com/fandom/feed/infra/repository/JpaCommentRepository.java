@@ -55,7 +55,7 @@ public interface JpaCommentRepository extends JpaRepository<Comment, UUID> {
     @Query("UPDATE Comment c SET c.authorId = null WHERE c.authorId = :authorId")
     void anonymizeByAuthorId(@Param("authorId") UUID authorId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Comment c SET c.deletedAt = CURRENT_TIMESTAMP, c.deletedBy = :userId WHERE c.postId IN :postIds")
     void softDeleteAllByPostIds(@Param("postIds") List<UUID> postIds, @Param("userId") UUID userId);
 }

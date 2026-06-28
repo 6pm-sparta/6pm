@@ -38,7 +38,7 @@ public interface JpaPostRepository extends JpaRepository<Post, UUID> {
     @Query("UPDATE Post p SET p.commentCount = GREATEST(p.commentCount - 1, 0) WHERE p.id = :postId")
     void decrementCommentCount(@Param("postId") UUID postId);
 
-    @Modifying
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Post p SET p.deletedAt = CURRENT_TIMESTAMP, p.deletedBy = :authorId WHERE p.authorId = :authorId")
     void softDeleteAllByAuthorId(@Param("authorId") UUID authorId);
 
