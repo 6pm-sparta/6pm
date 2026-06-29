@@ -3,9 +3,7 @@ package com.fandom.chat_service.application.service;
 import com.fandom.chat_service.application.port.ChatNotificationPort;
 import com.fandom.chat_service.application.port.OnlineStatePort;
 import com.fandom.chat_service.domain.entity.ChatRoom;
-import com.fandom.chat_service.domain.entity.ChatRoomMember;
 import com.fandom.chat_service.domain.entity.SenderRole;
-import com.fandom.chat_service.domain.repository.ChatRoomMemberRepository;
 import com.fandom.chat_service.presentation.dto.response.MessageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +24,7 @@ public class MessageDeliveryService {
 
     private final SimpMessagingTemplate messagingTemplate;
     private final OnlineStatePort onlineState;
-    private final ChatRoomMemberRepository memberRepository;
+    private final RoomMemberCacheService roomMemberCache;
     private final ChatNotificationPort chatNotificationPort;
 
     public void deliver(ChatRoom room, MessageResponse message) {
@@ -42,11 +40,7 @@ public class MessageDeliveryService {
 
     // 크리에이터 메시지
     private void deliverBroadcast(ChatRoom room, MessageResponse message) {
-        UUID creatorId = room.getCreatorId();
-        List<UUID> fans = memberRepository.findAllByRoomId(room.getId()).stream()
-                .map(ChatRoomMember::getUserId)
-                .filter(userId -> !userId.equals(creatorId))
-                .toList();
+        Set<UUID> fans = roomMemberCache.getFans(room.getId(), room.getCreatorId());
         if (fans.isEmpty()) {
             return;
         }
