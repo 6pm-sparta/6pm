@@ -1,5 +1,6 @@
 package com.fandom.ticketing_service.kafka.consumer;
 
+import com.fandom.ticketing_service.kafka.KafkaTopics;
 import com.fandom.ticketing_service.kafka.event.PaymentCompletedEvent;
 import com.fandom.ticketing_service.kafka.event.PaymentFailedEvent;
 import com.fandom.ticketing_service.seat.service.SeatConfirmService;
@@ -18,21 +19,21 @@ public class PaymentEventConsumer {
     private final SeatConfirmService seatConfirmService;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = "order.payment.completed")
+    @KafkaListener(topics = KafkaTopics.PAYMENT_COMPLETED)
     public void onPaymentCompleted(@Payload String payload) throws Exception {
         PaymentCompletedEvent event = objectMapper.readValue(payload, PaymentCompletedEvent.class);
         log.info("Consumed order.payment.completed: orderId={}", event.orderId());
         seatConfirmService.confirmSeat(event.orderId());
     }
 
-    @KafkaListener(topics = "order.payment.failed")
+    @KafkaListener(topics = KafkaTopics.PAYMENT_FAILED)
     public void onPaymentFailed(@Payload String payload) throws Exception {
         PaymentFailedEvent event = objectMapper.readValue(payload, PaymentFailedEvent.class);
         log.info("Consumed order.payment.failed: orderId={}", event.orderId());
         seatConfirmService.releaseSeat(event.orderId());
     }
 
-    @KafkaListener(topics = "order.payment.cancelled")
+    @KafkaListener(topics = KafkaTopics.PAYMENT_CANCELLED)
     public void onPaymentCancelled(@Payload String payload) throws Exception {
         PaymentFailedEvent event = objectMapper.readValue(payload, PaymentFailedEvent.class);
         log.info("Consumed order.payment.cancelled: orderId={}", event.orderId());
