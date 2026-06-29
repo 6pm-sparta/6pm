@@ -7,6 +7,7 @@ import com.fandom.common.exception.CustomException;
 import com.fandom.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
@@ -27,7 +28,13 @@ public class ChatStompController {
     @MessageMapping("/rooms/{roomId}/messages")
     public void send(@DestinationVariable UUID roomId, SendMessageRequest request, Principal principal) {
         UUID senderId = UUID.fromString(principal.getName());
-        chatMessageService.send(roomId, senderId, request.content());
+        MDC.put("roomId", roomId.toString());
+        MDC.put("userId", senderId.toString());
+        try {
+            chatMessageService.send(roomId, senderId, request.content());
+        } finally {
+            MDC.clear();
+        }
     }
 
     // 클라이언트 개인 에러

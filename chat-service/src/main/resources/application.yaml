@@ -33,6 +33,15 @@ chat:
   notification:
     chunk-size: 500
 
+logging:
+  file:
+    name: ./logs/chat-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
+
 eureka:
   client:
     service-url:
