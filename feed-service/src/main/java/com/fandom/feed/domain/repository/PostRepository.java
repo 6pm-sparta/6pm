@@ -10,4 +10,6 @@ public interface PostRepository extends BaseRepository<Post, UUID> {
     List<Post> findByCursorForWarm(UUID authorId);
     void incrementCommentCount(UUID postId);
     void decrementCommentCount(UUID postId);
+    void softDeleteAllByAuthorId(UUID authorId);
+    List<UUID> findAllIdsByAuthorId(UUID authorId);
 }

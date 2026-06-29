@@ -7,11 +7,12 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
 import com.fandom.feed.infra.client.dto.UserResponse;
-import com.fandom.feed.infra.redis.PostCacheService;
+import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
-import com.fandom.feed.infra.redis.dto.PostCache;
-import com.fandom.feed.infra.util.ImageUrlConverter;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
+import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,8 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -57,7 +60,7 @@ class PostServiceTest {
     private ImageUrlConverter imageUrlConverter;
 
     @Mock
-    private PostCacheService postCacheService;
+    private PostDetailCacheService postDetailCacheService;
 
     @Mock
     private ReactionCacheService reactionCacheService;
@@ -126,10 +129,10 @@ class PostServiceTest {
         LocalDateTime at = LocalDateTime.now();
         UserResponse author = new UserResponse(userId, "닉네임");
 
-        PostCache.Detail cachedPost = new PostCache.Detail(postId, author, "내용", List.of(), at, at);
-        PostCache.ReactionInfo reactionInfo = new PostCache.ReactionInfo(10L, 5L, true);
+        PostDetailCache cachedPost = new PostDetailCache(postId, author, "내용", List.of(), at, at);
+        ReactionInfoCache reactionInfo = new ReactionInfoCache(10L, 5L, true);
 
-        when(postCacheService.getPostDetail(postId)).thenReturn(cachedPost);
+        when(postDetailCacheService.getPostDetail(postId)).thenReturn(cachedPost);
         when(reactionCacheService.getReactionInfo(postId, userId)).thenReturn(reactionInfo);
 
         // When
@@ -140,7 +143,7 @@ class PostServiceTest {
         assertThat(result.likeCount()).isEqualTo(5L);
         assertThat(result.liked()).isTrue();
 
-        verify(postCacheService).getPostDetail(postId);
+        verify(postDetailCacheService).getPostDetail(postId);
     }
 
     @Nested
@@ -416,6 +419,59 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
             verify(postListCacheService).removePost(postId, authorId);
+        }
+    }
+
+    @Nested
+    @DisplayName("작성자 ID로 모든 게시글 삭제")
+    class DeleteAllByAuthorId {
+        private UUID authorId;
+        private List<UUID> postIds;
+        private List<String> imageKeys;
+
+        @BeforeEach
+        void setUp() {
+            authorId = UUID.randomUUID();
+            postIds = List.of(UUID.randomUUID(), UUID.randomUUID());
+            imageKeys = List.of("posts/20240101/uuid1.jpg", "posts/20240101/uuid2.jpg");
+        }
+
+        @Test
+        @DisplayName("게시글 있음 - 관련 데이터 일괄 삭제")
+        void deleteAllByAuthorIdWithPost() {
+            // given
+            given(postRepository.findAllIdsByAuthorId(authorId)).willReturn(postIds);
+            given(imageService.findAllKeysByPostIds(postIds)).willReturn(imageKeys);
+
+            // when
+            postService.deleteAllByAuthorId(authorId);
+
+            // then
+            then(commentService).should().deleteAllByPostIds(postIds, authorId);
+            then(likeService).should().deleteAllByPostIds(postIds);
+            then(postRepository).should().softDeleteAllByAuthorId(authorId);
+            then(imageService).should().deleteAllByPostIds(postIds);
+            then(imageService).should().publishS3DeleteEvent(imageKeys);
+            then(postListCacheService).should().removeAllByAuthorId(postIds, authorId);
+            then(postDetailCacheService).should().deleteAll(postIds);
+        }
+
+        @Test
+        @DisplayName("게시글 없음 - 아무것도 실행하지 않음")
+        void deleteAllByAuthorIdWhenEmpty() {
+            // given
+            given(postRepository.findAllIdsByAuthorId(authorId)).willReturn(List.of());
+
+            // when
+            postService.deleteAllByAuthorId(authorId);
+
+            // then
+            then(commentService).shouldHaveNoInteractions();
+            then(likeService).shouldHaveNoInteractions();
+            then(postRepository).should(never()).softDeleteAllByAuthorId(any());
+            then(imageService).shouldHaveNoInteractions();
+            then(postListCacheService).shouldHaveNoInteractions();
+            then(postDetailCacheService).shouldHaveNoInteractions();
         }
     }
 
