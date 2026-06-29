@@ -37,7 +37,8 @@ public class PostController {
     @PostMapping("/posts/presigned-url")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<PresignedUrlResponse> generatePresignedUrls (
-            @RequestBody @Valid PresignedUrlRequest request
+            @RequestBody @Valid PresignedUrlRequest request,
+            @CurrentIdCard UserIdCard idCard
     ) {
         PresignedUrlResponse response = postService.generatePresignedUrls(request.imageNames());
         return ApiResponse.success(response);
