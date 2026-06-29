@@ -27,13 +27,13 @@ public class SeatController {
     private final SeatService seatService;
 
     @GetMapping("/seats")
-    public ResponseEntity<ApiResponse<List<ShowSeatResponse>>> getSeats(@PathVariable Long showId) {
+    public ResponseEntity<ApiResponse<List<ShowSeatResponse>>> getSeats(@PathVariable UUID showId) {
         return ResponseEntity.ok(ApiResponse.success(seatService.getSeats(showId)));
     }
 
     @PostMapping("/seats/{seatId}/hold")
     public ResponseEntity<ApiResponse<HoldResponse>> hold(
-            @PathVariable Long showId,
+            @PathVariable UUID showId,
             @PathVariable UUID seatId,
             @CurrentIdCard UserIdCard idCard
     ) {
@@ -42,7 +42,7 @@ public class SeatController {
 
     @DeleteMapping("/seats/{seatId}/hold")
     public ResponseEntity<ApiResponse<Void>> releaseHold(
-            @PathVariable Long showId,
+            @PathVariable UUID showId,
             @PathVariable UUID seatId,
             @CurrentIdCard UserIdCard idCard
     ) {
@@ -53,7 +53,7 @@ public class SeatController {
     // TODO: api 엔드포인트 설계 괜찮은지 검토 필요
     @GetMapping("/purchase-limit")
     public ResponseEntity<ApiResponse<PurchaseLimitResponse>> getPurchaseLimit(
-            @PathVariable Long showId,
+            @PathVariable UUID showId,
             @CurrentIdCard UserIdCard idCard
     ) {
         return ResponseEntity.ok(ApiResponse.success(seatService.getPurchaseLimit(showId, idCard.getUserId())));

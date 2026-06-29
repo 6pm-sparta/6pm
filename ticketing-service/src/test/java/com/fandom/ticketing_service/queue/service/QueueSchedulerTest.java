@@ -41,11 +41,11 @@ class QueueSchedulerTest {
     @DisplayName("대기 중인 후보가 있으면 각각 구매 토큰을 발급하고 대기열에서 제거한다")
     void processShowQueue_withCandidates_issuesTokensAndRemoves() {
         // given
-        Long showId = 1L;
+        UUID showId = UUID.randomUUID();
         UUID userId1 = UUID.randomUUID();
         UUID userId2 = UUID.randomUUID();
         Set<String> candidates = Set.of(userId1.toString(), userId2.toString());
-        String queueKey = "waiting_queue:1";
+        String queueKey = "waiting_queue:" + showId;
 
         given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
         given(zSetOperations.range(queueKey, 0, 49)).willReturn(candidates);
@@ -64,8 +64,8 @@ class QueueSchedulerTest {
     @DisplayName("대기 중인 후보가 없으면 토큰 발급도, 제거도 하지 않는다")
     void processShowQueue_noCandidates_doesNothing() {
         // given
-        Long showId = 1L;
-        String queueKey = "waiting_queue:1";
+        UUID showId = UUID.randomUUID();
+        String queueKey = "waiting_queue:" + showId;
 
         given(redisTemplate.opsForZSet()).willReturn(zSetOperations);
         given(zSetOperations.range(queueKey, 0, 49)).willReturn(Set.of());
@@ -82,13 +82,15 @@ class QueueSchedulerTest {
     @DisplayName("Redis에 존재하는 waiting_queue 키로부터 활성 공연 ID를 추출한다")
     void findActiveShowIds_extractsShowIdsFromKeys() {
         // given
-        given(redisTemplate.keys("waiting_queue:*")).willReturn(Set.of("waiting_queue:1", "waiting_queue:2"));
+        UUID showId1 = UUID.randomUUID();
+        UUID showId2 = UUID.randomUUID();
+        given(redisTemplate.keys("waiting_queue:*")).willReturn(Set.of("waiting_queue:" + showId1, "waiting_queue:" + showId2));
 
         // when
-        Set<Long> result = ReflectionTestUtils.invokeMethod(queueScheduler, "findActiveShowIds");
+        Set<UUID> result = ReflectionTestUtils.invokeMethod(queueScheduler, "findActiveShowIds");
 
         // then
-        org.assertj.core.api.Assertions.assertThat(result).containsExactlyInAnyOrder(1L, 2L);
+        org.assertj.core.api.Assertions.assertThat(result).containsExactlyInAnyOrder(showId1, showId2);
     }
 
     @Test
@@ -98,7 +100,7 @@ class QueueSchedulerTest {
         given(redisTemplate.keys("waiting_queue:*")).willReturn(Set.of());
 
         // when
-        Set<Long> result = ReflectionTestUtils.invokeMethod(queueScheduler, "findActiveShowIds");
+        Set<UUID> result = ReflectionTestUtils.invokeMethod(queueScheduler, "findActiveShowIds");
 
         // then
         org.assertj.core.api.Assertions.assertThat(result).isEmpty();

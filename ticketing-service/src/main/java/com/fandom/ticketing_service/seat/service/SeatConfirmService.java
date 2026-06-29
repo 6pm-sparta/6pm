@@ -20,9 +20,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SeatConfirmService {
 
-    private static final String SEAT_KEY = "show:%d:seat:%s";
-    private static final String OWNER_KEY = "show:%d:seat:%s:owner";
-    private static final String INVENTORY_KEY = "inventory:%d";
+    private static final String SEAT_KEY = "show:%s:seat:%s";
+    private static final String OWNER_KEY = "show:%s:seat:%s:owner";
+    private static final String INVENTORY_KEY = "inventory:%s";
 
     private final ShowSeatRepository showSeatRepository;
     private final RedisTemplate<String, String> redisTemplate;

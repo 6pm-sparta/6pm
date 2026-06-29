@@ -55,7 +55,7 @@ class SeatConfirmServiceTest {
         void confirmSeat_success() {
             // given
             UUID orderId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
             seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
@@ -96,7 +96,7 @@ class SeatConfirmServiceTest {
         void confirmSeat_failureAfterSeatFound_publishesFailedWithSeatId() {
             // given
             UUID orderId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
             seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
@@ -122,7 +122,7 @@ class SeatConfirmServiceTest {
         void releaseSeat_success() {
             // given
             UUID orderId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
             seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));

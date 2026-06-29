@@ -34,9 +34,9 @@ class PurchaseTokenServiceTest {
     @DisplayName("토큰이 없으면 발급에 성공하고 true를 반환한다")
     void issue_notExists_returnsTrue() {
         // given
-        Long showId = 1L;
+        UUID showId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        String expectedKey = "purchase-token:1:" + userId;
+        String expectedKey = "purchase-token:" + showId + ":" + userId;
 
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
         given(valueOperations.setIfAbsent(eq(expectedKey), eq("1"), any(Duration.class))).willReturn(true);
@@ -52,7 +52,7 @@ class PurchaseTokenServiceTest {
     @DisplayName("토큰이 이미 있으면 발급에 실패하고 false를 반환한다")
     void issue_alreadyExists_returnsFalse() {
         // given
-        Long showId = 1L;
+        UUID showId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
         given(redisTemplate.opsForValue()).willReturn(valueOperations);
@@ -69,9 +69,9 @@ class PurchaseTokenServiceTest {
     @DisplayName("토큰이 존재하면 exists는 true를 반환한다")
     void exists_keyPresent_returnsTrue() {
         // given
-        Long showId = 1L;
+        UUID showId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        String expectedKey = "purchase-token:1:" + userId;
+        String expectedKey = "purchase-token:" + showId + ":" + userId;
 
         given(redisTemplate.hasKey(expectedKey)).willReturn(true);
 
@@ -86,7 +86,7 @@ class PurchaseTokenServiceTest {
     @DisplayName("토큰이 없으면 exists는 false를 반환한다")
     void exists_keyAbsent_returnsFalse() {
         // given
-        Long showId = 1L;
+        UUID showId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
 
         given(redisTemplate.hasKey(any())).willReturn(false);

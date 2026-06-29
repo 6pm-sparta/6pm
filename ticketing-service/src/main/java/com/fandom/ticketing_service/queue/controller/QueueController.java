@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/v1/tickets/shows/{showId}")
 @RequiredArgsConstructor
@@ -26,7 +28,7 @@ public class QueueController {
 
     @PostMapping("/queue")
     public ResponseEntity<ApiResponse<Void>> enter(
-            @PathVariable Long showId,
+            @PathVariable UUID showId,
             @CurrentIdCard UserIdCard idCard
     ) {
         boolean entered = queueService.enter(showId, idCard.getUserId());
@@ -38,7 +40,7 @@ public class QueueController {
 
     @GetMapping("/queue/status")
     public ResponseEntity<ApiResponse<QueueStatusResponse>> getStatus(
-            @PathVariable Long showId,
+            @PathVariable UUID showId,
             @CurrentIdCard UserIdCard idCard
     ) {
         QueueStatusResponse response = queueService.getStatus(showId, idCard.getUserId());
@@ -47,7 +49,7 @@ public class QueueController {
 
     @GetMapping(value = "/queue/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(
-            @PathVariable Long showId,
+            @PathVariable UUID showId,
             @CurrentIdCard UserIdCard idCard
     ) {
         return queueSseService.connect(showId, idCard.getUserId());
