@@ -30,8 +30,8 @@ import java.util.stream.Collectors;
 public class PostDetailCacheService {
     private final PostReader postReader;
     private final ImageService imageService;
-    private final ImageUrlConverter imageUrlConverter;
     private final UserClient userClient;
+    private final ImageUrlConverter imageUrlConverter;
     private final CacheManager cacheManager;
     private final RedisTemplate<String, String> redisTemplate;
 

@@ -26,8 +26,8 @@ import java.util.stream.Collectors;
 public class LikeService {
     private final PostReader postReader;
     private final PostAssembler postAssembler;
-    private final ReactionCacheService reactionCacheService;
     private final LikeRepository likeRepository;
+    private final ReactionCacheService reactionCacheService;
 
     public LikeResponse createLike(UUID postId, UUID userId) {
         postReader.findById(postId);
