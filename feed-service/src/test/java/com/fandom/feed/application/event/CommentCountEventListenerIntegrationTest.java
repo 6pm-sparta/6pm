@@ -1,44 +1,24 @@
 package com.fandom.feed.application.event;
 
+import com.fandom.feed.infra.redis.config.RedisIntegrationTestSupport;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.config.RedisConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Testcontainers
-@ExtendWith(SpringExtension.class)
-@Import({CommentCountEventListener.class, RedisConfig.class, RedisAutoConfiguration.class})
-class CommentCountEventListenerIntegrationTest {
+@Import(CommentCountEventListener.class)
+class CommentCountEventListenerIntegrationTest extends RedisIntegrationTestSupport {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
     @Autowired
     private CommentCountEventListener listener;
-
-    @SuppressWarnings("resource")
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-    }
 
     @Test
     @DisplayName("댓글 생성 이벤트 발생 - Redis 댓글 수 증가")

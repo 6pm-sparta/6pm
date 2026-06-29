@@ -1,51 +1,31 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.feed.global.constant.FeedPolicy;
+import com.fandom.feed.infra.redis.config.RedisIntegrationTestSupport;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.config.RedisConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Testcontainers
 @TestPropertySource(properties = "cache.ttl.post-list=300")
-@ExtendWith(SpringExtension.class)
-@Import({PostListCacheService.class, RedisConfig.class, RedisAutoConfiguration.class})
-class PostListCacheServiceIntegrationTest {
+@Import(PostListCacheService.class)
+class PostListCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
     @Autowired
     private PostListCacheService postListCacheService;
-
-    @SuppressWarnings("resource")
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-    }
 
     @AfterEach
     void tearDown() {
