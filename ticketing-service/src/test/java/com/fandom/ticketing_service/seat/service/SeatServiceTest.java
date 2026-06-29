@@ -1,5 +1,6 @@
 package com.fandom.ticketing_service.seat.service;
 
+import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.client.OrderClient;
@@ -123,8 +124,9 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
-            given(orderClient.create(any(CreateOrderRequest.class))).willReturn(new CreateOrderResponse(orderId));
+            given(orderClient.create(any(CreateOrderRequest.class))).willReturn(ApiResponse.created(new CreateOrderResponse(orderId)));
 
             // when
             HoldResponse result = seatService.hold(seatId, userId);
@@ -172,6 +174,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(0L);
 
             // when & then
@@ -190,6 +193,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-1L);
 
             // when & then
@@ -208,6 +212,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-2L);
 
             // when & then

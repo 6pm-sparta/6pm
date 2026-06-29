@@ -2,6 +2,7 @@ package com.fandom.chat_service.application.service;
 
 import com.fandom.chat_service.domain.entity.ChatMessage;
 import com.fandom.chat_service.domain.entity.ChatRoom;
+import com.fandom.chat_service.domain.entity.ChatRoomMember;
 import com.fandom.chat_service.domain.entity.SenderRole;
 import com.fandom.chat_service.domain.exception.ChatErrorCode;
 import com.fandom.chat_service.domain.repository.ChatMessageRepository;
@@ -14,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,12 +32,15 @@ public class ChatMessageService {
     private final ChatRoomRepository roomRepository;
     private final ChatRoomMemberRepository memberRepository;
     private final ChatMessageRepository messageRepository;
+    private final MessageDeliveryService messageDeliveryService;
 
     // 메시지 전송
     @Transactional
     public MessageResponse send(UUID roomId, UUID senderId, String content) {
         ChatRoom room = getRoomOrThrow(roomId);
-        requireMember(roomId, senderId);
+        // 멤버십 검증 + 닉네임
+        ChatRoomMember member = memberRepository.findByRoomIdAndUserId(roomId, senderId)
+                .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ACCESS_DENIED));
 
         SenderRole role = room.getCreatorId().equals(senderId) ? SenderRole.CREATOR : SenderRole.MEMBER;
 
@@ -42,10 +48,20 @@ public class ChatMessageService {
                 .roomId(roomId)
                 .senderId(senderId)
                 .senderRole(role)
+                .senderNickname(member.getNickname())
                 .content(content)
                 .build());
         log.info("메시지 저장 room_id={}, sender_id={}, role={}", roomId, senderId, role);
-        return MessageResponse.from(saved);
+
+        // 커밋 후 전달
+        MessageResponse response = MessageResponse.from(saved);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                messageDeliveryService.deliver(room, response);
+            }
+        });
+        return response;
     }
 
     // 채팅 내역 조회

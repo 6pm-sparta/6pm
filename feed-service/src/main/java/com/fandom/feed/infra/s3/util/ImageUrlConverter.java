@@ -1,4 +1,4 @@
-package com.fandom.feed.infra.util;
+package com.fandom.feed.infra.s3.util;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;

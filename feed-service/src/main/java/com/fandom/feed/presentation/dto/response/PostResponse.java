@@ -2,7 +2,8 @@ package com.fandom.feed.presentation.dto.response;
 
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.infra.client.dto.UserResponse;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,7 +20,7 @@ public class PostResponse {
             UUID postId, UserResponse author, String content, List<String> imageUrls,
             long commentCount, long likeCount, boolean liked, LocalDateTime createdAt, LocalDateTime updatedAt
     ) {
-        public static Detail of(PostCache.Detail cachedPost, PostCache.ReactionInfo reactionInfo) {
+        public static Detail of(PostDetailCache cachedPost, ReactionInfoCache reactionInfo) {
             return new Detail(
                     cachedPost.postId(), cachedPost.author(), cachedPost.content(), cachedPost.imageUrls(),
                     reactionInfo.commentCount(), reactionInfo.likeCount(), reactionInfo.liked(),
@@ -32,7 +33,7 @@ public class PostResponse {
             UUID postId, UserResponse author, String content, boolean hasMore, String imageUrl,
             int imageCount, long commentCount, long likeCount, boolean liked, LocalDateTime createdAt
     ) {
-        public static Summary of(PostCache.Detail cachedPost, PostCache.ReactionInfo reactionInfo) {
+        public static Summary of(PostDetailCache cachedPost, ReactionInfoCache reactionInfo) {
             List<String> imageUrls = cachedPost.imageUrls();
             String content = cachedPost.content();
 

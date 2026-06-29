@@ -3,6 +3,7 @@ package com.fandom.chat_service.domain.repository;
 import com.fandom.chat_service.domain.entity.ChatRoomMember;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ChatRoomMemberRepository {
@@ -11,6 +12,9 @@ public interface ChatRoomMemberRepository {
 
     // 멱등 입장 체크
     boolean existsByRoomIdAndUserId(UUID roomId, UUID userId);
+
+    // 전송 시 멤버십 검증 + 닉네임 조회
+    Optional<ChatRoomMember> findByRoomIdAndUserId(UUID roomId, UUID userId);
 
     // 내가 속한 방 목록
     List<ChatRoomMember> findAllByUserId(UUID userId);

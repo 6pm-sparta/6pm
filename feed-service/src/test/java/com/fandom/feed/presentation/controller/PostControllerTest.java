@@ -118,11 +118,11 @@ class PostControllerTest {
         }
 
         @Test
-        @DisplayName("@RequestBody 없으면 content null - 500 반환")
+        @DisplayName("RequestBody 없으면 content null - 400 반환")
         void createPostMissingBody() throws Exception {
             // when & then
             mockMvc.perform(withIdCard(post("/api/v1/feeds/posts")))
-                    .andExpect(status().is5xxServerError());
+                    .andExpect(status().isBadRequest());
         }
     }
 }
