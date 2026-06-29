@@ -18,7 +18,7 @@ import java.util.UUID;
 public class ShowSeat extends BaseEntity {
 
     @Column(nullable = false)
-    private Long showId;
+    private UUID showId;
 
     @Column(nullable = false, length = 20)
     private String seatName;
@@ -33,7 +33,7 @@ public class ShowSeat extends BaseEntity {
     private UUID orderId;
 
     @Builder
-    private ShowSeat(Long showId, String seatName, String grade, int price) {
+    private ShowSeat(UUID showId, String seatName, String grade, int price) {
         this.showId = showId;
         this.seatName = seatName;
         this.grade = grade;

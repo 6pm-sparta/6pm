@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
 
-    List<ShowSeat> findAllByShowId(Long showId);
+    List<ShowSeat> findAllByShowId(UUID showId);
 
     Optional<ShowSeat> findByOrderId(UUID orderId);
 }

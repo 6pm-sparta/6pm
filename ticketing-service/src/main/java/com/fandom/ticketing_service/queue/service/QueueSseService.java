@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class QueueSseService {
 
-    private static final String WAITING_QUEUE_KEY = "waiting_queue:%d";
+    private static final String WAITING_QUEUE_KEY = "waiting_queue:%s";
     private static final long SSE_TIMEOUT = 10 * 60 * 1000L; // 10분
 
     private final RedisTemplate<String, String> redisTemplate;
@@ -24,7 +24,7 @@ public class QueueSseService {
     // showId:userId → emitter
     private final Map<String, SseEmitter> emitters = new ConcurrentHashMap<>();
 
-    public SseEmitter connect(Long showId, UUID userId) {
+    public SseEmitter connect(UUID showId, UUID userId) {
         String emitterKey = emitterKey(showId, userId);
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
 
@@ -37,7 +37,7 @@ public class QueueSseService {
     }
 
     // 스케줄러에서 호출 — 연결된 전체 유저에게 현재 순번 전송
-    public void broadcastRank(Long showId) {
+    public void broadcastRank(UUID showId) {
         String queueKey = WAITING_QUEUE_KEY.formatted(showId);
 
         emitters.entrySet().stream()
@@ -48,7 +48,7 @@ public class QueueSseService {
                 });
     }
 
-    private void sendRank(Long showId, UUID userId, SseEmitter emitter) {
+    private void sendRank(UUID showId, UUID userId, SseEmitter emitter) {
         String queueKey = WAITING_QUEUE_KEY.formatted(showId);
         Long rank = redisTemplate.opsForZSet().rank(queueKey, userId.toString());
 
@@ -66,7 +66,7 @@ public class QueueSseService {
         }
     }
 
-    private String emitterKey(Long showId, UUID userId) {
+    private String emitterKey(UUID showId, UUID userId) {
         return showId + ":" + userId;
     }
 }

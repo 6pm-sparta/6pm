@@ -26,10 +26,10 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class SeatService {
 
-    private static final String SEAT_KEY = "show:%d:seat:%s";
-    private static final String OWNER_KEY = "show:%d:seat:%s:owner";
-    private static final String INVENTORY_KEY = "inventory:%d";
-    private static final String PURCHASE_COUNT_KEY = "purchase-count:%s:%d";
+    private static final String SEAT_KEY = "show:%s:seat:%s";
+    private static final String OWNER_KEY = "show:%s:seat:%s:owner";
+    private static final String INVENTORY_KEY = "inventory:%s";
+    private static final String PURCHASE_COUNT_KEY = "purchase-count:%s:%s";
     private static final int MAX_PER_USER = 4;
 
     // owner 값은 "{userId}:{status}" 형태. 주문 생성(orderClient.create) 도중엔 PENDING으로 두어
@@ -80,7 +80,7 @@ public class SeatService {
     private final OrderClient orderClient;
     private final PurchaseTokenService purchaseTokenService;
 
-    public List<ShowSeatResponse> getSeats(Long showId) {
+    public List<ShowSeatResponse> getSeats(UUID showId) {
         List<ShowSeat> seats = showSeatRepository.findAllByShowId(showId);
         if (seats.isEmpty()) return List.of();
 
@@ -173,7 +173,7 @@ public class SeatService {
 
     // inventory 키는 쇼/좌석 생성 시점에 초기화되는 곳이 없어서, hold 시점에 없으면 DB 기준으로 lazy 초기화한다.
     // SETNX라서 동시 요청이 몰려도 한 번만 세팅된다.
-    private void ensureInventoryInitialized(Long showId, String inventoryKey) {
+    private void ensureInventoryInitialized(UUID showId, String inventoryKey) {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(inventoryKey))) {
             return;
         }
@@ -183,7 +183,7 @@ public class SeatService {
         redisTemplate.opsForValue().setIfAbsent(inventoryKey, String.valueOf(availableCount));
     }
 
-    public PurchaseLimitResponse getPurchaseLimit(Long showId, UUID userId) {
+    public PurchaseLimitResponse getPurchaseLimit(UUID showId, UUID userId) {
         String countKey = PURCHASE_COUNT_KEY.formatted(userId, showId);
         String count = redisTemplate.opsForValue().get(countKey);
         int purchased = count != null ? Integer.parseInt(count) : 0;
@@ -193,7 +193,7 @@ public class SeatService {
 
     // seatKey가 DEL이 아닌 TTL 만료로 사라졌을 때만 호출됨(SeatHoldExpirationListener) → 결제 미완료 상태로 방치된 선점만 해제 대상
     @Transactional
-    public void releaseExpiredHold(Long showId, UUID showSeatId) {
+    public void releaseExpiredHold(UUID showId, UUID showSeatId) {
         showSeatRepository.findById(showSeatId).ifPresentOrElse(seat -> {
             if (seat.getOrderId() == null) {
                 return;

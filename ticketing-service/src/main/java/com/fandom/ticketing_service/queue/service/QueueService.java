@@ -11,11 +11,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class QueueService {
 
-    private static final String WAITING_QUEUE_KEY = "waiting_queue:%d";
+    private static final String WAITING_QUEUE_KEY = "waiting_queue:%s";
 
     private final RedisTemplate<String, String> redisTemplate;
 
-    public boolean enter(Long showId, UUID userId) {
+    public boolean enter(UUID showId, UUID userId) {
         String key = WAITING_QUEUE_KEY.formatted(showId);
         double score = System.currentTimeMillis();
         // NX 옵션: 이미 대기열에 있으면 추가하지 않음
@@ -23,7 +23,7 @@ public class QueueService {
         return Boolean.TRUE.equals(added);
     }
 
-    public QueueStatusResponse getStatus(Long showId, UUID userId) {
+    public QueueStatusResponse getStatus(UUID showId, UUID userId) {
         String key = WAITING_QUEUE_KEY.formatted(showId);
         Long rank = redisTemplate.opsForZSet().rank(key, userId.toString());
         return QueueStatusResponse.of(rank);
