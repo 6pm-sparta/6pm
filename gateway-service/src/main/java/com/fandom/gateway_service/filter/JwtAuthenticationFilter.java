@@ -70,6 +70,17 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return unauthorized(exchange, CommonErrorCode.INVALID_ID_CARD);
         }
 
+        // claim 무결성 검증: subject(userId)가 UUID 형식인지, role이 존재하는지.
+        // blacklist 조회(Redis) 이전에 차단하여 비정상 토큰의 불필요한 조회를 막고,
+        // toUserIdCard 의 UUID.fromString/role null 로 인한 예외가 reactive 스트림으로
+        // 전파되어 500 으로 떨어지는 것을 방지한다(401 로 안전하게 차단).
+        UserIdCard idCard;
+        try {
+            idCard = toUserIdCard(claims);
+        } catch (IllegalArgumentException e) {
+            return unauthorized(exchange, CommonErrorCode.INVALID_ID_CARD);
+        }
+
         String jti = claims.getId();
         String userId = claims.getSubject();
         Mono<Boolean> accessBlacklisted = redisTemplate.hasKey(ACCESS_BLACKLIST_KEY_PREFIX + jti)
@@ -82,7 +93,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     if (Boolean.TRUE.equals(result.getT1()) || Boolean.TRUE.equals(result.getT2())) {
                         return unauthorized(exchange, CommonErrorCode.INVALID_ID_CARD);
                     }
-                    UserIdCard idCard = toUserIdCard(claims);
                     ServerHttpRequest mutatedRequest = withUserIdCard(request, idCard);
                     ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
                     mutatedExchange.getAttributes().put(GatewayAuthenticationAttributes.USER_ID_CARD, idCard);
@@ -90,9 +100,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 });
     }
 
+    /**
+     * Claims 에서 UserIdCard 를 생성한다.
+     * subject 가 null/비-UUID 이거나 role 이 없으면 IllegalArgumentException 을 던진다(호출부에서 401 처리).
+     */
     private UserIdCard toUserIdCard(Claims claims) {
-        UUID userId = UUID.fromString(claims.getSubject());
+        String subject = claims.getSubject();
+        if (subject == null) {
+            throw new IllegalArgumentException("JWT subject(userId) is missing");
+        }
+        UUID userId = UUID.fromString(subject); // 비-UUID 형식이면 IllegalArgumentException
         String role = claims.get("role", String.class);
+        if (role == null || role.isBlank()) {
+            throw new IllegalArgumentException("JWT role claim is missing");
+        }
         return UserIdCard.of(userId, role);
     }
 

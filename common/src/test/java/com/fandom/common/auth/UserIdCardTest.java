@@ -34,4 +34,35 @@ class UserIdCardTest {
 
         assertThat(idCard.isMe(null)).isFalse();
     }
+
+    @Test
+    @DisplayName("isMember는 role이 MEMBER일 때만 true")
+    void isMember() {
+        assertThat(UserIdCard.of(UUID.randomUUID(), "MEMBER").isMember()).isTrue();
+        assertThat(UserIdCard.of(UUID.randomUUID(), "CREATOR").isMember()).isFalse();
+    }
+
+    @Test
+    @DisplayName("isCreator는 role이 CREATOR일 때만 true")
+    void isCreator() {
+        assertThat(UserIdCard.of(UUID.randomUUID(), "CREATOR").isCreator()).isTrue();
+        assertThat(UserIdCard.of(UUID.randomUUID(), "MEMBER").isCreator()).isFalse();
+    }
+
+    @Test
+    @DisplayName("isMaster는 role이 MASTER일 때만 true")
+    void isMaster() {
+        assertThat(UserIdCard.of(UUID.randomUUID(), "MASTER").isMaster()).isTrue();
+        assertThat(UserIdCard.of(UUID.randomUUID(), "MEMBER").isMaster()).isFalse();
+    }
+
+    @Test
+    @DisplayName("role이 null이어도 role 판별 메서드는 NPE 없이 false")
+    void roleChecks_nullSafe() {
+        UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), null);
+
+        assertThat(idCard.isMember()).isFalse();
+        assertThat(idCard.isCreator()).isFalse();
+        assertThat(idCard.isMaster()).isFalse();
+    }
 }

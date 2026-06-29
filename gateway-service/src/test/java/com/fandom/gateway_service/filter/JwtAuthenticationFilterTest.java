@@ -159,4 +159,90 @@ class JwtAuthenticationFilterTest {
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         verify(chain, never()).filter(any());
     }
+
+    // ===== 비정상 claim 차단 (claim 무결성 검증) =====
+
+    /** subject/role 을 직접 지정한 claims (비정상 케이스용). */
+    private Claims claimsWith(String subject, String role) {
+        Claims claims = mock(Claims.class);
+        lenient().when(claims.getSubject()).thenReturn(subject);
+        lenient().when(claims.get("role", String.class)).thenReturn(role);
+        lenient().when(claims.getId()).thenReturn("jti-x");
+        return claims;
+    }
+
+    @Test
+    @DisplayName("subject(userId)가 없으면 401로 차단한다")
+    void subjectMissing_unauthorized() {
+        Claims claims = claimsWith(null, "MEMBER");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
+    @DisplayName("subject가 UUID 형식이 아니면 401로 차단한다")
+    void subjectNotUuid_unauthorized() {
+        Claims claims = claimsWith("not-a-uuid", "MEMBER");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
+    @DisplayName("role claim이 없으면 401로 차단한다")
+    void roleMissing_unauthorized() {
+        Claims claims = claimsWith(USER_ID.toString(), null);
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
+    @DisplayName("role claim이 공백이면 401로 차단한다")
+    void roleBlank_unauthorized() {
+        Claims claims = claimsWith(USER_ID.toString(), "  ");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
+    @DisplayName("비정상 claim은 blacklist 조회(Redis) 이전에 차단되어 Redis를 조회하지 않는다")
+    void invalidClaim_blockedBeforeRedis() {
+        Claims claims = claimsWith(null, "MEMBER");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer token").build());
+
+        filter.filter(exchange, chain).block();
+
+        // claim 무결성 검증이 blacklist 조회보다 먼저이므로 Redis hasKey 가 호출되지 않아야 한다
+        verify(redisTemplate, never()).hasKey(anyString());
+    }
 }
