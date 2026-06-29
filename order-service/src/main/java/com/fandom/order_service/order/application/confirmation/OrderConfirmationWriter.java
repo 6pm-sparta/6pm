@@ -7,6 +7,7 @@ import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
 import com.fandom.order_service.order.domain.exception.OrderErrorCode;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
 import com.fandom.order_service.order.domain.repository.OrderStatusHistoryRepository;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class OrderConfirmationWriter {
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final OutboxAppender outboxAppender;
 
     @Transactional
     public OrderConfirmationResult confirm(UUID orderId) {
@@ -46,6 +48,7 @@ public class OrderConfirmationWriter {
         OrderStatus before = order.getStatus();
         order.markConfirmed();
         saveHistory(order.getId(), before, order.getStatus(), "좌석 예매 확정");
+        outboxAppender.appendOrderCompletedNotification(order.getId(), order.getUserId());
 
         return OrderConfirmationResult.confirmed(order.getId(), order.getUserId());
     }

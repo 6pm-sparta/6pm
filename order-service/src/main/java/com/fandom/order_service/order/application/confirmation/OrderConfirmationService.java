@@ -1,6 +1,5 @@
 package com.fandom.order_service.order.application.confirmation;
 
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,17 +16,14 @@ import java.util.UUID;
 public class OrderConfirmationService {
 
     private final OrderConfirmationWriter orderConfirmationWriter;
-    private final OrderEventProducer orderEventProducer;
 
     public void confirmOrder(UUID orderId) {
 
         OrderConfirmationResult result = orderConfirmationWriter.confirm(orderId);
 
         switch (result.type()) {
-            case CONFIRMED -> {
-                orderEventProducer.publishOrderCompletedNotification(result.orderId(), result.userId());
-                log.info("[좌석 확정] 주문 CONFIRMED 전이 완료. orderId={}", result.orderId());
-            }
+            case CONFIRMED ->
+                    log.info("[좌석 확정] 주문 CONFIRMED 전이 완료. orderId={}", result.orderId());
             case ALREADY_CONFIRMED ->
                     log.info("[좌석 확정] 이미 CONFIRMED 처리된 주문 - 중복 이벤트 무시. orderId={}", result.orderId());
             case SKIPPED_INVALID_STATE ->

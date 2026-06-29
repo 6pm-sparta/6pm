@@ -1,6 +1,7 @@
 package com.fandom.order_service.payment.application.webhook;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
@@ -14,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -30,20 +30,20 @@ public class RefundResultWriter {
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final PaymentRepository paymentRepository;
+    private final OutboxAppender outboxAppender;
 
     /**
      * 환불 성공(REFUNDED) webhook을 반영한다.
-     *
-     * @return 실제 전이가 발생했다면 알림 발송에 필요한 userId, 이미 처리된 중복 수신이면 empty
+     * 전이 시 같은 트랜잭션에서 좌석 반환/환불 알림 이벤트를 Outbox에 적재. 중복 수신은 no-op.
      */
     @Transactional
-    public Optional<UUID> applyRefundSuccess(UUID orderId, UUID paymentId) {
+    public void applyRefundSuccess(UUID orderId, UUID paymentId) {
 
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
 
         if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
-            return Optional.empty();
+            return;
         }
 
         Payment payment = paymentRepository.findById(paymentId)
@@ -54,30 +54,26 @@ public class RefundResultWriter {
         payment.refund();
         saveHistory(order.getId(), before, order.getStatus(), "환불 완료(PG 웹훅)");
 
-        return Optional.of(order.getUserId());
+        outboxAppender.appendPaymentCancelled(order.getId());
+        outboxAppender.appendOrderCancelledNotification(order.getId(), order.getUserId());
     }
 
     /**
-     * 환불 거절(REFUND_FAILED) webhook을 반영한다.
-     * 유저 직접 취소/SAGA 보상 경로 모두 동일하게 최종 실패로 처리한다.
-     *
-     * @return 실제 전이가 발생했는지 여부
+     * 환불 거절(REFUND_FAILED) webhook 반영. 최종 실패로 처리하고 수동 처리 대상으로 남긴다(발행 없음).
      */
     @Transactional
-    public boolean applyRefundFailure(UUID orderId, String failureReason) {
+    public void applyRefundFailure(UUID orderId, String failureReason) {
 
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
 
         if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
-            return false;
+            return;
         }
 
         OrderStatus before = order.getStatus();
         order.markRefundFailed();
         saveHistory(order.getId(), before, order.getStatus(), "환불 거절(PG 웹훅): " + failureReason);
-
-        return true;
     }
 
     private void saveHistory(UUID orderId, OrderStatus fromStatus, OrderStatus toStatus, String reason) {
