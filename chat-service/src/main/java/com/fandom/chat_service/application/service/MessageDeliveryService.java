@@ -21,6 +21,7 @@ import java.util.UUID;
 public class MessageDeliveryService {
 
     private static final String USER_QUEUE = "/queue/messages";
+    private static final String ROOM_TOPIC_PREFIX = "/topic/room.";
 
     private final SimpMessagingTemplate messagingTemplate;
     private final OnlineStatePort onlineState;
@@ -28,26 +29,23 @@ public class MessageDeliveryService {
     private final ChatNotificationPort chatNotificationPort;
 
     public void deliver(ChatRoom room, MessageResponse message) {
-        // 에코
-        sendToUser(message.senderId(), message);
-
         if (message.senderRole() == SenderRole.CREATOR) {
             deliverBroadcast(room, message);
         } else {
+            sendToUser(message.senderId(), message);
             deliverReplyToCreator(room, message);
         }
     }
 
-    // 크리에이터 메시지
+    // 크리에이터 메시지 - 온라인은 방 토픽 1회 발행, 오프라인은 알림
     private void deliverBroadcast(ChatRoom room, MessageResponse message) {
+        messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + room.getId(), message);
+
         Set<UUID> fans = roomMemberCache.getFans(room.getId(), room.getCreatorId());
         if (fans.isEmpty()) {
             return;
         }
-
         Set<UUID> online = new HashSet<>(onlineState.filterOnline(fans));
-        online.forEach(fan -> sendToUser(fan, message)); // online → WS
-
         List<UUID> offline = fans.stream().filter(fan -> !online.contains(fan)).toList();
         if (!offline.isEmpty()) { // offline 처리
             chatNotificationPort.notifyNewMessage(message.id(), room.getTitle(), message.content(), offline);
