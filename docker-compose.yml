@@ -222,6 +222,8 @@ services:
       - ./infra/alert-rules.yml:/etc/prometheus/alert-rules.yml
     depends_on:
       - alertmanager
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   alertmanager:
     image: prom/alertmanager:latest
@@ -231,6 +233,8 @@ services:
       - "9093:9093"
     volumes:
       - ./infra/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   loki:
     image: grafana/loki:latest
