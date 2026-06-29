@@ -30,6 +30,7 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers:2.0.5'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
 	testImplementation 'org.testcontainers:postgresql'
+	testImplementation 'org.testcontainers:localstack'
 
 	// 추적
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
