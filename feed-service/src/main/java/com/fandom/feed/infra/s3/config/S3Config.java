@@ -1,6 +1,7 @@
 package com.fandom.feed.infra.s3.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -21,6 +22,7 @@ public class S3Config {
     private String region;
 
     @Bean
+    @ConditionalOnMissingBean
     public S3Presigner s3Presigner() {
         return S3Presigner.builder()
                 .region(Region.of(region))
@@ -29,6 +31,7 @@ public class S3Config {
     }
 
     @Bean
+    @ConditionalOnMissingBean
     public S3Client s3Client() {
         return S3Client.builder()
                 .region(Region.of(region))
