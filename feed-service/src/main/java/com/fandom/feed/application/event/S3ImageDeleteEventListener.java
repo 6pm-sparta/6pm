@@ -1,6 +1,6 @@
-package com.fandom.feed.infra.s3;
+package com.fandom.feed.application.event;
 
-import com.fandom.feed.application.event.Event;
+import com.fandom.feed.infra.s3.S3Service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;

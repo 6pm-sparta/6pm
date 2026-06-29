@@ -1,4 +1,4 @@
-package com.fandom.feed.infra.redis.constant;
+package com.fandom.feed.global.constant;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

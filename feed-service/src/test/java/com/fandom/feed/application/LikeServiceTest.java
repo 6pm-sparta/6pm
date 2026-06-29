@@ -22,7 +22,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -95,21 +94,5 @@ class LikeServiceTest {
         InOrder inOrder = inOrder(likeRepository, reactionCacheService);
         inOrder.verify(likeRepository).deleteByPostIdAndUserId(postId, userId);
         inOrder.verify(reactionCacheService).removeLike(postId, userId);
-    }
-
-    @Test
-    @DisplayName("사용자 ID로 모든 좋아요 삭제")
-    void deleteAllByUserId() {
-        // given
-        UUID userId = UUID.randomUUID();
-        List<UUID> postIds = List.of(UUID.randomUUID(), UUID.randomUUID());
-        given(likeRepository.findPostIdsByUserId(userId)).willReturn(postIds);
-
-        // when
-        likeService.deleteAllByUserId(userId);
-
-        // then
-        verify(likeRepository).deleteAllByUserId(userId);
-        verify(reactionCacheService).removeLikeBatch(postIds, userId);
     }
 }

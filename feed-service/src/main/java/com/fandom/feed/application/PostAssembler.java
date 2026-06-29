@@ -4,10 +4,9 @@ import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
-import com.fandom.feed.infra.redis.PostDetailCacheService;
+import com.fandom.feed.infra.redis.PostCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
-import com.fandom.feed.infra.redis.dto.PostDetailCache;
-import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
+import com.fandom.feed.infra.redis.dto.PostCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,7 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class PostAssembler {
     private final ImageService imageService;
-    private final PostDetailCacheService postDetailCacheService;
+    private final PostCacheService postCacheService;
     private final ReactionCacheService reactionCacheService;
     private final UserClient userClient;
 
@@ -36,8 +35,8 @@ public class PostAssembler {
         boolean hasMore = postIds.size() > FeedPolicy.PAGE_SIZE;
         List<UUID> pageIds = hasMore ? postIds.subList(0, FeedPolicy.PAGE_SIZE) : postIds;
 
-        List<PostDetailCache> posts = postDetailCacheService.getPostDetailBatch(pageIds);
-        List<ReactionInfoCache> reactionInfos = reactionCacheService.getReactionInfoBatch(pageIds, userId, false);
+        List<PostCache.Detail> posts = postCacheService.getPostDetailBatch(pageIds);
+        List<PostCache.ReactionInfo> reactionInfos = reactionCacheService.getReactionInfoBatch(pageIds, userId, false);
 
         List<PostResponse.Summary> summaries = IntStream.range(0, pageIds.size())
                 .mapToObj(i -> PostResponse.Summary.of(posts.get(i), reactionInfos.get(i)))
@@ -65,11 +64,11 @@ public class PostAssembler {
         Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()
                 .stream().collect(Collectors.toMap(UserResponse::userId, Function.identity()));
 
-        List<ReactionInfoCache> reactionInfos = reactionCacheService.getReactionInfoBatch(postIds, userId, isLiked);
+        List<PostCache.ReactionInfo> reactionInfos = reactionCacheService.getReactionInfoBatch(postIds, userId, isLiked);
 
         // DTO 조립
-        List<PostDetailCache> details = page.stream()
-                .map(post -> PostDetailCache.of(
+        List<PostCache.Detail> details = page.stream()
+                .map(post -> PostCache.Detail.of(
                         post, imageUrlsMap.getOrDefault(post.getId(), List.of()), authorMap.get(post.getAuthorId())
                 ))
                 .toList();

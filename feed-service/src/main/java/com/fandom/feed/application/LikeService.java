@@ -59,30 +59,8 @@ public class LikeService {
         return LikeResponse.of(postId, likeCount);
     }
 
-    /**
-     * 사용자 ID로 모든 좋아요를 삭제하는 메서드
-     */
-    @Transactional
-    public void deleteAllByUserId(UUID userId) {
-        List<UUID> postIds = likeRepository.findPostIdsByUserId(userId);
-        likeRepository.deleteAllByUserId(userId);
-        reactionCacheService.removeLikeBatch(postIds, userId);
-    }
-
-    /**
-     * 게시글 ID로 모든 좋아요를 삭제하는 메서드
-     */
     @Transactional
     public void deleteAllByPostId(UUID postId) {
-        deleteAllByPostIds(List.of(postId));
-    }
-
-    /**
-     * 게시글 ID 목록으로 좋아요를 삭제하는 메서드
-     */
-    @Transactional
-    public void deleteAllByPostIds(List<UUID> postIds) {
-        likeRepository.deleteAllByPostIdIn(postIds);
-        reactionCacheService.deleteLikeSetBatch(postIds);
+        likeRepository.deleteAllByPostId(postId);
     }
 }

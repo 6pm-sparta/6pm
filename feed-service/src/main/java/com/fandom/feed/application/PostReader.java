@@ -23,7 +23,7 @@ public class PostReader {
     }
 
     /**
-     * 게시글 ID 목록으로 게시글을 조회하는 메서드
+     * 게시글 ID 목록으로 게시글 목록을 조회하는 메서드
      */
     public List<Post> findAllByIds(List<UUID> postIds) {
         return postRepository.findAllById(postIds);

@@ -37,14 +37,4 @@ public class PostRepositoryImpl extends BaseRepositoryImpl<Post, UUID, JpaPostRe
     public void decrementCommentCount(UUID postId) {
         jpaRepository.decrementCommentCount(postId);
     }
-
-    @Override
-    public void softDeleteAllByAuthorId(UUID authorId) {
-        jpaRepository.softDeleteAllByAuthorId(authorId);
-    }
-
-    @Override
-    public List<UUID> findAllIdsByAuthorId(UUID authorId) {
-        return jpaRepository.findAllIdsByAuthorId(authorId);
-    }
 }

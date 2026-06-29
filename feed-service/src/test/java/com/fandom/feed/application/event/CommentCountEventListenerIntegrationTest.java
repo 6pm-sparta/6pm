@@ -1,6 +1,6 @@
 package com.fandom.feed.application.event;
 
-import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
+import com.fandom.feed.global.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.config.RedisConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

@@ -4,8 +4,8 @@ import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Like;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.LikeRepository;
-import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
+import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.dto.PostCache;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -67,7 +67,7 @@ class ReactionCacheServiceTest {
             when(setOperations.isMember(anyString(), anyString())).thenReturn(true);
 
             // When
-            ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, userId);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, userId);
 
             // Then
             assertThat(info.commentCount()).isEqualTo(10L);
@@ -85,7 +85,7 @@ class ReactionCacheServiceTest {
             when(setOperations.size(anyString())).thenReturn(5L);
 
             // When
-            ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, null);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, null);
 
             // Then
             assertThat(info.commentCount()).isEqualTo(10L);
@@ -105,7 +105,7 @@ class ReactionCacheServiceTest {
             when(valueOperations.get(RedisKeyPrefix.COMMENT_COUNT + postId)).thenReturn("7");
 
             // When
-            ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, null);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, null);
 
             // Then
             assertThat(info.commentCount()).isEqualTo(7L);
@@ -125,7 +125,7 @@ class ReactionCacheServiceTest {
             when(setOperations.size(anyString())).thenReturn(0L);
 
             // When
-            ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, null);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, null);
 
             // Then
             assertThat(info.commentCount()).isEqualTo(3L);
@@ -145,7 +145,7 @@ class ReactionCacheServiceTest {
             when(setOperations.size(RedisKeyPrefix.LIKE_SET + postId)).thenReturn(3L);
 
             // When
-            ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, null);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, null);
 
             // Then
             assertThat(info.likeCount()).isEqualTo(3L);
@@ -166,7 +166,7 @@ class ReactionCacheServiceTest {
             when(likeRepository.findAllByPostId(postId)).thenReturn(List.of(like));
 
             // When
-            ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, null);
+            PostCache.ReactionInfo info = reactionCacheService.getReactionInfo(postId, null);
 
             // Then
             assertThat(info.likeCount()).isEqualTo(1L);

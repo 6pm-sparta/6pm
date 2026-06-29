@@ -12,8 +12,6 @@ import java.util.UUID;
 public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
     List<Like> findAllByPostId(UUID postId);
     void deleteByPostIdAndUserId(UUID postId, UUID userId);
-    void deleteAllByUserId(UUID userId);
-    void deleteAllByPostIdIn(List<UUID> postIds);
 
     @Query("""
         SELECT l FROM Like l
@@ -35,9 +33,8 @@ public interface JpaLikeRepository extends JpaRepository<Like, UUID> {
                                   @Param("userId") UUID userId,
                                   Pageable pageable);
 
+    void deleteAllByPostId(UUID postId);
+
     @Query("SELECT l.postId, l.userId FROM Like l WHERE l.postId IN :postIds")
     List<Object[]> findLikeUsersByPostIds(@Param("postIds") List<UUID> postIds);
-
-    @Query("SELECT l.postId FROM Like l WHERE l.userId = :userId")
-    List<UUID> findPostIdsByUserId(@Param("userId") UUID userId);
 }

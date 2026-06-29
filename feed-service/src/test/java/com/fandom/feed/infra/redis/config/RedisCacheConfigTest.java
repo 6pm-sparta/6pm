@@ -1,7 +1,7 @@
 package com.fandom.feed.infra.redis.config;
 
-import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.dto.PostDetailCache;
+import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.dto.PostCache;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +30,7 @@ class RedisCacheConfigTest {
 
         assertThat(config).isNotNull();
         Cache cache = cacheManager.getCache(RedisKeyPrefix.POST_DETAIL);
-        PostDetailCache cachedPost = new PostDetailCache(
+        PostCache.Detail cachedPost = new PostCache.Detail(
                 UUID.randomUUID(), null, "내용", List.of(), LocalDateTime.now(), LocalDateTime.now()
         );
 

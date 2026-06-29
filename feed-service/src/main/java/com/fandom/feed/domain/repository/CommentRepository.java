@@ -9,7 +9,5 @@ import java.util.UUID;
 public interface CommentRepository extends BaseRepository<Comment, UUID> {
     List<Comment> findByCursorAndPostId(UUID cursor, ReactionSort sort, UUID postId);
     List<Comment> findByCursorAndAuthorId(UUID cursor, ReactionSort sort, UUID authorId);
-
-    void anonymizeByAuthorId(UUID authorId);
-    void softDeleteAllByPostIds(List<UUID> postIds, UUID userId);
+    void softDeleteAllByPostId(UUID postId, UUID userId);
 }

@@ -37,25 +37,4 @@ class JpaLikeRepositoryTest {
         // Then
         assertThat(result).hasSize(3);
     }
-
-    @Test
-    @DisplayName("userId로 postId 목록 조회")
-    void findPostIdsByUserId() {
-        // given
-        UUID userId = UUID.randomUUID();
-        UUID postId1 = UUID.randomUUID();
-        UUID postId2 = UUID.randomUUID();
-
-        jpaLikeRepository.saveAll(List.of(
-                Like.builder().userId(userId).postId(postId1).build(),
-                Like.builder().userId(userId).postId(postId2).build(),
-                Like.builder().userId(UUID.randomUUID()).postId(postId1).build()
-        ));
-
-        // when
-        List<UUID> postIds = jpaLikeRepository.findPostIdsByUserId(userId);
-
-        // then
-        assertThat(postIds).containsExactlyInAnyOrder(postId1, postId2);
-    }
 }
