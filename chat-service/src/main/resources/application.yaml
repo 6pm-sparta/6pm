@@ -29,6 +29,10 @@ spring:
       port: ${REDIS_PORT}
       password: ${REDIS_PASSWORD}
 
+chat:
+  notification:
+    chunk-size: 500
+
 eureka:
   client:
     service-url:
