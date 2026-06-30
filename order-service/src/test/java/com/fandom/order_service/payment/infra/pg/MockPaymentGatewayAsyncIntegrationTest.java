@@ -62,7 +62,7 @@ class MockPaymentGatewayAsyncIntegrationTest {
 
         int port = server.getAddress().getPort();
         OrderProperties properties = new OrderProperties(
-                null, 0, null, null, null,
+                null, 0, null, null, null, null,
                 new OrderProperties.PgWebhook(SECRET, "http://localhost:" + port + "/webhook", CALLBACK_DELAY_MILLIS, 600L));
 
         scheduler = new ThreadPoolTaskScheduler();

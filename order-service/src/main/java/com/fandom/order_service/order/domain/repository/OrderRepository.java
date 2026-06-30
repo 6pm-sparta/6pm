@@ -3,6 +3,7 @@ package com.fandom.order_service.order.domain.repository;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,7 +11,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,4 +41,14 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
      * createdAt DESC 정렬 Pageable을 넘겨준다 (Repository 메서드 자체는 정렬을 강제하지 않음).
      */
     Page<Order> findByUserId(UUID requesterId, Pageable pageable);
+
+    /**
+     * 타임아웃 자동 취소 대상 후보 ID 조회. 락 없이 ID만 가져오고, 실제 락은 건마다
+     * OrderTimeoutWriter가 findByIdForUpdate로 개별 획득한다(배치 전체 락 보유 시간 방지).
+     */
+    @Query("select o.id from Order o where o.status = :status and o.expiredAt < :now")
+    List<UUID> findExpiredOrderIds(
+            @Param("status") OrderStatus status,
+            @Param("now") LocalDateTime now,
+            Limit limit);
 }
