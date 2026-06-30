@@ -29,4 +29,9 @@ public class NotificationDeliveryRepositoryImpl implements NotificationDeliveryR
     public List<NotificationDelivery> findAllByNotificationId(UUID notificationId) {
         return jpaRepository.findAllByNotificationId(notificationId);
     }
+
+    @Override
+    public void deleteByUserId(UUID userId) {
+        jpaRepository.deleteByUserId(userId);
+    }
 }
