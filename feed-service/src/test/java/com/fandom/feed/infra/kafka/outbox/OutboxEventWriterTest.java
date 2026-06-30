@@ -31,7 +31,7 @@ class OutboxEventWriterTest {
     @InjectMocks
     OutboxEventWriter outboxEventWriter;
     @Test
-    @DisplayName("정상 동작 - 페이로드를 JSON으로 직렬화해 OutboxEvent를 저장한다")
+    @DisplayName("정상 동작 - payload를 JSON으로 직렬화해 OutboxEvent 저장")
     void write() throws JsonProcessingException {
         // given
         UUID aggregateId = UUID.randomUUID();
@@ -52,7 +52,7 @@ class OutboxEventWriterTest {
     }
 
     @Test
-    @DisplayName("JSON 직렬화 실패 - CustomException을 던지고 저장을 시도하지 않는다")
+    @DisplayName("JSON 직렬화 실패 - 예외 발생 후 OutboxEvent 저장 안 함")
     void writeThrowsOnSerializationFailure() throws JsonProcessingException {
         // given
         UUID aggregateId = UUID.randomUUID();
