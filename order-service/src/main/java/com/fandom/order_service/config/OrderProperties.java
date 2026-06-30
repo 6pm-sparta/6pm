@@ -18,6 +18,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * compensation.refundMaxAttempts/refundRetryBackoffMillis: SAGA 보상(#88) PG 환불 재시도 횟수/간격.
  *
+ * timeout.batchSize/pollIntervalMs: 타임아웃 스케줄러 배치 크기/폴링 주기.
+ *
  * pgWebhook.secretKey: PG → order-service 콜백 서명(X-PG-Signature) 검증 키.
  * pgWebhook.callbackUrl: MockPaymentGateway가 비동기 콜백을 쏠 자기 자신의 webhook 엔드포인트 URL.
  * pgWebhook.callbackDelayMillis: MockPaymentGateway가 결과를 콜백하기까지의 인위적 지연(비동기 흐름 시뮬레이션).
@@ -30,6 +32,7 @@ public record OrderProperties(
         PaymentLockProperties paymentLockProperties,
         Cancellation cancellation,
         Compensation compensation,
+        Timeout timeout,
         PgWebhook pgWebhook) {
     public record Hold(
             long claimTtlSeconds,
@@ -61,6 +64,13 @@ public record OrderProperties(
     public record Compensation(
             int refundMaxAttempts,
             long refundRetryBackoffMillis
+    ) {
+    }
+
+    /** batchSize: 폴링 1회당 최대 처리 건수. pollIntervalMs: 폴링 주기(ms). */
+    public record Timeout(
+            int batchSize,
+            long pollIntervalMs
     ) {
     }
 

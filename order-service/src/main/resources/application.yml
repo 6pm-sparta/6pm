@@ -63,6 +63,9 @@ order:
   compensation:
     refund-max-attempts: 3        # SAGA 보상 PG 환불 재시도 최대 횟수(현재 미사용) — webhook 기반 재시도 도입 시 재사용 예정
     refund-retry-backoff-millis: 1000  # 재시도 간 대기(ms)(현재 미사용)
+  timeout:
+    batch-size: 100              # 폴링 1회당 최대 처리 건수
+    poll-interval-ms: 5000       # 폴링 주기
   pg-webhook:
     secret-key: "${PG_WEBHOOK_SECRET_KEY:PGWebhookSecret_2026_6pm_fandom_X7mK2vQ8pL9aR4s}"
     callback-url: "http://localhost:${server.port}/api/v1/webhooks/payments"
