@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
@@ -192,7 +193,7 @@ class AuthServiceTest {
     void login_refreshTokenSaveFailure() {
         LoginRequest request = new LoginRequest(EMAIL, RAW_PASSWORD);
         Claims refreshClaims = refreshClaims();
-        RuntimeException redisException = new RuntimeException("redis unavailable");
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
         given(memberLookupClient.getMemberByEmail(EMAIL))
                 .willReturn(ApiResponse.success(memberOf("ACTIVE")));
         given(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).willReturn(true);
@@ -213,7 +214,7 @@ class AuthServiceTest {
     @DisplayName("재발급 중 Refresh Token 조회에 실패하면 예외를 전파한다")
     void reissue_refreshTokenLookupFailure() {
         Claims refreshClaims = refreshClaims();
-        RuntimeException redisException = new RuntimeException("redis unavailable");
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
         given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
         given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
         given(tokenRepository.existsRefreshToken(USER_ID, REFRESH_TOKEN_ID)).willThrow(redisException);
@@ -245,7 +246,7 @@ class AuthServiceTest {
     void logout_refreshTokenDeleteFailure() {
         Claims accessClaims = accessClaims();
         Claims refreshClaims = refreshClaims();
-        RuntimeException redisException = new RuntimeException("redis unavailable");
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
         given(jwtProvider.parse("access-token")).willReturn(accessClaims);
         given(jwtProvider.isAccessToken(accessClaims)).willReturn(true);
         given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
@@ -262,7 +263,7 @@ class AuthServiceTest {
         Claims accessClaims = accessClaims();
         Claims refreshClaims = refreshClaims();
         Duration accessTtl = Duration.ofMinutes(10);
-        RuntimeException redisException = new RuntimeException("redis unavailable");
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
         given(jwtProvider.parse("access-token")).willReturn(accessClaims);
         given(jwtProvider.isAccessToken(accessClaims)).willReturn(true);
         given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);

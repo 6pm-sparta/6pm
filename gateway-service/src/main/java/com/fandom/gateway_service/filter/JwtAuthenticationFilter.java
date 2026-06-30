@@ -13,6 +13,7 @@ import com.fandom.gateway_service.security.GatewayAuthenticationAttributes;
 import com.fandom.gateway_service.security.GatewaySecurityRules;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -28,6 +29,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.UUID;
 
+@Slf4j
 @Component
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
@@ -82,12 +84,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 .materialize()
                 .flatMap(result -> {
                     if (result.isOnError()) {
+                        log.warn("인증 상태 조회 실패", result.getThrowable());
                         return writeErrorResponse(exchange, GatewayErrorCode.AUTH_STATE_UNAVAILABLE);
                     }
                     var tuple = result.get();
-                    if (tuple == null) {
-                        return writeErrorResponse(exchange, GatewayErrorCode.AUTH_STATE_UNAVAILABLE);
-                    }
                     if (Boolean.TRUE.equals(tuple.getT1()) || Boolean.TRUE.equals(tuple.getT2())) {
                         return writeErrorResponse(exchange, CommonErrorCode.INVALID_ID_CARD);
                     }
