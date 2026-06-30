@@ -1,11 +1,11 @@
-package com.fandom.ticketing_service.queue.controller;
+package com.fandom.ticketing_service.queue.presentation.controller;
 
 import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
-import com.fandom.ticketing_service.queue.dto.QueueStatusResponse;
-import com.fandom.ticketing_service.queue.service.QueueService;
-import com.fandom.ticketing_service.queue.service.QueueSseService;
+import com.fandom.ticketing_service.queue.presentation.dto.QueueStatusResponse;
+import com.fandom.ticketing_service.queue.application.QueueService;
+import com.fandom.ticketing_service.queue.application.QueueSseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

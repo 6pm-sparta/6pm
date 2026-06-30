@@ -1,4 +1,4 @@
-package com.fandom.ticketing_service.queue.dto;
+package com.fandom.ticketing_service.queue.presentation.dto;
 
 public record QueueStatusResponse(
         Long rank,

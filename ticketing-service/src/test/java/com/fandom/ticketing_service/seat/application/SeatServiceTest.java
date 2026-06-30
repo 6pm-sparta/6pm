@@ -6,7 +6,7 @@ import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.client.OrderClient;
 import com.fandom.ticketing_service.order.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.order.dto.CreateOrderResponse;
-import com.fandom.ticketing_service.queue.service.PurchaseTokenService;
+import com.fandom.ticketing_service.queue.application.PurchaseTokenService;
 import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
 import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
 import com.fandom.ticketing_service.seat.presentation.dto.HoldResponse;

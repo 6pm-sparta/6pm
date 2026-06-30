@@ -1,6 +1,6 @@
-package com.fandom.ticketing_service.queue.service;
+package com.fandom.ticketing_service.queue.application;
 
-import com.fandom.ticketing_service.queue.dto.QueueStatusResponse;
+import com.fandom.ticketing_service.queue.presentation.dto.QueueStatusResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;

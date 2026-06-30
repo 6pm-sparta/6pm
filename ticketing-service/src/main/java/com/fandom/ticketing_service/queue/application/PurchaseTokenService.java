@@ -1,4 +1,4 @@
-package com.fandom.ticketing_service.queue.service;
+package com.fandom.ticketing_service.queue.application;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
