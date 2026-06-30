@@ -28,6 +28,11 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: feed-service
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
     listener:
       retry:
         max-attempts: 3
@@ -91,3 +96,9 @@ cache:
 scheduler:
   like-sync:
     fixed-delay: 300  # 5분
+
+async:
+  fanout:
+    core-pool-size: 10
+    max-pool-size: 30
+    queue-capacity: 500

@@ -1,5 +1,6 @@
 package com.fandom.feed.infra.redis;
 
+import com.fandom.feed.domain.util.UuidV7TimestampExtractor;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +23,7 @@ public class PostListCacheService {
     private long postListTtl;
 
     /**
-     * 작성자 ID에 따라 게시글 ID 목록을 조회하는 메서드<br>
+     * 작성자 ID에 따라 게시글 목록 캐시에서 ID 목록을 조회하는 메서드<br>
      * - 5페이지 초과 시 null 반환
      */
     public List<UUID> getPostIds(UUID authorId, UUID cursor) {
@@ -44,7 +45,7 @@ public class PostListCacheService {
     }
 
     /**
-     * 캐시가 1페이지 이상인지 확인하는 메서드
+     * 게시글 목록 캐시가 1페이지 이상인지 확인하는 메서드
      */
     public boolean isCacheReady(UUID authorId) {
         Long size = redisTemplate.opsForZSet().size(resolveKey(authorId));
@@ -52,37 +53,33 @@ public class PostListCacheService {
     }
 
     /**
-     * 캐시에 게시글 ID를 추가하는 메서드
+     * 게시글 목록 캐시에 게시글 ID를 추가하는 메서드
      */
     public void addPost(UUID postId, UUID authorId) {
         String member = postId.toString();
-        long score = (postId.getMostSignificantBits() >>> 16);
+        long score = UuidV7TimestampExtractor.extract(postId);
         List<String> keys = allKeys(authorId);
 
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             keys.forEach(key -> {
-                connection.zSetCommands().zAdd(
-                        key.getBytes(), score, member.getBytes()
-                );
-                connection.zSetCommands().zRemRange(
-                        key.getBytes(), 0, -(FeedPolicy.MAX_CACHE_SIZE + 1)
-                );
+                connection.zSetCommands().zAdd(key.getBytes(), score, member.getBytes());
+                connection.zSetCommands().zRemRange(key.getBytes(), 0, -(FeedPolicy.MAX_CACHE_SIZE + 1));
             });
             return null;
         });
     }
 
     /**
-     * 캐시에 게시글 ID를 추가하는 워밍업 메서드
+     * 게시글 목록 캐시에 게시글 ID를 추가하는 워밍업 메서드
      */
     public void addPostForWarm(UUID postId, UUID authorId) {
         String member = postId.toString();
-        long score = (postId.getMostSignificantBits() >>> 16);
+        long score = UuidV7TimestampExtractor.extract(postId);
         redisTemplate.opsForZSet().add(resolveKey(authorId), member, score);
     }
 
     /**
-     * 캐시에서 게시글 ID를 삭제하는 메서드
+     * 게시글 목록 캐시에서 게시글 ID를 삭제하는 메서드
      */
     public void removePost(UUID postId, UUID authorId) {
         String member = postId.toString();
@@ -95,16 +92,13 @@ public class PostListCacheService {
     }
 
     /**
-     * 캐시에서 작성자 ID의 모든 게시글 ID를 삭제하는 메서드
+     * 게시글 목록 캐시에서 작성자 ID의 모든 게시글 ID를 삭제하는 메서드
      */
     public void removeAllByAuthorId(List<UUID> postIds, UUID authorId) {
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
             // feed:posts:all는 하나씩 제거
             postIds.forEach(postId ->
-                    connection.zSetCommands().zRem(
-                            RedisKeyPrefix.POST_LIST_ALL.getBytes(),
-                            postId.toString().getBytes()
-                    )
+                    connection.zSetCommands().zRem(RedisKeyPrefix.POST_LIST_ALL.getBytes(), postId.toString().getBytes())
             );
             // feed:posts:{authorId}는 한번에 삭제
             connection.keyCommands().del((RedisKeyPrefix.POST_LIST + authorId).getBytes());
@@ -122,7 +116,7 @@ public class PostListCacheService {
     }
 
     /**
-     * 목록 캐시에서 사용하는 모든 Redis 키를 반환하는 메서드
+     * 게시글 목록 캐시에서 사용할 Redis 키를 모두 반환하는 메서드
      */
     private List<String> allKeys(UUID authorId) {
         return List.of(RedisKeyPrefix.POST_LIST_ALL, RedisKeyPrefix.POST_LIST + authorId);

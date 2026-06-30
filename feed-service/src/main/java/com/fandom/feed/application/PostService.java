@@ -2,6 +2,7 @@ package com.fandom.feed.application;
 
 import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.exception.CustomException;
+import com.fandom.feed.application.event.Event;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
@@ -17,6 +18,7 @@ import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,7 @@ public class PostService {
     private final CommentService commentService;
     private final LikeService likeService;
     private final PostRepository postRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
     private final PostDetailCacheService postDetailCacheService;
     private final PostListCacheService postListCacheService;
     private final ReactionCacheService reactionCacheService;
@@ -43,9 +46,11 @@ public class PostService {
         Post post = Post.builder().authorId(userId).content(content).build();
         postRepository.save(post);
 
-        imageService.saveImages(post.getId(), imageKeys);
+        UUID postId = post.getId();
 
-        postListCacheService.addPost(post.getId(), post.getAuthorId());
+        imageService.saveImages(postId, imageKeys);
+        postListCacheService.addPost(postId, post.getAuthorId());
+        applicationEventPublisher.publishEvent(new Event.PostCreated(postId, userId));
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
     }
