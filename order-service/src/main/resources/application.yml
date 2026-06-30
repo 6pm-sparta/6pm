@@ -69,6 +69,8 @@ order:
     callback-url: "http://localhost:${server.port}/api/v1/webhooks/payments"
     callback-delay-millis: 1500    # 비동기 승인/환불 흐름 시뮬레이션을 위한 인위적 지연
     dedupe-ttl-seconds: 600        # pgTransactionId 기준 중복 수신 차단 Redis 키 TTL
+  outbox:
+    poll-interval-ms: 2000
 
 eureka:
   client:

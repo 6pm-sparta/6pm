@@ -7,6 +7,7 @@ import com.fandom.order_service.order.domain.exception.OrderErrorCode;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
 import com.fandom.order_service.order.domain.repository.OrderStatusHistoryRepository;
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
@@ -38,6 +39,7 @@ public class PaymentRequestWriter {
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final PaymentRepository paymentRepository;
+    private final OutboxAppender outboxAppender;
 
     @Transactional
     public Payment markPaymentRequestedAndSave(UUID orderId, UUID requesterId, PaymentMethod paymentMethod,
@@ -85,20 +87,15 @@ public class PaymentRequestWriter {
         payment.recordPgTransactionId(pgTransactionId);
     }
 
-    /**
-     * 승인 Webhook을 반영한다.
-     * 이미 처리된 요청(PAYMENT_REQUESTED 아님)은 중복 수신으로 간주하고 무시한다.
-     *
-     * @return 실제 상태 전이가 발생했는지 여부
-     */
+    /** 승인 Webhook 반영. 전이 시 같은 트랜잭션에서 결제완료 이벤트를 Outbox에 적재. 중복 수신은 no-op. */
     @Transactional
-    public boolean applyApproval(UUID orderId, UUID paymentId) {
+    public void applyApproval(UUID orderId, UUID paymentId) {
 
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
 
         if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
-            return false;
+            return;
         }
 
         Payment payment = paymentRepository.findById(paymentId)
@@ -108,23 +105,18 @@ public class PaymentRequestWriter {
         order.markPaid();
         payment.approve();
         saveHistory(order.getId(), before, order.getStatus(), "결제 승인");
-        return true;
+        outboxAppender.appendPaymentCompleted(order.getId());
     }
 
-    /**
-     * 실패 Webhook을 반영한다.
-     * 이미 처리된 요청(PAYMENT_REQUESTED 아님)은 중복 수신으로 간주하고 무시한다.
-     *
-     * @return 실제 상태 전이가 발생했는지 여부
-     */
+    /** 실패 Webhook 반영. 전이 시 같은 트랜잭션에서 결제실패 이벤트를 Outbox에 적재. 중복 수신은 no-op. */
     @Transactional
-    public boolean applyFailure(UUID orderId, UUID paymentId, String failureReason) {
+    public void applyFailure(UUID orderId, UUID paymentId, String failureReason) {
 
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
 
         if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
-            return false;
+            return;
         }
 
         Payment payment = paymentRepository.findById(paymentId)
@@ -134,7 +126,7 @@ public class PaymentRequestWriter {
         order.markFailed();
         payment.fail(failureReason);
         saveHistory(order.getId(), before, order.getStatus(), "결제 실패: " + failureReason);
-        return true;
+        outboxAppender.appendPaymentFailed(order.getId());
     }
 
     private void saveHistory(UUID orderId, OrderStatus fromStatus, OrderStatus toStatus, String reason) {
