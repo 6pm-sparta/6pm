@@ -38,6 +38,9 @@ public class OutboxEvent extends SimpleBaseEntity {
     @Column(nullable = false)
     private OutboxStatus status;
 
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 0")
+    private int retryCount;
+
     private LocalDateTime publishedAt;
 
     @Builder
@@ -62,6 +65,7 @@ public class OutboxEvent extends SimpleBaseEntity {
     }
 
     public void markFailed() {
-        this.status = OutboxStatus.FAILED;
+        this.retryCount++;
+        this.status = retryCount >= 3 ? OutboxStatus.FAILED : OutboxStatus.PENDING;
     }
 }

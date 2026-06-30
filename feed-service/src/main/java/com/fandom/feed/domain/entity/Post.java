@@ -28,7 +28,7 @@ public class Post extends BaseEntity {
     private String content;
 
     @Column(nullable = false, columnDefinition = "BIGINT DEFAULT 0")
-    private Long commentCount = 0L;
+    private long commentCount = 0L;
 
     @Builder
     private Post(UUID authorId, String content) {
