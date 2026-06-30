@@ -43,6 +43,8 @@ Orders               (주문 = 예약 + 확정 통합 단일 애그리게이트)
 
 > **설계 포인트:** `ShowSeats`에 `status` 컬럼을 두지 않는다. 좌석 상태는 Redis에서만 관리하여 DB 경합을 제거한다.
 
+**패키지 구조 (#222):** 위 ERD 바운더리에 맞춰 `venue`(Venue/VenueSeat), `show`(Performance/Show)를 분리하고, `seat`(ShowSeat + hold/confirm 전체 흐름), `queue`, `order`(infrastructure)는 각각 `presentation/application/domain/infrastructure` 4계층으로 재정리했다.
+
 ---
 
 ## 3. Redis 키 설계
@@ -197,7 +199,6 @@ sequenceDiagram
 | 주문 취소 연동 | 미구현 | `releaseHold`/`releaseExpiredHold` 시 order-service의 주문도 취소하는 API 연동 필요 (`OrderClient`에 취소 메서드 없음) |
 | 스케줄러 분산 락 | 미구현 | `QueueScheduler`가 멀티 인스턴스로 떠 있을 때 같은 배치를 중복 처리할 수 있음. ShedLock 등 분산 락 적용 필요 |
 | `GET /purchase-limit` 엔드포인트 | 미문서화 | `SeatController.java:54-60`에 구현되어 있으나 섹션 6 API 명세에 누락. 코드에 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있어 설계 자체도 미확정 |
-| `seat/controller` 패키지 위치 | 불일치 | "260623 구매제한 AI 검증.md"는 `seat/controller` → `seat/presentation/controller` 이동을 전제로 작성됐으나, 실제로는 이동되지 않고 여전히 `seat/controller`에 위치 |
 | 구매 한도 값(`MAX_PER_USER`) | 미문서화 | 섹션 3 Redis 키 설계에 `purchase-count` 키는 있지만 실제 한도 값(현재 코드상 4)이 어디에도 명시돼 있지 않음. 2→4 변경 사실도 문서에 반영 안 됨 |
 | `purchase-token` 검증 미연결 (버그) | 미구현 | 문서(구간 2, 260623 대기열 토큰.md, TODO.md)는 `SeatService.hold()` 진입 시 `purchase-token` 존재 여부를 가장 먼저 검증한다고 명시하지만, 실제 `SeatService.hold()`(`SeatService.java:99-135`)에는 해당 검증 호출이 없음. `PurchaseTokenService.exists()`가 코드 어디에서도 호출되지 않아, 대기열을 거치지 않고 바로 `hold()`를 호출해도 선점이 통과됨 |
 | SSE `ENTERED` 이벤트 (문서/코드 불일치) | 미구현 | "260623 대기열 토큰.md"는 토큰 발급 시 SSE로 `ENTERED` 이벤트를 전송한다고 적혀 있으나, 실제 `QueueSseService.java:58,61`에서는 `READY`/`RANK` 이벤트만 전송하고 `ENTERED`는 코드 어디에도 없음 |
