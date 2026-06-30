@@ -9,23 +9,22 @@ spring:
     import: "optional:configserver:http://localhost:8888"
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/fandom_db?currentSchema=order_db
-    username: root
-    password: ${DB_PASSWORD:password}
+    url: ${ORDER_DB_URL:jdbc:postgresql://localhost:5435/order_db}
+    username: ${ORDER_DB_USERNAME:root}
+    password: ${ORDER_DB_PASSWORD:password}
   jpa:
     hibernate:
       ddl-auto: update
     defer-datasource-initialization: true
     properties:
       hibernate:
-        default_schema: order_db
         format_sql: true
     show-sql: true
   data:
     redis:
-      host: localhost
-      port: 6379
-      password: ${REDIS_PASSWORD:fandom_redis_pw}   # docker-compose redis requirepass와 동일
+      host: ${REDIS_TICKETING_HOST:localhost}
+      port: ${REDIS_TICKETING_PORT:6380}
+      password: ${REDIS_TICKETING_PASSWORD:fandom_redis_pw}
       # redisson-spring-boot-starter가 spring.data.redis.* 값을 그대로 읽어 단일 서버 모드로
       # RedissonClient를 자동 구성한다 (별도 redisson.yaml 불필요). 분산락 TTL 등 결제 요청
       # 전용 옵션은 OrderProperties처럼 타입세이프 설정으로 결제 요청 서비스 작업 시 추가한다.
