@@ -5,6 +5,8 @@ import com.fandom.feed.global.constant.BroadcastPolicy;
 import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.kafka.NotificationPublisher;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,8 @@ public class PostBroadcastHandler {
     private final UserClient userClient;
     private final NotificationPublisher notificationPublisher;
 
+    @Retry(name = "userClient")
+    @CircuitBreaker(name = "userClient")
     public void handle(UUID postId, UUID authorId, String nickname) {
         long followerCount = userClient.countFollowers(authorId).getData();
         boolean shouldFanout = followerCount <= BroadcastPolicy.FANOUT_THRESHOLD;
