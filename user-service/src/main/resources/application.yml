@@ -28,6 +28,11 @@ spring:
       properties:
         spring.json.add.type.headers: false
 
+# Transactional Outbox 폴링 발행 주기(ms). OutboxPublisher가 PENDING 레코드를 이 간격으로 발행.
+user:
+  outbox:
+    poll-interval-ms: 2000
+
 eureka:
   client:
     service-url:
