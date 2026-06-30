@@ -152,10 +152,10 @@ public class Order extends BaseEntity {
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
-    /** REFUND_REQUESTED → REFUNDED. PG 환불 성공 응답을 받은 직후 호출한다.*/
+    /** REFUND_REQUESTED/FAILED → REFUNDED. FAILED 허용은 복구 배치의 거래조회 동기화용. */
     public void markRefunded() {
 
-        if (this.status != OrderStatus.REFUND_REQUESTED) {
+        if (this.status != OrderStatus.REFUND_REQUESTED && this.status != OrderStatus.FAILED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -199,6 +199,17 @@ public class Order extends BaseEntity {
         }
 
         this.status = OrderStatus.FAILED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /** REFUND_REQUESTED/FAILED → MANUAL_REVIEW_REQUIRED. 복구 배치 재시도 소진 시 호출. */
+    public void markManualReviewRequired() {
+
+        if (this.status != OrderStatus.REFUND_REQUESTED && this.status != OrderStatus.FAILED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.MANUAL_REVIEW_REQUIRED;
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
