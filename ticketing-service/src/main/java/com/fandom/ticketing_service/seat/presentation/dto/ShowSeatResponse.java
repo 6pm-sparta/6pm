@@ -1,6 +1,6 @@
-package com.fandom.ticketing_service.seat.dto;
+package com.fandom.ticketing_service.seat.presentation.dto;
 
-import com.fandom.ticketing_service.domain.ShowSeat;
+import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
 
 import java.util.UUID;
 

@@ -1,5 +1,6 @@
-package com.fandom.ticketing_service.domain;
+package com.fandom.ticketing_service.seat.domain.repository;
 
+import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

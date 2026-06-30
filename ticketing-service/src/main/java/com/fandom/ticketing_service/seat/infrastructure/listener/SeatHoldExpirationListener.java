@@ -1,6 +1,6 @@
-package com.fandom.ticketing_service.seat.listener;
+package com.fandom.ticketing_service.seat.infrastructure.listener;
 
-import com.fandom.ticketing_service.seat.service.SeatService;
+import com.fandom.ticketing_service.seat.application.SeatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.connection.Message;

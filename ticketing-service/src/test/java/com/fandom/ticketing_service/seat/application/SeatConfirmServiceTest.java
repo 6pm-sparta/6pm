@@ -1,12 +1,12 @@
-package com.fandom.ticketing_service.seat.service;
+package com.fandom.ticketing_service.seat.application;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.kafka.event.SeatBookFailedEvent;
 import com.fandom.ticketing_service.kafka.event.SeatBookedEvent;
 import com.fandom.ticketing_service.kafka.producer.SeatEventProducer;
-import com.fandom.ticketing_service.domain.ShowSeat;
-import com.fandom.ticketing_service.domain.ShowSeatRepository;
+import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
+import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

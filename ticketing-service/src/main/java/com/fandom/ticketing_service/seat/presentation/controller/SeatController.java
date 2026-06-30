@@ -1,12 +1,12 @@
-package com.fandom.ticketing_service.seat.controller;
+package com.fandom.ticketing_service.seat.presentation.controller;
 
 import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
-import com.fandom.ticketing_service.seat.dto.HoldResponse;
-import com.fandom.ticketing_service.seat.dto.PurchaseLimitResponse;
-import com.fandom.ticketing_service.seat.dto.ShowSeatResponse;
-import com.fandom.ticketing_service.seat.service.SeatService;
+import com.fandom.ticketing_service.seat.presentation.dto.HoldResponse;
+import com.fandom.ticketing_service.seat.presentation.dto.PurchaseLimitResponse;
+import com.fandom.ticketing_service.seat.presentation.dto.ShowSeatResponse;
+import com.fandom.ticketing_service.seat.application.SeatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;

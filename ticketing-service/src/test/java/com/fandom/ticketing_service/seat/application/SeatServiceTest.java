@@ -1,4 +1,4 @@
-package com.fandom.ticketing_service.seat.service;
+package com.fandom.ticketing_service.seat.application;
 
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
@@ -7,11 +7,11 @@ import com.fandom.ticketing_service.order.client.OrderClient;
 import com.fandom.ticketing_service.order.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.order.dto.CreateOrderResponse;
 import com.fandom.ticketing_service.queue.service.PurchaseTokenService;
-import com.fandom.ticketing_service.domain.ShowSeat;
-import com.fandom.ticketing_service.domain.ShowSeatRepository;
-import com.fandom.ticketing_service.seat.dto.HoldResponse;
-import com.fandom.ticketing_service.seat.dto.PurchaseLimitResponse;
-import com.fandom.ticketing_service.seat.dto.ShowSeatResponse;
+import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
+import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
+import com.fandom.ticketing_service.seat.presentation.dto.HoldResponse;
+import com.fandom.ticketing_service.seat.presentation.dto.PurchaseLimitResponse;
+import com.fandom.ticketing_service.seat.presentation.dto.ShowSeatResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
