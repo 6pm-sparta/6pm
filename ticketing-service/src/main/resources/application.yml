@@ -65,7 +65,7 @@ management:
       show-details: always
   tracing:
     sampling:
-      probability: 1.0
+      probability: 0.05 # stress 측정에서는 더 낮게 설정 예정
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans

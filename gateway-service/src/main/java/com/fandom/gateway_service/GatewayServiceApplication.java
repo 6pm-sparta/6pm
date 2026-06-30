@@ -1,5 +1,6 @@
 package com.fandom.gateway_service;
 
+
 import com.fandom.common.config.JpaAuditingConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

@@ -82,6 +82,8 @@ services:
     image: openzipkin/zipkin:latest
     profiles: ["infra", "all"]
     container_name: 6pm-zipkin
+    environment:
+      JAVA_OPTS: "-Xmx512m"
     ports:
       - "9411:9411"
 

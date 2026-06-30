@@ -11,3 +11,8 @@ spring:
       server:
         native:
           search-locations: classpath:/config/
+
+management:
+  tracing:
+    sampling:
+      probability: 0.1     # 100% → 10%. 부하 중 Zipkin 추적
