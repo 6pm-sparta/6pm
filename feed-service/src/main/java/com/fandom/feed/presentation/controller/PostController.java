@@ -7,8 +7,10 @@ import com.fandom.feed.application.PostService;
 import com.fandom.feed.global.annotation.RequireRole;
 import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.presentation.dto.request.PostRequest;
+import com.fandom.feed.presentation.dto.request.PresignedUrlRequest;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
+import com.fandom.feed.presentation.dto.response.PresignedUrlResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +32,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PostController {
     private final PostService postService;
+
+    @RequireRole({UserRole.CREATOR})
+    @PostMapping("/posts/presigned-url")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<PresignedUrlResponse> generatePresignedUrls (
+            @RequestBody @Valid PresignedUrlRequest request,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        PresignedUrlResponse response = postService.generatePresignedUrls(request.imageNames());
+        return ApiResponse.success(response);
+    }
 
     @RequireRole({UserRole.CREATOR})
     @PostMapping("/posts")

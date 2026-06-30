@@ -18,8 +18,8 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class ImageService {
     private final ImageRepository imageRepository;
-    private final ImageUrlConverter imageUrlConverter;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ImageUrlConverter imageUrlConverter;
 
     /**
      * 게시글 ID로 이미지 목록을 조회하는 메서드
