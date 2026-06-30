@@ -12,13 +12,13 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Import(CommentCountEventListener.class)
-class CommentCountEventListenerIntegrationTest extends RedisIntegrationTestSupport {
+@Import(CommentCountChangedEventListener.class)
+class CommentCountChangedEventListenerIntegrationTest extends RedisIntegrationTestSupport {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
     @Autowired
-    private CommentCountEventListener listener;
+    private CommentCountChangedEventListener listener;
 
     @Test
     @DisplayName("댓글 생성 이벤트 발생 - Redis 댓글 수 증가")
