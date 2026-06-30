@@ -33,6 +33,9 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: all
       retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
     listener:
       retry:
         max-attempts: 3
@@ -96,9 +99,5 @@ cache:
 scheduler:
   like-sync:
     fixed-delay: 300  # 5분
-
-async:
-  fanout:
-    core-pool-size: 10
-    max-pool-size: 30
-    queue-capacity: 500
+  outbox-publish:
+    fixed-delay: 5  # 5초

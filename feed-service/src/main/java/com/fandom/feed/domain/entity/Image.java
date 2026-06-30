@@ -1,6 +1,5 @@
 package com.fandom.feed.domain.entity;
 
-import com.fandom.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
@@ -20,7 +19,7 @@ import java.util.UUID;
 )
 @Check(constraints = "order_index BETWEEN 0 AND 3")
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Image extends BaseEntity {
+public class Image extends SimpleBaseEntity {
     @Column(nullable = false)
     private UUID postId;
 

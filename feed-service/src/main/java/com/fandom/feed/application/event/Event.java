@@ -8,5 +8,5 @@ public class Event {
     public record CommentCreated(UUID postId) {}
     public record CommentDeleted(UUID postId) {}
     public record CommentAllDeleted(List<UUID> postIds) {}
-    public record PostCreated(UUID postId, UUID authorId) {}
+    public record PostCreated(UUID postId, UUID authorId, String nickname) {}
 }

@@ -7,10 +7,7 @@ import com.fandom.feed.infra.kafka.NotificationPublisher;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,17 +15,12 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PostCreatedEventListener {
+public class PostBroadcastHandler {
     private final FanoutService fanoutService;
     private final UserClient userClient;
     private final NotificationPublisher notificationPublisher;
 
-    @Async("fanoutExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void handle(Event.PostCreated event) {
-        UUID postId = event.postId();
-        UUID authorId = event.authorId();
-
+    public void handle(UUID postId, UUID authorId, String nickname) {
         long followerCount = userClient.countFollowers(authorId).getData();
         boolean shouldFanout = followerCount <= BroadcastPolicy.FANOUT_THRESHOLD;
 
@@ -41,7 +33,7 @@ public class PostCreatedEventListener {
             List<UUID> chunk = page.content();
             if (!chunk.isEmpty()) {
                 if (shouldFanout) fanoutService.insertChunk(postId, cursor, chunk);
-                notificationPublisher.publishChunk(postId, cursor, chunk);
+                notificationPublisher.publishChunk(postId, nickname, cursor, chunk);
             }
 
             cursor = page.nextCursor();

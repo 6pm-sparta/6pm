@@ -11,7 +11,7 @@ import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +21,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-@Service
+@Component
 @RequiredArgsConstructor
 public class PostAssembler {
     private final ImageService imageService;

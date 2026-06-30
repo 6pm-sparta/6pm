@@ -17,9 +17,13 @@ import java.util.UUID;
 public class NotificationPublisher {
     private final KafkaTemplate<String, NotificationSendPayload> kafkaTemplate;
 
-    public void publishChunk(UUID postId, UUID cursor, List<UUID> followerChunk) {
+    public void publishChunk(UUID postId, String nickname, UUID cursor, List<UUID> followerChunk) {
         NotificationSendPayload payload = new NotificationSendPayload(
-                postId, NotificationPolicy.POST_CREATED, NotificationPolicy.POST_CREATED_TITLE, null, followerChunk
+                postId,
+                NotificationPolicy.POST_CREATED,
+                nickname + NotificationPolicy.POST_CREATED_TITLE,
+                null,
+                followerChunk
         );
 
         kafkaTemplate.send(KafkaTopic.NOTIFICATION_SEND, postId.toString(), payload)

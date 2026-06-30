@@ -49,9 +49,5 @@ cache:
 scheduler:
   like-sync:
     fixed-delay: 5  # 5초
-
-async:
-  fanout:
-    core-pool-size: 10
-    max-pool-size: 30
-    queue-capacity: 500
+  outbox-publish:
+    fixed-delay: 5  # 5초
