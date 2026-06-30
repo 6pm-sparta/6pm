@@ -2,6 +2,7 @@ package com.fandom.order_service.order.application;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.application.cancellation.OrderCancelDecision;
 import com.fandom.order_service.order.application.cancellation.OrderCancelWriter;
 import com.fandom.order_service.order.domain.entity.Order;
@@ -46,6 +47,9 @@ class OrderCancelWriterTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private OutboxAppender outboxAppender;
+
     private OrderCancelWriter orderCancelWriter;
 
     private UUID orderId;
@@ -56,8 +60,9 @@ class OrderCancelWriterTest {
         OrderProperties orderProperties = new OrderProperties(
                 null, 10, null,
                 new OrderProperties.Cancellation(24),
-                new OrderProperties.Compensation(3, 1000L), null);
-        orderCancelWriter = new OrderCancelWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, orderProperties);
+                new OrderProperties.Compensation(3, 1000L), null, null);
+        orderCancelWriter = new OrderCancelWriter(
+                orderRepository, orderStatusHistoryRepository, paymentRepository, orderProperties, outboxAppender);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
     }
@@ -96,6 +101,7 @@ class OrderCancelWriterTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         verify(orderStatusHistoryRepository).save(any());
         verify(paymentRepository, never()).findByOrderIdAndPaymentStatus(any(), any());
+        verify(outboxAppender).appendHoldReleased(order.getId());
     }
 
     @Test

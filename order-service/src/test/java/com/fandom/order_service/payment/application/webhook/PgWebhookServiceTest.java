@@ -54,7 +54,7 @@ class PgWebhookServiceTest {
     private RefundResultWriter refundResultWriter;
 
     private final OrderProperties orderProperties = new OrderProperties(
-            null, 0, null, null, null,
+            null, 0, null, null, null, null,
             new OrderProperties.PgWebhook("secret", "http://localhost", 0L, 600L));
 
     private PgWebhookService pgWebhookService;

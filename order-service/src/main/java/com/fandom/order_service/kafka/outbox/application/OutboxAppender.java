@@ -3,6 +3,7 @@ package com.fandom.order_service.kafka.outbox.application;
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.kafka.KafkaTopics;
+import com.fandom.order_service.kafka.event.HoldReleasedEvent;
 import com.fandom.order_service.kafka.event.NotificationSendEvent;
 import com.fandom.order_service.kafka.event.PaymentCancelledEvent;
 import com.fandom.order_service.kafka.event.PaymentCompletedEvent;
@@ -44,6 +45,11 @@ public class OutboxAppender {
     /** 결제 취소/환불 완료 → 좌석 해제 (ticketing 수신). */
     public void appendPaymentCancelled(UUID orderId) {
         append(KafkaTopics.PAYMENT_CANCELLED, orderId, new PaymentCancelledEvent(orderId));
+    }
+
+    /** PENDING 취소(유저 직접/타임아웃 공통) → 좌석 해제 (ticketing 수신). ADR 008 참고. */
+    public void appendHoldReleased(UUID orderId) {
+        append(KafkaTopics.HOLD_RELEASED, orderId, new HoldReleasedEvent(orderId));
     }
 
     /** 예매 확정 알림 (notification 수신, ORDER_COMPLETED). */
