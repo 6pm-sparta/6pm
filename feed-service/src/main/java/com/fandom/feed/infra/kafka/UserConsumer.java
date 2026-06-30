@@ -4,6 +4,8 @@ import com.fandom.feed.application.CommentService;
 import com.fandom.feed.application.LikeService;
 import com.fandom.feed.application.PostService;
 import com.fandom.feed.infra.kafka.constant.KafkaTopic;
+import com.fandom.feed.infra.kafka.idempotency.ProcessedEvent;
+import com.fandom.feed.infra.kafka.idempotency.ProcessedEventRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.KafkaHeaders;

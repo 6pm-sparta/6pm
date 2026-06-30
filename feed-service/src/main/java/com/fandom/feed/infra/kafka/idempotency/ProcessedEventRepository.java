@@ -1,4 +1,4 @@
-package com.fandom.feed.infra.kafka;
+package com.fandom.feed.infra.kafka.idempotency;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 

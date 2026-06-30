@@ -1,4 +1,4 @@
-package com.fandom.feed.infra.kafka;
+package com.fandom.feed.infra.kafka.idempotency;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
