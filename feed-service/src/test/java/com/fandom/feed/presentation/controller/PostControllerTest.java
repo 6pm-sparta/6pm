@@ -7,10 +7,10 @@ import com.fandom.common.config.CommonAutoConfiguration;
 import com.fandom.feed.application.PostService;
 import com.fandom.feed.global.aspect.AuthorizationAspect;
 import com.fandom.feed.global.constant.UserRole;
+import com.fandom.feed.infra.s3.S3Service;
 import com.fandom.feed.presentation.dto.request.PostRequest;
 import com.fandom.feed.presentation.dto.request.PresignedUrlRequest;
 import com.fandom.feed.presentation.dto.response.PostResponse;
-import com.fandom.feed.presentation.dto.response.PresignedUrlResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +48,9 @@ class PostControllerTest {
     @MockitoBean
     private PostService postService;
 
+    @MockitoBean
+    private S3Service s3Service;
+
     private UserIdCard creatorIdCard;
 
     @BeforeEach
@@ -67,7 +70,7 @@ class PostControllerTest {
         void generatePresignedUrlsSuccess() throws Exception {
             // given
             PresignedUrlRequest request = new PresignedUrlRequest(List.of("image1.jpg", "image2.png"));
-            when(postService.generatePresignedUrls(anyList())).thenReturn(mock(PresignedUrlResponse.class));
+            when(s3Service.generatePresignedUrls(anyList())).thenReturn(anyList());
 
             // when & then
             mockMvc.perform(withIdCard(post("/api/v1/feeds/posts/presigned-url")
