@@ -12,9 +12,12 @@ import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostDetailCache;
 import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
+import com.fandom.feed.infra.s3.S3Service;
+import com.fandom.feed.infra.s3.dto.PresignedUrlInfo;
 import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
+import com.fandom.feed.presentation.dto.response.PresignedUrlResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -29,14 +32,20 @@ import java.util.UUID;
 public class PostService {
     private final PostReader postReader;
     private final PostAssembler postAssembler;
-    private final PostRepository postRepository;
     private final ImageService imageService;
-    private final PostDetailCacheService postDetailCacheService;
     private final CommentService commentService;
     private final LikeService likeService;
+    private final PostRepository postRepository;
+    private final S3Service s3Service;
+    private final PostDetailCacheService postDetailCacheService;
     private final PostListCacheService postListCacheService;
     private final ReactionCacheService reactionCacheService;
     private final ImageUrlConverter imageUrlConverter;
+
+    public PresignedUrlResponse generatePresignedUrls(List<String> imageNames) {
+        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(imageNames);
+        return PresignedUrlResponse.from(uploadUrls);
+    }
 
     @Transactional
     public PostResponse.Create createPost(String content, List<String> imageKeys, UUID userId) {

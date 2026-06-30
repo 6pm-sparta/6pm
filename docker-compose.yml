@@ -1,17 +1,31 @@
 # =====================================================================
 # 6pm MSA Docker Compose — Profile 기반
 # =====================================================================
-# 리뷰 반영(2026-06-22):
-#   * postgres 17-alpine 유지(다운그레이드 아님)
-#   * DB/Redis 비밀번호를 .env 로 분리(하드코딩 제거)
-#   * kafka dual-listener(INTERNAL kafka:29092 / EXTERNAL localhost:9092) 복구
-#     → kafka-ui 가 kafka:29092 로 접속(단일 리스너면 ui 연결 실패)
-#   * auth-service 복구 (chat-service 는 레포 모듈 유무 확인 후 처리 — 아래 주석)
+# 인프라 재구성(Production 대비):
+#   * DB-per-service: 단일 postgres(fandom_db) → 서비스별 독립 인스턴스 7개
+#       user(5432) feed(5433) ticketing(5434) order(5435)
+#       notification(5436) aiops(5437) chat(5438)
+#     - auth/gateway 는 DB 미사용 → 인스턴스 없음
+#     - 테이블은 각 서비스 JPA(ddl-auto=update) 가 생성. aiops 만 incident 테이블 init 선반영.
+#     - AWS RDS N개 구조에 1:1 대응 (연결 주소만 환경별로 전환)
+#   * Redis 분리: 단일 redis → redis-general(6379) + redis-ticketing(6380)
+#     - 일반(세션/캐시/refresh/blacklist) vs 티켓팅(대기열/재고/분산락) 물리 분리
+#   * kafka dual-listener(INTERNAL kafka:29092 / EXTERNAL localhost:9092)
 #   * o11y(prometheus/alertmanager/loki/promtail/grafana) 유지
-# 사용법:
-#   인프라만:        docker compose --profile infra up -d
-#   인프라+관측:     docker compose --profile infra --profile o11y up -d
-#   전체:            docker compose --profile all up -d --build
+#
+# Profile 그룹 (서비스별 1:1 — 필요한 것만 정확히 띄운다. 묶고 싶으면 여러 개 나열):
+#   DB:    db-user / db-feed / db-ticketing / db-order / db-notification / db-aiops / db-chat
+#   Redis: redis-general(6379) / redis-ticketing(6380)
+#   묶음:  infra(=DB·Redis·kafka·zipkin 전부) / core / apps / o11y / all
+#
+# 사용법 (스프링 서버는 IDE에서 실행, docker는 인프라만 띄우는 방식):
+#   내 도메인(user/auth/gateway) 개발:  docker compose --profile db-user --profile redis-general up -d
+#   티켓팅 개발:            docker compose --profile db-ticketing --profile redis-ticketing up -d
+#   인프라 전체:            docker compose --profile infra up -d
+#   인프라+관측:            docker compose --profile infra --profile o11y up -d
+#   전체(서비스 포함):       docker compose --profile all up -d --build
+#
+# 주의: 기존 단일 postgres 볼륨(postgres_data)에서 전환 시 docker compose down -v 로 볼륨 정리 필요.
 # 비밀번호 등 비밀값은 같은 폴더의 .env 에 둔다(레포엔 .env.example 만 커밋).
 # =====================================================================
 
@@ -19,27 +33,125 @@ services:
   # ---------------------------------------------------------------
   # 1. INFRA (DB & Middleware)
   # ---------------------------------------------------------------
-  postgres:
+  # ===== DB-per-service: 서비스마다 독립 PostgreSQL 인스턴스 (AWS RDS N개에 대응) =====
+  # auth/gateway는 DB를 쓰지 않으므로 인스턴스 없음.
+  # 개발 시에는 본인 도메인 profile만 띄운다. 예) docker compose --profile db-user --profile redis up -d
+  # 테이블은 각 서비스 JPA(ddl-auto=update)가 생성. aiops만 incident 테이블을 init 스크립트로 선반영.
+  postgres-user:
     image: postgres:17-alpine
-    profiles: ["infra", "all"]
-    container_name: 6pm-postgres
+    profiles: ["db-user", "infra", "all"]
+    container_name: 6pm-postgres-user
     ports:
       - "5432:5432"
     environment:
       POSTGRES_USER: ${DB_USERNAME:-root}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: fandom_db          # DB명은 고정(스키마는 서비스별)
+      POSTGRES_DB: user_db
       TZ: Asia/Seoul
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d
+      - postgres_user_data:/var/lib/postgresql/data
 
-  redis:
+  postgres-feed:
+    image: postgres:17-alpine
+    profiles: ["db-feed", "infra", "all"]
+    container_name: 6pm-postgres-feed
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: feed_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_feed_data:/var/lib/postgresql/data
+
+  postgres-ticketing:
+    image: postgres:17-alpine
+    profiles: ["db-ticketing", "infra", "all"]
+    container_name: 6pm-postgres-ticketing
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ticketing_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_ticketing_data:/var/lib/postgresql/data
+
+  postgres-order:
+    image: postgres:17-alpine
+    profiles: ["db-order", "infra", "all"]
+    container_name: 6pm-postgres-order
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: order_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_order_data:/var/lib/postgresql/data
+
+  postgres-notification:
+    image: postgres:17-alpine
+    profiles: ["db-notification", "infra", "all"]
+    container_name: 6pm-postgres-notification
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: notification_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_notification_data:/var/lib/postgresql/data
+
+  postgres-aiops:
+    image: postgres:17-alpine
+    profiles: ["db-aiops", "infra", "all"]
+    container_name: 6pm-postgres-aiops
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: aiops_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_aiops_data:/var/lib/postgresql/data
+      - ./db-init/aiops:/docker-entrypoint-initdb.d   # incident_alert_history 테이블 선반영
+
+  postgres-chat:
+    image: postgres:17-alpine
+    profiles: ["db-chat", "infra", "all"]
+    container_name: 6pm-postgres-chat
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: chat_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_chat_data:/var/lib/postgresql/data
+
+  # ===== Redis 분리: 일반(세션/캐시/refresh/blacklist) vs 티켓팅(대기열/재고/분산락) =====
+  # 티켓 오픈 시 티켓팅 부하가 일반 Redis(인증 blacklist 등)를 잠식하지 않도록 물리 분리.
+  redis-general:
     image: redis:7-alpine
-    profiles: ["infra", "all"]
-    container_name: 6pm-redis
+    profiles: ["redis-general", "infra", "all"]
+    container_name: 6pm-redis-general
     ports:
       - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+
+  redis-ticketing:
+    image: redis:7-alpine
+    profiles: ["redis-ticketing", "infra", "all"]
+    container_name: 6pm-redis-ticketing
+    ports:
+      - "6380:6379"
     command: redis-server --requirepass ${REDIS_PASSWORD}
 
   kafka:
@@ -274,6 +386,12 @@ services:
       - loki
 
 volumes:
-  postgres_data:
+  postgres_user_data:
+  postgres_feed_data:
+  postgres_ticketing_data:
+  postgres_order_data:
+  postgres_notification_data:
+  postgres_aiops_data:
+  postgres_chat_data:
   kafka_data:
   loki_data:

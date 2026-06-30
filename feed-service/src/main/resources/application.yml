@@ -77,6 +77,9 @@ cloud:
     s3:
       bucket: ${AWS_S3_BUCKET}
       base-url: https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/
+      path:
+        post: posts
+      presigned-url-expiry: 600  # 10분
 
 cache:
   ttl:
