@@ -9,15 +9,14 @@ spring:
     import: "optional:configserver:http://localhost:8888"
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/fandom_db?currentSchema=user_db
-    username: root
-    password: password
+    url: ${USER_DB_URL:jdbc:postgresql://localhost:5432/user_db}
+    username: ${USER_DB_USERNAME:root}
+    password: ${USER_DB_PASSWORD:password}
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        default_schema: user_db
         format_sql: true
     show-sql: true
   kafka:
