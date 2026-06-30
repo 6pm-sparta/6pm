@@ -3,6 +3,7 @@ package com.fandom.chat_service.application.service;
 import com.fandom.chat_service.domain.entity.ChatRoom;
 import com.fandom.chat_service.domain.entity.ChatRoomMember;
 import com.fandom.chat_service.domain.exception.ChatErrorCode;
+import com.fandom.chat_service.domain.repository.ChatMessageRepository;
 import com.fandom.chat_service.domain.repository.ChatRoomMemberRepository;
 import com.fandom.chat_service.domain.repository.ChatRoomRepository;
 import com.fandom.common.exception.CustomException;
@@ -23,6 +24,7 @@ public class ChatRoomCommandService {
 
     private final ChatRoomRepository roomRepository;
     private final ChatRoomMemberRepository memberRepository;
+    private final ChatMessageRepository messageRepository;
     private final RoomMemberCacheService roomMemberCache;
 
     // 크리에이터 생성/전환
@@ -99,6 +101,7 @@ public class ChatRoomCommandService {
                 .toList();
 
         roomRepository.findByCreatorId(userId).ifPresent(room -> {
+            messageRepository.softDeleteAllByRoomId(room.getId(), userId);
             memberRepository.deleteByRoomId(room.getId());
             room.softDelete(userId);
             roomRepository.save(room);
