@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.HashSet;
 import java.util.List;
@@ -52,9 +54,22 @@ public class NotificationCommandService {
                                 .build())
                         .toList());
 
-        // 발송 트리거 발행
-        saved.forEach(n -> pushDispatchPort.dispatch(n.getId(), n.getUserId()));
+        // 발송 트리거 발행 - 커밋 후
+        afterCommit(() -> saved.forEach(n -> pushDispatchPort.dispatch(n.getId(), n.getUserId())));
         log.info("notification 생성 reference_id={}, type={}, saved={}, skipped={}",
                 command.referenceId(), command.type(), saved.size(), existing.size());
+    }
+
+    private void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 }
