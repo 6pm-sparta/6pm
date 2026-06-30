@@ -29,11 +29,15 @@ public class MessageDeliveryService {
     private final ChatNotificationPort chatNotificationPort;
 
     public void deliver(ChatRoom room, MessageResponse message) {
-        if (message.senderRole() == SenderRole.CREATOR) {
-            deliverBroadcast(room, message);
-        } else {
-            sendToUser(message.senderId(), message);
-            deliverReplyToCreator(room, message);
+        try {
+            if (message.senderRole() == SenderRole.CREATOR) {
+                deliverBroadcast(room, message);
+            } else {
+                sendToUser(message.senderId(), message);
+                deliverReplyToCreator(room, message);
+            }
+        } catch (Exception e) {
+            log.error("메시지 전달 실패 room_id={}, message_id={}", room.getId(), message.id(), e);
         }
     }
 
