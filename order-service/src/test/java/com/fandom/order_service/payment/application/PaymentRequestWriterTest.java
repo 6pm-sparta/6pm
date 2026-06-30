@@ -3,11 +3,11 @@ package com.fandom.order_service.payment.application;
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
-import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
 import com.fandom.order_service.order.domain.exception.OrderErrorCode;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
 import com.fandom.order_service.order.domain.repository.OrderStatusHistoryRepository;
 import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
@@ -17,7 +17,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -46,6 +45,9 @@ class PaymentRequestWriterTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private OutboxAppender outboxAppender;
+
     private PaymentRequestWriter paymentRequestWriter;
 
     private UUID orderId;
@@ -53,7 +55,7 @@ class PaymentRequestWriterTest {
 
     @BeforeEach
     void setUp() {
-        paymentRequestWriter = new PaymentRequestWriter(orderRepository, orderStatusHistoryRepository, paymentRepository);
+        paymentRequestWriter = new PaymentRequestWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, outboxAppender);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
     }
@@ -128,7 +130,7 @@ class PaymentRequestWriterTest {
     }
 
     @Test
-    @DisplayName("승인 처리 시 Order는 PAID, Payment는 APPROVED로 전이되고 true를 반환한다")
+    @DisplayName("승인 처리 시 Order는 PAID, Payment는 APPROVED로 전이되고 결제완료 이벤트를 Outbox에 적재한다")
     void applyApproval_success() {
         // given
         Order order = pendingOrderWithId(50_000L);
@@ -148,20 +150,18 @@ class PaymentRequestWriterTest {
         given(paymentRepository.findById(paymentId)).willReturn(Optional.of(payment));
 
         // when
-        boolean applied = paymentRequestWriter.applyApproval(orderId, paymentId);
+        paymentRequestWriter.applyApproval(orderId, paymentId);
 
         // then
-        assertThat(applied).isTrue();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAID);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.APPROVED);
         assertThat(payment.getPgTransactionId()).isEqualTo("PG-1234"); // approve()는 더 이상 이 값을 건드리지 않음
-
-        ArgumentCaptor<OrderStatusHistory> historyCaptor = ArgumentCaptor.forClass(OrderStatusHistory.class);
-        verify(orderStatusHistoryRepository).save(historyCaptor.capture());
+        verify(orderStatusHistoryRepository).save(any());
+        verify(outboxAppender).appendPaymentCompleted(orderId);
     }
 
     @Test
-    @DisplayName("이미 PAYMENT_REQUESTED가 아닌 주문에 승인 콜백이 다시 오면(중복 redelivery) no-op으로 false를 반환한다")
+    @DisplayName("이미 PAYMENT_REQUESTED가 아닌 주문에 승인 콜백이 다시 오면(중복 redelivery) no-op 처리한다")
     void applyApproval_alreadyProcessed_noOp() {
         // given
         Order order = pendingOrderWithId(50_000L);
@@ -172,16 +172,16 @@ class PaymentRequestWriterTest {
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
-        boolean applied = paymentRequestWriter.applyApproval(orderId, paymentId);
+        paymentRequestWriter.applyApproval(orderId, paymentId);
 
         // then
-        assertThat(applied).isFalse();
         verify(paymentRepository, never()).findById(any());
         verify(orderStatusHistoryRepository, never()).save(any());
+        verify(outboxAppender, never()).appendPaymentCompleted(any());
     }
 
     @Test
-    @DisplayName("실패 처리 시 Order는 FAILED, Payment는 FAILED + failureReason으로 전이되고 true를 반환한다")
+    @DisplayName("실패 처리 시 Order는 FAILED, Payment는 FAILED + failureReason으로 전이되고 결제실패 이벤트를 Outbox에 적재한다")
     void applyFailure_success() {
         // given
         Order order = pendingOrderWithId(50_000L);
@@ -200,17 +200,17 @@ class PaymentRequestWriterTest {
         given(paymentRepository.findById(paymentId)).willReturn(Optional.of(payment));
 
         // when
-        boolean applied = paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.");
+        paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.");
 
         // then
-        assertThat(applied).isTrue();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FAILED);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
         assertThat(payment.getFailureReason()).isEqualTo("잔액이 부족합니다.");
+        verify(outboxAppender).appendPaymentFailed(orderId);
     }
 
     @Test
-    @DisplayName("이미 PAYMENT_REQUESTED가 아닌 주문에 실패 콜백이 다시 오면(중복 redelivery) no-op으로 false를 반환한다")
+    @DisplayName("이미 PAYMENT_REQUESTED가 아닌 주문에 실패 콜백이 다시 오면(중복 redelivery) no-op 처리한다")
     void applyFailure_alreadyProcessed_noOp() {
         // given
         Order order = pendingOrderWithId(50_000L);
@@ -221,11 +221,11 @@ class PaymentRequestWriterTest {
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
-        boolean applied = paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.");
+        paymentRequestWriter.applyFailure(orderId, paymentId, "잔액이 부족합니다.");
 
         // then
-        assertThat(applied).isFalse();
         verify(paymentRepository, never()).findById(any());
         verify(orderStatusHistoryRepository, never()).save(any());
+        verify(outboxAppender, never()).appendPaymentFailed(any());
     }
 }

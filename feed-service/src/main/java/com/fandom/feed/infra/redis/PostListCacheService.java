@@ -1,7 +1,7 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;
@@ -82,7 +82,7 @@ public class PostListCacheService {
     }
 
     /**
-     * 캐시에 게시글 ID를 삭제하는 메서드
+     * 캐시에서 게시글 ID를 삭제하는 메서드
      */
     public void removePost(UUID postId, UUID authorId) {
         String member = postId.toString();
@@ -95,7 +95,25 @@ public class PostListCacheService {
     }
 
     /**
-     * 작성자 ID에 따라 Redis 키를 반환하는 메서드
+     * 캐시에서 작성자 ID의 모든 게시글 ID를 삭제하는 메서드
+     */
+    public void removeAllByAuthorId(List<UUID> postIds, UUID authorId) {
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            // feed:posts:all는 하나씩 제거
+            postIds.forEach(postId ->
+                    connection.zSetCommands().zRem(
+                            RedisKeyPrefix.POST_LIST_ALL.getBytes(),
+                            postId.toString().getBytes()
+                    )
+            );
+            // feed:posts:{authorId}는 한번에 삭제
+            connection.keyCommands().del((RedisKeyPrefix.POST_LIST + authorId).getBytes());
+            return null;
+        });
+    }
+
+    /**
+     * 작성자 ID에 따라 Redis 키를 반환하는 메서드<br>
      * - 작성자 ID가 null이면, feed:posts:all
      */
     private String resolveKey(UUID authorId) {

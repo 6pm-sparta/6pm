@@ -1,51 +1,31 @@
 package com.fandom.feed.infra.redis;
 
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.config.RedisConfig;
+import com.fandom.feed.infra.redis.config.RedisIntegrationTestSupport;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Testcontainers
 @TestPropertySource(properties = "cache.ttl.post-list=300")
-@ExtendWith(SpringExtension.class)
-@Import({PostListCacheService.class, RedisConfig.class, RedisAutoConfiguration.class})
-class PostListCacheServiceIntegrationTest {
+@Import(PostListCacheService.class)
+class PostListCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
     @Autowired
     private PostListCacheService postListCacheService;
-
-    @SuppressWarnings("resource")
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-    }
 
     @AfterEach
     void tearDown() {
@@ -152,7 +132,7 @@ class PostListCacheServiceIntegrationTest {
     }
 
     @Nested
-    @DisplayName("캐시에 postId 추가")
+    @DisplayName("캐시에 게시글 ID 추가")
     class AddPost {
         private final UUID authorId = UUID.randomUUID();
         private final String authorKey = RedisKeyPrefix.POST_LIST + authorId;
@@ -232,5 +212,26 @@ class PostListCacheServiceIntegrationTest {
             assertThat(allScore).isNull();
             assertThat(authorScore).isNotNull();
         }
+    }
+
+    @Test
+    @DisplayName("캐시에서 작성자 ID의 모든 게시글 ID 제거")
+    void removeAllByAuthorId() {
+        // given
+        UUID authorId = UUID.randomUUID();
+        UUID postId1 = UUID.randomUUID();
+        UUID postId2 = UUID.randomUUID();
+
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_ALL, postId1.toString(), 1);
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST_ALL, postId2.toString(), 2);
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST + authorId, postId1.toString(), 1);
+        redisTemplate.opsForZSet().add(RedisKeyPrefix.POST_LIST + authorId, postId2.toString(), 2);
+
+        // when
+        postListCacheService.removeAllByAuthorId(List.of(postId1, postId2), authorId);
+
+        // then
+        assertThat(redisTemplate.opsForZSet().size(RedisKeyPrefix.POST_LIST_ALL)).isZero();
+        assertThat(redisTemplate.opsForZSet().size(RedisKeyPrefix.POST_LIST + authorId)).isZero();
     }
 }

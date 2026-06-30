@@ -5,27 +5,19 @@ import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.LikeErrorCode;
 import com.fandom.feed.domain.repository.LikeRepository;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.config.RedisConfig;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.config.RedisIntegrationTestSupport;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
 import java.util.Map;
@@ -36,11 +28,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@Testcontainers
 @TestPropertySource(properties = "cache.ttl.comment-count=300")
-@ExtendWith(SpringExtension.class)
-@Import({ReactionCacheService.class, RedisConfig.class, RedisAutoConfiguration.class})
-public class ReactionCacheServiceIntegrationTest {
+@Import(ReactionCacheService.class)
+public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
     @MockitoBean
     private PostReader postReader;
 
@@ -52,16 +42,6 @@ public class ReactionCacheServiceIntegrationTest {
 
     @Autowired
     private ReactionCacheService reactionCacheService;
-
-    @SuppressWarnings("resource")
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
-
-    @DynamicPropertySource
-    static void redisProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-    }
 
     @AfterEach
     void tearDown() {
@@ -87,7 +67,7 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId2, "other");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+            List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                     List.of(postId1, postId2), userId, false
             );
 
@@ -112,7 +92,7 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+            List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                     List.of(postId), null, false
             );
 
@@ -133,7 +113,7 @@ public class ReactionCacheServiceIntegrationTest {
             redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
 
             // When
-            List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+            List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                     List.of(postId), userId, true
             );
 
@@ -210,7 +190,7 @@ public class ReactionCacheServiceIntegrationTest {
         when(likeRepository.findLikeUsersByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of(likeUserId)));
 
         // When
-        List<PostCache.ReactionInfo> results = reactionCacheService.getReactionInfoBatch(
+        List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
                 List.of(postId), null, false
         );
 

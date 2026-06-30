@@ -11,6 +11,7 @@ import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
 import com.fandom.order_service.payment.domain.repository.PaymentRepository;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,9 @@ class RefundResultWriterTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private OutboxAppender outboxAppender;
+
     private RefundResultWriter refundResultWriter;
 
     private UUID orderId;
@@ -50,7 +54,7 @@ class RefundResultWriterTest {
 
     @BeforeEach
     void setUp() {
-        refundResultWriter = new RefundResultWriter(orderRepository, orderStatusHistoryRepository, paymentRepository);
+        refundResultWriter = new RefundResultWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, outboxAppender);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
     }
@@ -78,7 +82,7 @@ class RefundResultWriterTest {
     }
 
     @Test
-    @DisplayName("applyRefundSuccess: REFUND_REQUESTED 주문은 REFUNDED로, 결제도 REFUNDED로 전이하고 userId를 반환한다")
+    @DisplayName("applyRefundSuccess: REFUND_REQUESTED 주문은 REFUNDED로, 결제도 REFUNDED로 전이하고 좌석반환/환불알림 이벤트를 Outbox에 적재한다")
     void applyRefundSuccess_transitionsToRefunded() {
         // given
         Order order = refundRequestedOrder();
@@ -87,31 +91,33 @@ class RefundResultWriterTest {
         given(paymentRepository.findById(payment.getId())).willReturn(Optional.of(payment));
 
         // when
-        Optional<UUID> result = refundResultWriter.applyRefundSuccess(orderId, payment.getId());
+        refundResultWriter.applyRefundSuccess(orderId, payment.getId());
 
         // then
-        assertThat(result).contains(userId);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUNDED);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundAmount()).isEqualTo(50_000L);
         verify(orderStatusHistoryRepository).save(any());
+        verify(outboxAppender).appendPaymentCancelled(orderId);
+        verify(outboxAppender).appendOrderCancelledNotification(orderId, userId);
     }
 
     @Test
-    @DisplayName("applyRefundSuccess: 이미 REFUND_REQUESTED가 아니면(중복 webhook) no-op으로 empty를 반환한다")
-    void applyRefundSuccess_alreadyHandled_returnsEmpty() {
+    @DisplayName("applyRefundSuccess: 이미 REFUND_REQUESTED가 아니면(중복 webhook) no-op 처리한다")
+    void applyRefundSuccess_alreadyHandled_noOp() {
         // given
         Order order = refundRequestedOrder();
         order.markRefunded(); // 이미 처리된 상태
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
-        Optional<UUID> result = refundResultWriter.applyRefundSuccess(orderId, UUID.randomUUID());
+        refundResultWriter.applyRefundSuccess(orderId, UUID.randomUUID());
 
         // then
-        assertThat(result).isEmpty();
         verify(paymentRepository, never()).findById(any());
         verify(orderStatusHistoryRepository, never()).save(any());
+        verify(outboxAppender, never()).appendPaymentCancelled(any());
+        verify(outboxAppender, never()).appendOrderCancelledNotification(any(), any());
     }
 
     @Test
@@ -151,27 +157,25 @@ class RefundResultWriterTest {
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
-        boolean applied = refundResultWriter.applyRefundFailure(orderId, "한도 초과");
+        refundResultWriter.applyRefundFailure(orderId, "한도 초과");
 
         // then
-        assertThat(applied).isTrue();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FAILED);
         verify(orderStatusHistoryRepository).save(any());
     }
 
     @Test
-    @DisplayName("applyRefundFailure: 이미 REFUND_REQUESTED가 아니면(중복 webhook) no-op으로 false를 반환한다")
-    void applyRefundFailure_alreadyHandled_returnsFalse() {
+    @DisplayName("applyRefundFailure: 이미 REFUND_REQUESTED가 아니면(중복 webhook) no-op 처리한다")
+    void applyRefundFailure_alreadyHandled_noOp() {
         // given
         Order order = refundRequestedOrder();
         order.markRefunded(); // 이미 처리된 상태
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
-        boolean applied = refundResultWriter.applyRefundFailure(orderId, "한도 초과");
+        refundResultWriter.applyRefundFailure(orderId, "한도 초과");
 
         // then
-        assertThat(applied).isFalse();
         assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUNDED); // 변경 없음
         verify(orderStatusHistoryRepository, never()).save(any());
     }

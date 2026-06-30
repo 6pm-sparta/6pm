@@ -1,13 +1,15 @@
 package com.fandom.feed.infra.redis.config;
 
-import com.fandom.feed.global.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.test.autoconfigure.data.redis.DataRedisTest;
 import org.springframework.cache.Cache;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 
@@ -18,7 +20,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-@SpringBootTest
+@DataRedisTest
+@Import({RedisCacheConfig.class, JacksonAutoConfiguration.class})
 class RedisCacheConfigTest {
     @Autowired
     private RedisCacheManager cacheManager;
@@ -30,7 +33,7 @@ class RedisCacheConfigTest {
 
         assertThat(config).isNotNull();
         Cache cache = cacheManager.getCache(RedisKeyPrefix.POST_DETAIL);
-        PostCache.Detail cachedPost = new PostCache.Detail(
+        PostDetailCache cachedPost = new PostDetailCache(
                 UUID.randomUUID(), null, "내용", List.of(), LocalDateTime.now(), LocalDateTime.now()
         );
 

@@ -3,7 +3,7 @@ package com.fandom.feed.application;
 import com.fandom.feed.application.event.Event;
 import com.fandom.feed.domain.entity.Image;
 import com.fandom.feed.domain.repository.ImageRepository;
-import com.fandom.feed.infra.util.ImageUrlConverter;
+import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -18,8 +18,8 @@ import java.util.stream.IntStream;
 @RequiredArgsConstructor
 public class ImageService {
     private final ImageRepository imageRepository;
-    private final ImageUrlConverter imageUrlConverter;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final ImageUrlConverter imageUrlConverter;
 
     /**
      * 게시글 ID로 이미지 목록을 조회하는 메서드
@@ -41,6 +41,14 @@ public class ImageService {
                                 Collectors.toList()
                         )
                 ));
+    }
+
+    /**
+     * 게시글 ID 목록으로 이미지 목록을 조회한 후, 이미지 키를 반환하는 메서드
+     */
+    public List<String> findAllKeysByPostIds(List<UUID> postIds) {
+        return imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)
+                .stream().map(Image::getImageKey).toList();
     }
 
     /**
@@ -85,7 +93,14 @@ public class ImageService {
      * 게시글 ID로 이미지 목록을 삭제하는 메서드
      */
     public void deleteAllByPostId(UUID postId) {
-        imageRepository.deleteAllByPostId(postId);
+        deleteAllByPostIds(List.of(postId));
+    }
+
+    /**
+     * 게시글 ID 목록으로 이미지 목록을 삭제하는 메서드
+     */
+    public void deleteAllByPostIds(List<UUID> postIds) {
+        imageRepository.deleteAllByPostIdIn(postIds);
     }
 
     /**

@@ -2,7 +2,6 @@ package com.fandom.order_service.payment.application.webhook;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
-import com.fandom.order_service.kafka.producer.OrderEventProducer;
 import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
@@ -39,7 +38,6 @@ public class PgWebhookService {
     private final PaymentRepository paymentRepository;
     private final PaymentRequestWriter paymentRequestWriter;
     private final RefundResultWriter refundResultWriter;
-    private final OrderEventProducer orderEventProducer;
 
     public void receive(PgWebhookRequest request, String signature) {
 
@@ -84,25 +82,14 @@ public class PgWebhookService {
             return;
         }
 
-        // 실제 상태 전이가 발생한 경우에만 이벤트를 발행한다.
+        // 상태 전이와 Outbox 적재는 Writer 트랜잭션 안에서 함께 처리된다(중복 수신은 Writer가 no-op).
         switch (request.status()) {
-            case STATUS_APPROVED -> {
-                if (paymentRequestWriter.applyApproval(request.orderId(), payment.getId())) {
-                    orderEventProducer.publishPaymentCompleted(request.orderId());
-                }
-            }
+            case STATUS_APPROVED -> paymentRequestWriter.applyApproval(request.orderId(), payment.getId());
             case STATUS_FAILED -> {
                 String reason = request.failureReason() != null ? request.failureReason() : "PG 응답 실패";
-                if (paymentRequestWriter.applyFailure(request.orderId(), payment.getId(), reason)) {
-                    orderEventProducer.publishPaymentFailed(request.orderId());
-                }
+                paymentRequestWriter.applyFailure(request.orderId(), payment.getId(), reason);
             }
-            case STATUS_REFUNDED -> refundResultWriter.applyRefundSuccess(request.orderId(), payment.getId())
-                    .ifPresent(userId -> {
-                        // 좌석 반환 이벤트는 유저 직접 취소/SAGA 보상 양쪽 모두에 항상 발행한다.
-                        orderEventProducer.publishPaymentCancelled(request.orderId());
-                        orderEventProducer.publishOrderCancelledNotification(request.orderId(), userId);
-                    });
+            case STATUS_REFUNDED -> refundResultWriter.applyRefundSuccess(request.orderId(), payment.getId());
             case STATUS_REFUND_FAILED -> {
                 String reason = request.failureReason() != null ? request.failureReason() : "PG 환불 거절";
                 // FAILED 전이 + 로그로 남기고 수동 처리 대상으로 남김.

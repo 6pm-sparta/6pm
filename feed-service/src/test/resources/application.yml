@@ -13,6 +13,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 
 eureka:
   client:
@@ -29,9 +31,13 @@ cloud:
       secret-key: temp-secret-key
     region:
       static: ap-northeast-2
+    endpoint: http://localhost:4566
     s3:
       bucket: temp-bucket
       base-url: https://temp-bucket.s3.ap-northeast-2.amazonaws.com/
+      path:
+        post: posts
+      presigned-url-expiry: 600  # 10분
 
 cache:
   ttl:

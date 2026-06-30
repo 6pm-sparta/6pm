@@ -24,6 +24,17 @@ spring:
     openfeign:
       circuitbreaker:
         enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: feed-service
+    listener:
+      retry:
+        max-attempts: 3
+        backoff:
+          initial-interval: 1000
+          multiplier: 2.0
+
 logging:
   file:
     name: ./logs/feed-service.log
@@ -66,6 +77,9 @@ cloud:
     s3:
       bucket: ${AWS_S3_BUCKET}
       base-url: https://${AWS_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/
+      path:
+        post: posts
+      presigned-url-expiry: 600  # 10분
 
 cache:
   ttl:

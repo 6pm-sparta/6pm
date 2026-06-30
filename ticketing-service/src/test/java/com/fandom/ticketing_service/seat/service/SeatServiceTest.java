@@ -1,5 +1,6 @@
 package com.fandom.ticketing_service.seat.service;
 
+import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.client.OrderClient;
@@ -62,7 +63,7 @@ class SeatServiceTest {
         @DisplayName("Redis에 상태가 없으면 AVAILABLE로 반환한다")
         void getSeats_noRedisStatus_returnsAvailable() {
             // given
-            Long showId = 1L;
+            UUID showId = UUID.randomUUID();
             ShowSeat seat = ShowSeat.builder().showId(showId).seatName("A-1").grade("VIP").price(100000).build();
             given(showSeatRepository.findAllByShowId(showId)).willReturn(List.of(seat));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
@@ -81,7 +82,7 @@ class SeatServiceTest {
         @DisplayName("Redis에 HOLDING 상태가 있으면 그대로 반환한다")
         void getSeats_holdingStatus_returnsHolding() {
             // given
-            Long showId = 1L;
+            UUID showId = UUID.randomUUID();
             ShowSeat seat = ShowSeat.builder().showId(showId).seatName("B-2").grade("R").price(80000).build();
             given(showSeatRepository.findAllByShowId(showId)).willReturn(List.of(seat));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
@@ -98,10 +99,10 @@ class SeatServiceTest {
         @DisplayName("공연에 좌석이 없으면 빈 목록을 반환한다")
         void getSeats_noSeats_returnsEmpty() {
             // given
-            given(showSeatRepository.findAllByShowId(anyLong())).willReturn(List.of());
+            given(showSeatRepository.findAllByShowId(any(UUID.class))).willReturn(List.of());
 
             // when
-            List<ShowSeatResponse> result = seatService.getSeats(99L);
+            List<ShowSeatResponse> result = seatService.getSeats(UUID.randomUUID());
 
             // then
             assertThat(result).isEmpty();
@@ -119,12 +120,13 @@ class SeatServiceTest {
             UUID seatId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
             UUID orderId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
-            given(orderClient.create(any(CreateOrderRequest.class))).willReturn(new CreateOrderResponse(orderId));
+            given(orderClient.create(any(CreateOrderRequest.class))).willReturn(ApiResponse.created(new CreateOrderResponse(orderId)));
 
             // when
             HoldResponse result = seatService.hold(seatId, userId);
@@ -151,10 +153,10 @@ class SeatServiceTest {
         void hold_noPurchaseToken() {
             // given
             UUID seatId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(purchaseTokenService.exists(anyLong(), any())).willReturn(false);
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(false);
 
             // when & then
             assertThatThrownBy(() -> seatService.hold(seatId, UUID.randomUUID()))
@@ -168,10 +170,11 @@ class SeatServiceTest {
         void hold_alreadyHeld() {
             // given
             UUID seatId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(0L);
 
             // when & then
@@ -186,10 +189,11 @@ class SeatServiceTest {
         void hold_noInventory() {
             // given
             UUID seatId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-1L);
 
             // when & then
@@ -204,10 +208,11 @@ class SeatServiceTest {
         void hold_purchaseLimitExceeded() {
             // given
             UUID seatId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(-2L);
 
             // when & then
@@ -223,10 +228,10 @@ class SeatServiceTest {
             // given
             UUID seatId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
-            given(purchaseTokenService.exists(anyLong(), any())).willReturn(true);
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
             given(orderClient.create(any())).willThrow(new RuntimeException("order-service 연결 실패"));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
@@ -253,7 +258,7 @@ class SeatServiceTest {
             // given
             UUID seatId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
             seat.assignOrder(UUID.randomUUID());
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
@@ -284,7 +289,7 @@ class SeatServiceTest {
         void releaseHold_notHeld() {
             // given
             UUID seatId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-1L);
@@ -301,7 +306,7 @@ class SeatServiceTest {
         void releaseHold_forbidden() {
             // given
             UUID seatId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-2L);
@@ -318,7 +323,7 @@ class SeatServiceTest {
         void releaseHold_processing() {
             // given
             UUID seatId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(1L).seatName("A-1").grade("VIP").price(100000).build();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-3L);
@@ -339,7 +344,7 @@ class SeatServiceTest {
         @DisplayName("구매 내역이 없으면 잔여 수량은 한도와 같다")
         void getPurchaseLimit_noPurchase_returnsFullRemaining() {
             // given
-            Long showId = 1L;
+            UUID showId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
             given(valueOperations.get(anyString())).willReturn(null);
@@ -357,7 +362,7 @@ class SeatServiceTest {
         @DisplayName("구매 수량만큼 잔여 수량이 차감된다")
         void getPurchaseLimit_withPurchase_returnsReducedRemaining() {
             // given
-            Long showId = 1L;
+            UUID showId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
             given(valueOperations.get(anyString())).willReturn("3");
@@ -375,7 +380,7 @@ class SeatServiceTest {
         @DisplayName("한도를 모두 사용했으면 잔여 수량은 0 이하로 내려가지 않는다")
         void getPurchaseLimit_atLimit_returnsZeroRemaining() {
             // given
-            Long showId = 1L;
+            UUID showId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
             given(valueOperations.get(anyString())).willReturn("4");

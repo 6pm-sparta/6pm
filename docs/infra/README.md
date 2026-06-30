@@ -9,7 +9,7 @@
 |---|---|
 | **`decisions.md`** | ⭐ **모든 인프라 결정의 "왜"**(DB/Redis/Kafka/배포/관측/규약). 의사결정 근거는 여기서. |
 | **`dev-start-guide.md`** | 개발 시작(로컬 실행·.env·build.gradle·application.yml·공통규약·서비스별 셋업·ticketing 분산락) |
-| **`db.md`** (= DB_DESIGN) | DB 설계: 스키마 분리, Replica B안, 접속 표준 |
+| **`db.md`** (= DB_DESIGN) | DB 설계: **서비스별 독립 DB 인스턴스 + public 스키마**, Replica B안, 접속 표준 |
 | **`logging-standard.md`** | 로그 표준(ECS JSON·레벨·3종·DO/DON'T) — 전 서비스 공통 |
 | **`alert-scenarios.md`** | 서비스별 위험 시나리오·감지/알림 기준 (각 담당 작성, ~6/29) |
 | **`prod-migration.md`** | 로컬→운영(ECS) 전환 시 서비스별 점검·변경 + **지금 설계에 미리 반영할 것** |

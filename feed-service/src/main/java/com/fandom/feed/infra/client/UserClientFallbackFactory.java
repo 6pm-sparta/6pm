@@ -36,7 +36,7 @@ public class UserClientFallbackFactory implements FallbackFactory<UserClient> {
             @Override
             public ApiResponse<List<UserResponse>> getUsers(Set<UUID> ids) {
                 String message = (cause != null && cause.getMessage() != null) ? cause.getMessage() : "Unknown";
-                log.error("[UserClient] 목록 조회 실패로 인한 폴백 실행. 대상 ID: {}, 원인: {}", ids, message);
+                log.error("[UserClient] 목록 조회 실패로 인한 폴백 실행 - ID: {}, 원인: {}", ids, message);
                 List<UserResponse> responses = ids.stream().map(id -> new UserResponse(id, "-")).toList();
                 return ApiResponse.success(responses);
             }

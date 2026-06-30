@@ -6,14 +6,18 @@ import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.global.constant.RedisKeyPrefix;
-import com.fandom.feed.infra.redis.PostCacheService;
+import com.fandom.feed.infra.redis.PostDetailCacheService;
+import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
-import com.fandom.feed.infra.util.ImageUrlConverter;
-import com.fandom.feed.infra.redis.dto.PostCache;
+import com.fandom.feed.infra.redis.dto.PostDetailCache;
+import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
+import com.fandom.feed.infra.s3.S3Service;
+import com.fandom.feed.infra.s3.dto.PresignedUrlInfo;
+import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
+import com.fandom.feed.presentation.dto.response.PresignedUrlResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -28,14 +32,20 @@ import java.util.UUID;
 public class PostService {
     private final PostReader postReader;
     private final PostAssembler postAssembler;
-    private final PostRepository postRepository;
     private final ImageService imageService;
-    private final PostCacheService postCacheService;
     private final CommentService commentService;
     private final LikeService likeService;
+    private final PostRepository postRepository;
+    private final S3Service s3Service;
+    private final PostDetailCacheService postDetailCacheService;
     private final PostListCacheService postListCacheService;
     private final ReactionCacheService reactionCacheService;
     private final ImageUrlConverter imageUrlConverter;
+
+    public PresignedUrlResponse generatePresignedUrls(List<String> imageNames) {
+        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(imageNames);
+        return PresignedUrlResponse.from(uploadUrls);
+    }
 
     @Transactional
     public PostResponse.Create createPost(String content, List<String> imageKeys, UUID userId) {
@@ -50,8 +60,8 @@ public class PostService {
     }
 
     public PostResponse.Detail getPost(UUID postId, UUID userId) {
-        PostCache.Detail cachedPost = postCacheService.getPostDetail(postId);
-        PostCache.ReactionInfo reactionInfo = reactionCacheService.getReactionInfo(postId, userId);
+        PostDetailCache cachedPost = postDetailCacheService.getPostDetail(postId);
+        ReactionInfoCache reactionInfo = reactionCacheService.getReactionInfo(postId, userId);
         return PostResponse.Detail.of(cachedPost, reactionInfo);
     }
 
@@ -130,16 +140,38 @@ public class PostService {
      * DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드
      */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
-        List<Post> allPosts = postRepository.findByCursorForWarm(authorId);
+        List<Post> posts = postRepository.findByCursorForWarm(authorId);
 
-        allPosts.forEach(post -> postListCacheService.addPostForWarm(post.getId(), authorId));
+        posts.forEach(post -> postListCacheService.addPostForWarm(post.getId(), authorId));
 
         postListCacheService.expireCache(authorId);
 
-        boolean hasMore = allPosts.size() > FeedPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? allPosts.subList(0, FeedPolicy.PAGE_SIZE) : allPosts;
+        boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
         UUID nextCursor = hasMore ? page.getLast().getId() : null;
         return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
+    }
+
+    /**
+     * 작성자 ID로 모든 게시글을 삭제하는 메서드
+     */
+    @Transactional
+    public void deleteAllByAuthorId(UUID authorId) {
+        List<UUID> postIds = postRepository.findAllIdsByAuthorId(authorId);
+
+        if (postIds.isEmpty()) return;
+
+        commentService.deleteAllByPostIds(postIds, authorId);
+        likeService.deleteAllByPostIds(postIds);
+
+        postRepository.softDeleteAllByAuthorId(authorId);
+
+        List<String> imageKeys = imageService.findAllKeysByPostIds(postIds);
+        imageService.deleteAllByPostIds(postIds);
+        imageService.publishS3DeleteEvent(imageKeys);
+
+        postListCacheService.removeAllByAuthorId(postIds, authorId);
+        postDetailCacheService.deleteAll(postIds);
     }
 }

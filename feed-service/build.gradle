@@ -16,15 +16,21 @@ dependencies {
 	implementation 'io.micrometer:micrometer-registry-prometheus'                         // Prometheus 메트릭
 
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'			  // 캐시/세션
-	// implementation 'org.springframework.kafka:spring-kafka'                            // 이벤트
+	implementation 'org.springframework.kafka:spring-kafka'                            	  // 이벤트
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'          	  // 서비스 간 동기 호출
 
+	implementation 'com.fasterxml.uuid:java-uuid-generator:5.1.0'
 	implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
-	implementation("software.amazon.awssdk:s3:2.46.14")
+	implementation 'software.amazon.awssdk:s3:2.46.14'
+	implementation 'org.springframework.retry:spring-retry'
+	implementation 'org.springframework:spring-aspects'
+
 	testImplementation 'com.h2database:h2'
 	testImplementation 'org.testcontainers:testcontainers:2.0.5'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
+	testImplementation 'org.testcontainers:postgresql'
+	testImplementation 'org.testcontainers:localstack'
 
 	// 추적
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'

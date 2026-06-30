@@ -204,12 +204,38 @@ class JpaCommentRepositoryTest {
     }
 
     @Test
-    @DisplayName("postId에 해당하는 댓글 전체 삭제")
-    void softDeleteAllByPostId() {
+    @DisplayName("authorId로 댓글 익명 처리")
+    void anonymizeByAuthorId() {
+        // given
+        UUID authorId = UUID.randomUUID();
+        UUID postId = UUID.randomUUID();
+        List<Comment> comments = List.of(
+                Comment.builder().authorId(authorId).postId(postId).content("내용1").build(),
+                Comment.builder().authorId(authorId).postId(postId).content("내용2").build(),
+                Comment.builder().authorId(UUID.randomUUID()).postId(postId).content("다른 작성자").build()
+        );
+        jpaCommentRepository.saveAll(comments);
+
+        // when
+        jpaCommentRepository.anonymizeByAuthorId(authorId);
+        jpaCommentRepository.flush();
+
+        // then
+        List<Comment> anonymized = jpaCommentRepository.findAllById(
+                comments.subList(0, 2).stream().map(Comment::getId).toList()
+        );
+        assertThat(anonymized).allSatisfy(comment -> assertThat(comment.getAuthorId()).isNull());
+
+        Comment other = jpaCommentRepository.findById(comments.get(2).getId()).orElseThrow();
+        assertThat(other.getAuthorId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("postId 목록에 해당하는 댓글 전체 삭제")
+    void softDeleteAllByPostIds() {
         // given
         UUID postId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        LocalDateTime deletedAt = LocalDateTime.now();
 
         Comment c1 = Comment.builder().postId(postId).content("댓글1").build();
         Comment c2 = Comment.builder().postId(postId).content("댓글2").build();
@@ -217,7 +243,7 @@ class JpaCommentRepositoryTest {
         jpaCommentRepository.saveAll(List.of(c1, c2, other));
 
         // when
-        jpaCommentRepository.softDeleteAllByPostId(postId, userId, deletedAt);
+        jpaCommentRepository.softDeleteAllByPostIds(List.of(postId), userId);
 
         // then
         List<Comment> result = jpaCommentRepository.findAll();
@@ -225,7 +251,7 @@ class JpaCommentRepositoryTest {
         assertThat(result).filteredOn(c -> c.getPostId().equals(postId))
                 .allSatisfy(c -> {
                     assertThat(c.getDeletedBy()).isEqualTo(userId);
-                    assertThat(c.getDeletedAt()).isEqualTo(deletedAt);
+                    assertThat(c.getDeletedAt()).isNotNull();
                 });
 
         assertThat(result).filteredOn(c -> !c.getPostId().equals(postId))

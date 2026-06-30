@@ -11,17 +11,17 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PurchaseTokenService {
 
-    private static final String PURCHASE_TOKEN_KEY = "purchase-token:%d:%s";
+    private static final String PURCHASE_TOKEN_KEY = "purchase-token:%s:%s";
     static final Duration TOKEN_TTL = Duration.ofSeconds(600);
 
     private final RedisTemplate<String, String> redisTemplate;
 
-    public boolean issue(Long showId, UUID userId) {
+    public boolean issue(UUID showId, UUID userId) {
         String key = PURCHASE_TOKEN_KEY.formatted(showId, userId);
         return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, "1", TOKEN_TTL));
     }
 
-    public boolean exists(Long showId, UUID userId) {
+    public boolean exists(UUID showId, UUID userId) {
         return Boolean.TRUE.equals(redisTemplate.hasKey(PURCHASE_TOKEN_KEY.formatted(showId, userId)));
     }
 }
