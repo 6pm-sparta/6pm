@@ -1,8 +1,8 @@
-package com.fandom.ticketing_service.order.client;
+package com.fandom.ticketing_service.order.infrastructure.client;
 
 import com.fandom.common.dto.ApiResponse;
-import com.fandom.ticketing_service.order.dto.CreateOrderRequest;
-import com.fandom.ticketing_service.order.dto.CreateOrderResponse;
+import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderRequest;
+import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;

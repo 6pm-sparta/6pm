@@ -1,4 +1,4 @@
-package com.fandom.ticketing_service.order.dto;
+package com.fandom.ticketing_service.order.infrastructure.dto;
 
 import java.util.UUID;
 
