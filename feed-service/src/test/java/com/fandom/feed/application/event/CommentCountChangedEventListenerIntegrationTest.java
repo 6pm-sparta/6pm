@@ -51,7 +51,7 @@ class CommentCountChangedEventListenerIntegrationTest extends RedisIntegrationTe
 
     @Test
     @DisplayName("댓글 수 0일 때 삭제 이벤트 발생 - 0 미만으로 내려가지 않음")
-    void handleCommentDeleted_minZero() {
+    void handleCommentDeletedMinZero() {
         // given
         UUID postId = UUID.randomUUID();
         String key = RedisKeyPrefix.COMMENT_COUNT + postId;
