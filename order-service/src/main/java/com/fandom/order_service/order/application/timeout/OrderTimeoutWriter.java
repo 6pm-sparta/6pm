@@ -1,5 +1,6 @@
 package com.fandom.order_service.order.application.timeout;
 
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
@@ -14,6 +15,7 @@ import java.util.UUID;
 
 /**
  * 주문 타임아웃 자동 취소 — 건당 트랜잭션.
+ * OrderCancelWriter PENDING 분기와 동일한 동시성 원칙(비관적 락 + 재검증)을 따르되,
  * 상태 불일치는 예외가 아닌 SKIPPED로 처리한다(배치 처리이므로 경합 자체가 정상 결과).
  */
 @Slf4j
@@ -25,6 +27,7 @@ public class OrderTimeoutWriter {
 
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
+    private final OutboxAppender outboxAppender;
 
     @Transactional
     public OrderTimeoutResult expireIfStillPending(UUID orderId) {
@@ -46,6 +49,8 @@ public class OrderTimeoutWriter {
                         .toStatus(order.getStatus())
                         .reason(TIMEOUT_REASON)
                         .build());
+
+        outboxAppender.appendHoldReleased(order.getId());
 
         return OrderTimeoutResult.CANCELLED;
     }

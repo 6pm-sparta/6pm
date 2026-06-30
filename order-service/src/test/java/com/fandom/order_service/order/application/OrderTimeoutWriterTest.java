@@ -1,5 +1,6 @@
 package com.fandom.order_service.order.application;
 
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.application.timeout.OrderTimeoutResult;
 import com.fandom.order_service.order.application.timeout.OrderTimeoutWriter;
 import com.fandom.order_service.order.domain.entity.Order;
@@ -35,13 +36,16 @@ class OrderTimeoutWriterTest {
     @Mock
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
 
+    @Mock
+    private OutboxAppender outboxAppender;
+
     private OrderTimeoutWriter orderTimeoutWriter;
 
     private UUID orderId;
 
     @BeforeEach
     void setUp() {
-        orderTimeoutWriter = new OrderTimeoutWriter(orderRepository, orderStatusHistoryRepository);
+        orderTimeoutWriter = new OrderTimeoutWriter(orderRepository, orderStatusHistoryRepository, outboxAppender);
         orderId = UUID.randomUUID();
     }
 
@@ -72,6 +76,7 @@ class OrderTimeoutWriterTest {
         assertThat(history.getFromStatus()).isEqualTo(OrderStatus.PENDING);
         assertThat(history.getToStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(history.getReason()).isEqualTo("주문 타임아웃 자동 취소");
+        verify(outboxAppender).appendHoldReleased(order.getId());
     }
 
     @Test
@@ -90,6 +95,7 @@ class OrderTimeoutWriterTest {
         assertThat(result).isEqualTo(OrderTimeoutResult.SKIPPED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_REQUESTED);
         verify(orderStatusHistoryRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(outboxAppender, never()).appendHoldReleased(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -107,6 +113,7 @@ class OrderTimeoutWriterTest {
         // then
         assertThat(result).isEqualTo(OrderTimeoutResult.SKIPPED);
         verify(orderStatusHistoryRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(outboxAppender, never()).appendHoldReleased(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -122,5 +129,6 @@ class OrderTimeoutWriterTest {
         // then
         assertThat(result).isEqualTo(OrderTimeoutResult.SKIPPED);
         verify(orderStatusHistoryRepository, never()).save(org.mockito.ArgumentMatchers.any());
+        verify(outboxAppender, never()).appendHoldReleased(org.mockito.ArgumentMatchers.any());
     }
 }
