@@ -29,6 +29,10 @@ dependencies {
 	// 비밀번호 검증용 BCrypt 인코더 (matches만 사용, 필터체인 없음)
 	implementation 'org.springframework.security:spring-security-crypto'
 
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers'
+
 	// === auth-service는 DB를 두지 않으므로 data-jpa / postgresql 미포함 ===
 
 	// 추적
