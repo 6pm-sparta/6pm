@@ -133,18 +133,18 @@ public class Order extends BaseEntity {
     }
 
     /**
-     * PAID/CONFIRMED → REFUND_REQUESTED. PG 환불 호출 "전"에 먼저 반영해야 한다 — 결제 요청의
-     * PAYMENT_REQUESTED 전이와 동일한 이유. 동시 취소 요청의 두 번째가 이 전이 이후 들어오면
-     * 상태가 이미 REFUND_REQUESTED라 즉시 거부된다.
+     * PAID/CONFIRMED/COMPENSATING/FAILED → REFUND_REQUESTED. PG 환불 호출 "전"에 먼저 반영해야 한다.
      * COMPENSATING → REFUND_REQUESTED도 허용한다 — SAGA 보상 트랜잭션이 COMPENSATING을 거쳐
-     * 같은 REFUND_REQUESTED 상태로 들어오기 때문. REFUND_REQUESTED 자체는 "PG 환불 호출 중/완료
-     * 대기"라는 의미만 가지며, 거기 들어온 경로(유저 직접 취소 vs SAGA 보상)는 상태값이 아니라
+     * 같은 REFUND_REQUESTED 상태로 들어오기 때문.
+     * FAILED → REFUND_REQUESTED도 허용한다 — 환불 복구 배치가 한 번 거절(FAILED)됐던 환불을
+     * 재시도할 때 사용. REFUND_REQUESTED 자체는 "PG 환불 호출 중/완료 대기"라는 의미만 가지며,
+     * 거기 들어온 경로(유저 직접 취소/SAGA 보상/복구 배치 재시도)는 상태값이 아니라
      * order_status_histories.reason으로 구분한다.
      */
     public void markRefundRequested() {
 
         if (this.status != OrderStatus.PAID && this.status != OrderStatus.CONFIRMED
-                && this.status != OrderStatus.COMPENSATING) {
+                && this.status != OrderStatus.COMPENSATING && this.status != OrderStatus.FAILED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -152,10 +152,10 @@ public class Order extends BaseEntity {
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
-    /** REFUND_REQUESTED → REFUNDED. PG 환불 성공 응답을 받은 직후 호출한다.*/
+    /** REFUND_REQUESTED/FAILED → REFUNDED. FAILED 허용은 복구 배치의 거래조회 동기화용. */
     public void markRefunded() {
 
-        if (this.status != OrderStatus.REFUND_REQUESTED) {
+        if (this.status != OrderStatus.REFUND_REQUESTED && this.status != OrderStatus.FAILED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -199,6 +199,17 @@ public class Order extends BaseEntity {
         }
 
         this.status = OrderStatus.FAILED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /** REFUND_REQUESTED/FAILED → MANUAL_REVIEW_REQUIRED. 복구 배치 재시도 소진 시 호출. */
+    public void markManualReviewRequired() {
+
+        if (this.status != OrderStatus.REFUND_REQUESTED && this.status != OrderStatus.FAILED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.MANUAL_REVIEW_REQUIRED;
         this.statusUpdatedAt = LocalDateTime.now();
     }
 

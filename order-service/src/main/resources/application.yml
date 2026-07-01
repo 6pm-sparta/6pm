@@ -66,6 +66,10 @@ order:
   timeout:
     batch-size: 100              # 폴링 1회당 최대 처리 건수
     poll-interval-ms: 5000       # 폴링 주기
+  refund-recovery:
+    batch-size: 100              # 폴링 1회당 최대 처리 건수
+    poll-interval-ms: 10000      # 폴링 주기
+    max-retries: 3               # 자동 재시도 최대 횟수
   pg-webhook:
     secret-key: "${PG_WEBHOOK_SECRET_KEY:PGWebhookSecret_2026_6pm_fandom_X7mK2vQ8pL9aR4s}"
     callback-url: "http://localhost:${server.port}/api/v1/webhooks/payments"
