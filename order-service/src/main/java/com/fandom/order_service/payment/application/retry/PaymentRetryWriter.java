@@ -113,10 +113,6 @@ public class PaymentRetryWriter {
         paymentRepository.findById(paymentId).ifPresent(p -> p.recordPgTransactionId(pgTransactionId));
     }
 
-    public static boolean isTransient(String failureReason) {
-        return failureReason != null && failureReason.startsWith(TRANSIENT_PREFIX);
-    }
-
     private void saveHistory(UUID orderId, OrderStatus from, OrderStatus to, String reason) {
         orderStatusHistoryRepository.save(
                 OrderStatusHistory.builder()

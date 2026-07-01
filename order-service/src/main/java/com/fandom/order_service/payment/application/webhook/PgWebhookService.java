@@ -85,10 +85,7 @@ public class PgWebhookService {
         // 상태 전이와 Outbox 적재는 Writer 트랜잭션 안에서 함께 처리된다(중복 수신은 Writer가 no-op).
         switch (request.status()) {
             case STATUS_APPROVED -> paymentRequestWriter.applyApproval(request.orderId(), payment.getId());
-            case STATUS_FAILED -> {
-                String reason = request.failureReason() != null ? request.failureReason() : "PG 응답 실패";
-                paymentRequestWriter.applyFailure(request.orderId(), payment.getId(), reason);
-            }
+            case STATUS_FAILED -> handleFailed(request, payment);
             case STATUS_REFUNDED -> refundResultWriter.applyRefundSuccess(request.orderId(), payment.getId());
             case STATUS_REFUND_FAILED -> {
                 String reason = request.failureReason() != null ? request.failureReason() : "PG 환불 거절";
@@ -98,6 +95,24 @@ public class PgWebhookService {
             default -> log.warn("[PG Webhook] 알 수 없는 status — 무시. status={}, pgTransactionId={}",
                     request.status(), request.pgTransactionId());
         }
+    }
+
+    /** TRANSIENT: prefix → 재시도 마킹(Order 상태 유지). 그 외 → 영구 실패. */
+    private void handleFailed(PgWebhookRequest request, Payment payment) {
+
+        String reason = request.failureReason() != null ? request.failureReason() : "PG 응답 실패";
+
+        if (isTransient(reason)) {
+            paymentRequestWriter.applyFailureWithRetry(request.orderId(), payment.getId(), reason);
+            log.info("[PG Webhook] 일시적 오류 — 재시도 마킹. orderId={}, paymentId={}, reason={}",
+                    request.orderId(), payment.getId(), reason);
+        } else {
+            paymentRequestWriter.applyFailure(request.orderId(), payment.getId(), reason);
+        }
+    }
+
+    private static boolean isTransient(String failureReason) {
+        return failureReason != null && failureReason.startsWith("TRANSIENT:");
     }
 
     private boolean claim(String pgTransactionId, String status) {

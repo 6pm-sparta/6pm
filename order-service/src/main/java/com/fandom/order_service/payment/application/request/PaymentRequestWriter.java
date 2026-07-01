@@ -73,7 +73,9 @@ public class PaymentRequestWriter {
                 .idempotencyKey(idempotencyKey)
                 .build();
 
-        return paymentRepository.save(payment);
+        Payment saved = paymentRepository.save(payment);
+        order.updateLatestPayment(saved.getId());
+        return saved;
     }
 
     /**
@@ -127,6 +129,25 @@ public class PaymentRequestWriter {
         payment.fail(failureReason);
         saveHistory(order.getId(), before, order.getStatus(), "결제 실패: " + failureReason);
         outboxAppender.appendPaymentFailed(order.getId());
+    }
+
+    /** 일시적 오류 webhook 반영. Order 상태 유지, Payment FAILED + retryable=true 마킹. */
+    @Transactional
+    public void applyFailureWithRetry(UUID orderId, UUID paymentId, String failureReason) {
+
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
+            return;
+        }
+
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+        payment.failWithRetry(failureReason);
+        saveHistory(order.getId(), OrderStatus.PAYMENT_REQUESTED, OrderStatus.PAYMENT_REQUESTED,
+                "결제 일시적 오류 — 재시도 예정: " + failureReason);
     }
 
     private void saveHistory(UUID orderId, OrderStatus fromStatus, OrderStatus toStatus, String reason) {
