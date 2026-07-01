@@ -90,7 +90,7 @@ public class PaymentRetryWriter {
         return PaymentRetryResult.retrying(saved);
     }
 
-    /** 트랜잭션 커밋 후 PG 재요청. PG 접수 실패 시 retryable 마킹해 다음 폴링에 재시도된다. */
+    /** 트랜잭션 커밋 후 PG 재요청. 실패 시 새 Payment(REQUESTED)는 OrderTimeoutScheduler가 expired_at 기준으로 정리. */
     public void requestApproval(UUID orderId, Payment retryPayment) {
         try {
             String pgTransactionId = paymentGateway.requestApprovalAsync(
