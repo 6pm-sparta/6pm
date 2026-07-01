@@ -33,6 +33,7 @@ public record OrderProperties(
         Hold hold,
         int expirationMinutes,
         PaymentLockProperties paymentLockProperties,
+        PaymentRetry paymentRetry,
         Cancellation cancellation,
         Compensation compensation,
         Timeout timeout,
@@ -48,6 +49,14 @@ public record OrderProperties(
             long lockWaitSeconds,
             long lockHoldSeconds,
             long idempotencyKeyTtlSeconds
+    ) {
+    }
+
+    /** maxAttempts: 재시도 최대 횟수. 초과 시 Order FAILED 전이. */
+    public record PaymentRetry(
+            int maxAttempts,
+            int batchSize,
+            long pollIntervalMs
     ) {
     }
 
