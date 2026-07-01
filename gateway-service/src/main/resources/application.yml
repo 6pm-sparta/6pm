@@ -65,6 +65,10 @@ spring:
           uri: lb://CHAT-SERVICE
           predicates:
             - Path=/api/v1/chats/**
+        - id: cs-service
+          uri: lb://CS-SERVICE
+          predicates:
+            - Path=/api/v1/cs/**
 
 eureka:
   client:

@@ -1,16 +1,16 @@
 server:
-  port: 8085
+  port: 8089
 
 spring:
   application:
-    name: notification-service
+    name: cs-service
   config:
     import: "optional:configserver:http://localhost:8888"
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${NOTIFICATION_DB_URL}
-    username: ${NOTIFICATION_DB_USERNAME}
-    password: ${NOTIFICATION_DB_PASSWORD}
+    url: ${CS_DB_URL}
+    username: ${CS_DB_USERNAME}
+    password: ${CS_DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
@@ -19,31 +19,16 @@ spring:
         format_sql: true
         log_slow_query: 500
     show-sql: true
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: notification-service
-fcm:
-  enabled: ${FCM_ENABLED:false}
-  credentials-path: ${FCM_CREDENTIALS_PATH:}
 
 logging:
   file:
-    name: ./logs/notification-service.log
+    name: ./logs/cs-service.log
   structured:
     format:
       file: ecs
   level:
     root: INFO
     org.hibernate.SQL_SLOW: info
-
-notification:
-  reconciler:
-    batch-size: 100
-    cutoff-minutes: 5
-    interval-ms: 300000
-  dispatch:
-    max-attempt: 3
 
 eureka:
   client:
