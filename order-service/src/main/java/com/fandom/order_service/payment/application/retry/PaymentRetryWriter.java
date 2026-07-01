@@ -103,6 +103,7 @@ public class PaymentRetryWriter {
 
             log.info("[결제 재시도] PG 재요청 접수. orderId={}, pgTransactionId={}", orderId, pgTransactionId);
         } catch (RuntimeException e) {
+            // PG 호출 실패 시 새 Payment(REQUESTED)는 OrderTimeoutScheduler가 expired_at 기준으로 정리
             log.error("[결제 재시도] PG 재요청 실패. orderId={}, paymentId={}", orderId, retryPayment.getId(), e);
         }
     }
