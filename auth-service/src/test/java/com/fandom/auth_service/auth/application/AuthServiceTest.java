@@ -18,18 +18,26 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -155,6 +163,67 @@ class AuthServiceTest {
     }
 
     @Test
+    @DisplayName("Refresh Token rotation 미적용 상태에서는 동일 Refresh Token 동시 재발급을 허용한다")
+    void reissue_sameRefreshTokenConcurrently() throws Exception {
+        Claims refreshClaims = refreshClaims();
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        given(tokenRepository.existsRefreshToken(USER_ID, REFRESH_TOKEN_ID)).willReturn(true);
+        given(jwtProvider.createAccessToken(USER_ID, "MEMBER", "ACTIVE"))
+                .willReturn("new-access-token-1", "new-access-token-2");
+        given(jwtProvider.getAccessTokenExpiration()).willReturn(1800000L);
+
+        Callable<ReissueResponse> task = () -> authService.reissue("refresh-token");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            List<Future<ReissueResponse>> futures = executor.invokeAll(List.of(task, task));
+
+            assertThat(futures)
+                    .extracting(future -> future.get().accessToken())
+                    .containsExactlyInAnyOrder("new-access-token-1", "new-access-token-2");
+            verify(tokenRepository, times(2)).existsRefreshToken(USER_ID, REFRESH_TOKEN_ID);
+            verify(jwtProvider, times(2)).createAccessToken(USER_ID, "MEMBER", "ACTIVE");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("로그인 중 Refresh Token 저장에 실패하면 예외를 전파한다")
+    void login_refreshTokenSaveFailure() {
+        LoginRequest request = new LoginRequest(EMAIL, RAW_PASSWORD);
+        Claims refreshClaims = refreshClaims();
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
+        given(memberLookupClient.getMemberByEmail(EMAIL))
+                .willReturn(ApiResponse.success(memberOf("ACTIVE")));
+        given(passwordEncoder.matches(RAW_PASSWORD, ENCODED_PASSWORD)).willReturn(true);
+        given(jwtProvider.createAccessToken(USER_ID, "MEMBER", "ACTIVE")).willReturn("access-token");
+        given(jwtProvider.createRefreshToken(USER_ID, "MEMBER", "ACTIVE")).willReturn("refresh-token");
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        given(jwtProvider.getRefreshTokenExpiration()).willReturn(1209600000L);
+        doThrow(redisException)
+                .when(tokenRepository)
+                .saveRefreshToken(USER_ID, REFRESH_TOKEN_ID, Duration.ofMillis(1209600000L));
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isSameAs(redisException);
+    }
+
+    @Test
+    @DisplayName("재발급 중 Refresh Token 조회에 실패하면 예외를 전파한다")
+    void reissue_refreshTokenLookupFailure() {
+        Claims refreshClaims = refreshClaims();
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        given(tokenRepository.existsRefreshToken(USER_ID, REFRESH_TOKEN_ID)).willThrow(redisException);
+
+        assertThatThrownBy(() -> authService.reissue("refresh-token"))
+                .isSameAs(redisException);
+    }
+
+    @Test
     @DisplayName("로그아웃하면 Refresh Token을 삭제하고 Access Token을 blacklist에 등록한다")
     void logout_success() {
         Claims accessClaims = accessClaims();
@@ -170,6 +239,40 @@ class AuthServiceTest {
 
         verify(tokenRepository).deleteRefreshToken(USER_ID, REFRESH_TOKEN_ID);
         verify(tokenRepository).blacklistAccessToken(ACCESS_TOKEN_ID, accessTtl);
+    }
+
+    @Test
+    @DisplayName("로그아웃 중 Refresh Token 삭제에 실패하면 예외를 전파한다")
+    void logout_refreshTokenDeleteFailure() {
+        Claims accessClaims = accessClaims();
+        Claims refreshClaims = refreshClaims();
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
+        given(jwtProvider.parse("access-token")).willReturn(accessClaims);
+        given(jwtProvider.isAccessToken(accessClaims)).willReturn(true);
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        doThrow(redisException).when(tokenRepository).deleteRefreshToken(USER_ID, REFRESH_TOKEN_ID);
+
+        assertThatThrownBy(() -> authService.logout("Bearer access-token", "refresh-token"))
+                .isSameAs(redisException);
+    }
+
+    @Test
+    @DisplayName("로그아웃 중 Access Token blacklist 등록에 실패하면 예외를 전파한다")
+    void logout_accessTokenBlacklistFailure() {
+        Claims accessClaims = accessClaims();
+        Claims refreshClaims = refreshClaims();
+        Duration accessTtl = Duration.ofMinutes(10);
+        RedisConnectionFailureException redisException = new RedisConnectionFailureException("redis unavailable");
+        given(jwtProvider.parse("access-token")).willReturn(accessClaims);
+        given(jwtProvider.isAccessToken(accessClaims)).willReturn(true);
+        given(jwtProvider.parse("refresh-token")).willReturn(refreshClaims);
+        given(jwtProvider.isRefreshToken(refreshClaims)).willReturn(true);
+        given(jwtProvider.getRemainingTtl(accessClaims)).willReturn(accessTtl);
+        doThrow(redisException).when(tokenRepository).blacklistAccessToken(ACCESS_TOKEN_ID, accessTtl);
+
+        assertThatThrownBy(() -> authService.logout("Bearer access-token", "refresh-token"))
+                .isSameAs(redisException);
     }
 
     @Test

@@ -6,6 +6,8 @@ import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.PostService;
 import com.fandom.feed.global.annotation.RequireRole;
 import com.fandom.feed.global.constant.UserRole;
+import com.fandom.feed.infra.s3.S3Service;
+import com.fandom.feed.infra.s3.dto.PresignedUrlInfo;
 import com.fandom.feed.presentation.dto.request.PostRequest;
 import com.fandom.feed.presentation.dto.request.PresignedUrlRequest;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RequestMapping("/api/v1/feeds")
@@ -32,6 +35,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PostController {
     private final PostService postService;
+    private final S3Service s3Service;
 
     @RequireRole({UserRole.CREATOR})
     @PostMapping("/posts/presigned-url")
@@ -40,8 +44,8 @@ public class PostController {
             @RequestBody @Valid PresignedUrlRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
-        PresignedUrlResponse response = postService.generatePresignedUrls(request.imageNames());
-        return ApiResponse.success(response);
+        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(request.imageNames());
+        return ApiResponse.success(PresignedUrlResponse.from(uploadUrls));
     }
 
     @RequireRole({UserRole.CREATOR})

@@ -134,7 +134,8 @@ stateDiagram-v2
 |------|----------|----------|------|
 | order.payment.completed | order-service | ticketing-service | 결제 승인 → 좌석 BOOKED |
 | order.payment.failed | order-service | ticketing-service | 결제 실패 → 좌석 해제 |
-| order.payment.cancelled | order-service | ticketing-service | 결제 취소 → 좌석 해제 |
+| order.payment.cancelled | order-service | ticketing-service | 결제 완료 후 취소/환불 → 좌석 해제 |
+| order.hold.released | order-service | ticketing-service | 결제 전(PENDING) 좌석 선점 해제 — 유저 직접 취소 + 타임아웃 자동 취소 공통 |
 | notification.send | order-service | notification-service | 알림 발송 (ORDER_COMPLETED / ORDER_CANCELED) |
 | ticketing.seat.booked | ticketing-service | order-service | 좌석 확정 → 주문 CONFIRMED |
 | ticketing.seat.book.failed | ticketing-service | order-service | 좌석 예매 실패 → SAGA 보상 시작 |
@@ -142,8 +143,8 @@ stateDiagram-v2
 **Kafka 발행 실패 처리 원칙**
 DB 트랜잭션 커밋 이후에만 발행한다. 발행 실패가 API 응답을 깨지 않도록 예외를 catch하고 비동기로 처리한다. 발행 실패 시 이벤트가 영구 누락될 수 있는 리스크는 인지하고 있으며, 향후 Outbox 패턴 도입으로 해결 예정.
 
-**미정**
-`order.payment.cancelled` 토픽을 PENDING/PAID 취소(선점 해제)와 CONFIRMED 취소(확정 취소)에 동일하게 재사용할지 미정. Ticketing 쪽 처리 방식에 의존하므로 Ticketing 팀 확인 필요.
+**`order.payment.cancelled` vs `order.hold.released` 분리 결정**
+PENDING 취소·타임아웃 취소는 `order.hold.released`로, PAID/CONFIRMED 이후 취소·환불은 `order.payment.cancelled`로 분리했다. 결제 완료 이력이 있는 취소 건과 결제 전 단순 선점 해제를 토픽 단계에서 구분해, 추후 환불/정산 배치에서 Payment 테이블 조인 없이 토픽만으로 1차 분류할 수 있게 하기 위함.
 
 ---
 
@@ -161,6 +162,7 @@ DB 트랜잭션 커밋 이후에만 발행한다. 발행 실패가 API 응답을
 | 주문 취소 중복 요청 (이미 CANCELLED/REFUNDED) | 200 + 현재 상태 반환 (멱등 응답) |
 | 주문 취소 (COMPENSATING/REFUND_REQUESTED/FAILED) | 409 INVALID_ORDER_STATUS |
 | CONFIRMED 취소 (취소 가능 시간 초과) | 409 CANCELLATION_WINDOW_EXPIRED |
+| 주문 타임아웃 자동 취소와 유저 직접 취소 경합 | 비관적 락 + 건당 트랜잭션. 락 획득 못한 쪽은 재검증 시 상태 불일치를 확인하고 스킵(스케줄러)/409(유저 요청) 처리 |
 
 ### 주문 생성 부분 UNIQUE 인덱스
 
@@ -198,12 +200,11 @@ WHERE status IN ('PENDING', 'PAYMENT_REQUESTED', 'PAID');
 
 | 항목 | 현황                | 내용 |
 |------|-------------------|------|
-| 주문 타임아웃 스케줄러 | 미구현               | expired_at 기준 스케줄러. PENDING → CANCELLED 처리 + Kafka 이벤트 발행 + DLQ 처리 |
-| PAYMENT_REQUESTED zombie 처리 | 미구현 (타임아웃 스케줄러 범위) | 스케줄러가 PAYMENT_REQUESTED도 처리. PG 거래 조회로 실제 승인 여부 확인 필요 여부 결정 필요 |
+| PAYMENT_REQUESTED zombie 처리 | 미구현 | 결제 타임아웃 스케줄러는 PENDING만 처리(#224). PAYMENT_REQUESTED 좀비 상태는 PG 거래 조회로 실제 승인 여부 확인이 필요해 별도 검토 대상 |
 | holdId Redis TTL | 미확정               | Ticketing 좌석 선점 TTL과 동일하게 맞추기로 원칙 확정. 구체 값은 Ticketing 팀 확인 필요 |
 | COMPENSATING/REFUND_REQUESTED 좌석 해제 시점 | 전제                | Ticketing이 book.failed 발행 시 좌석을 즉시 해제한다는 전제. 틀리면 두 상태를 인덱스에 추가해야 함 |
 | CONFIRMED 취소 가능 시간 기준 | 미정                | 공연 시작 시각 기준 vs 확정 시각 기준. Ticketing 공연 일정 정보 참조 방식도 함께 결정 필요 |
-| order.payment.cancelled 토픽 재사용 | 미정                | PENDING/PAID 취소(선점 해제)와 CONFIRMED 취소(확정 취소)를 동일 토픽으로 처리할 수 있는지 Ticketing 팀 확인 필요 |
+| CONFIRMED 취소 시 Kafka 이벤트 | 미정 | order.payment.cancelled를 그대로 쓸지, 확정 취소 전용 처리가 필요한지 Ticketing 팀 확인 필요. PENDING/타임아웃 쪽은 order.hold.released로 이미 분리 확정 |
 | 결제 전 취소 알림 발송 | 미정                | PENDING 취소 시 notification.send 발행 여부. 현재 미구현 |
 | FAILED/REFUND_REQUESTED stuck 복구 배치 | 미구현               | PG 거래 조회 API로 실제 상태 확인 후 환불/정리 처리하는 복구 배치 |
 | 결제 실패 재시도 | 미구현            | 재시도 허용 시 FAILED 대신 PENDING 유지 필요. 멱등성 키 TTL 정책도 함께 결정 |

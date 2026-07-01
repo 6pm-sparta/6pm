@@ -23,4 +23,6 @@ dependencies {
     // 추적
     implementation 'io.micrometer:micrometer-tracing-bridge-brave'
     implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+
+    implementation 'io.micrometer:micrometer-registry-prometheus'
 }

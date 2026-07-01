@@ -107,7 +107,7 @@ public class ReactionCacheService {
     }
 
     /**
-     * 게시글 ID로 캐시에서 댓글 수를 조회하는 메서드<br>
+     * 게시글 ID로 댓글 수 캐시에서 조회하는 메서드<br>
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     private long getCommentCount(UUID postId) {
@@ -124,7 +124,7 @@ public class ReactionCacheService {
     }
 
     /**
-     * 캐시에 사용자 ID를 추가하는 메서드
+     * 좋아요 캐시에 사용자 ID를 추가하는 메서드
      */
     public long addLike(UUID postId, UUID userId) {
         Long added = redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, userId.toString());
@@ -136,7 +136,7 @@ public class ReactionCacheService {
     }
 
     /**
-     * 게시글 ID로 캐시에서 좋아요 수를 조회하는 메서드<br>
+     * 게시글 ID로 좋아요 캐시에서 좋아요 수를 조회하는 메서드<br>
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     private long getLikeCount(UUID postId) {

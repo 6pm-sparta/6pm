@@ -194,6 +194,8 @@ services:
     image: openzipkin/zipkin:latest
     profiles: ["infra", "all"]
     container_name: 6pm-zipkin
+    environment:
+      JAVA_OPTS: "-Xmx512m"
     ports:
       - "9411:9411"
 
@@ -334,6 +336,8 @@ services:
       - ./infra/alert-rules.yml:/etc/prometheus/alert-rules.yml
     depends_on:
       - alertmanager
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   alertmanager:
     image: prom/alertmanager:latest
@@ -343,6 +347,8 @@ services:
       - "9093:9093"
     volumes:
       - ./infra/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   loki:
     image: grafana/loki:latest

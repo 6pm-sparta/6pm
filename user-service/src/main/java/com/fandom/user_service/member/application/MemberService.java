@@ -24,8 +24,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -89,7 +87,8 @@ public class MemberService {
                         .build()
         );
         Profile profile = profileService.createInitialProfile(user, request.nickname());
-        publishCreatorCreatedEventAfterCommit(user.getId(), profile.getNickname());
+        // Outbox 적재는 도메인 저장과 같은 트랜잭션이어야 원자성이 보장된다(커밋 후 호출 금지).
+        creatorCreatedEventPublisher.publish(user.getId(), profile.getNickname());
 
         return CreatorSignUpResponse.from(user, profile, creator);
     }
@@ -146,7 +145,8 @@ public class MemberService {
         }
 
         user.withdraw(userId);
-        publishWithdrawalEventAfterCommit(userId, role);
+        // Outbox 적재는 도메인 변경과 같은 트랜잭션이어야 원자성이 보장된다(커밋 후 호출 금지).
+        memberWithdrawalEventPublisher.publish(userId, role);
     }
 
     /**
@@ -200,31 +200,5 @@ public class MemberService {
             return null;
         }
         return passwordEncoder.encode(password);
-    }
-
-    private void publishWithdrawalEventAfterCommit(UUID userId, Role role) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            memberWithdrawalEventPublisher.publish(userId, role);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                memberWithdrawalEventPublisher.publish(userId, role);
-            }
-        });
-    }
-
-    private void publishCreatorCreatedEventAfterCommit(UUID userId, String nickname) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            creatorCreatedEventPublisher.publish(userId, nickname);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                creatorCreatedEventPublisher.publish(userId, nickname);
-            }
-        });
     }
 }
