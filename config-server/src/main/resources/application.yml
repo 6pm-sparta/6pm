@@ -7,10 +7,10 @@ spring:
     config:
       server:
         git:
-          uri: https://github.com/<org>/6pm-config.git   # 방금 만든 Private 레포
+          uri: https://github.com/6pm-sparta/6pm-config.git
           default-label: main
-          username: ${CONFIG_GIT_USERNAME:}   # GitHub 계정
-          password: ${CONFIG_GIT_TOKEN:}      # PAT (Private 레포라 필수)
+          username: ${CONFIG_GIT_USERNAME:}
+          password: ${CONFIG_GIT_TOKEN:}
 
 management:
   tracing:
