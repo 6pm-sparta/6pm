@@ -7,4 +7,5 @@ import lombok.NoArgsConstructor;
 public final class KafkaTopic {
     public static final String MEMBER_WITHDRAWN = "user.member-withdrawn";
     public static final String CREATOR_WITHDRAWN = "user.creator-withdrawn";
+    public static final String NOTIFICATION_SEND = "notification.send";
 }

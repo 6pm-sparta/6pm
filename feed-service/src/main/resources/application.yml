@@ -28,6 +28,14 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: feed-service
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
     listener:
       retry:
         max-attempts: 3
@@ -67,6 +75,25 @@ management:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
 
+resilience4j:
+  retry:
+    instances:
+      userClient:
+        max-attempts: 3
+        wait-duration: 200ms
+        retry-exceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - com.fandom.common.exception.CustomException  # 404 같은 비즈니스 예외는 재시도 없음
+  circuitbreaker:
+    instances:
+      userClient:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+
 cloud:
   aws:
     credentials:
@@ -91,3 +118,5 @@ cache:
 scheduler:
   like-sync:
     fixed-delay: 300  # 5분
+  outbox-publish:
+    fixed-delay: 5  # 5초

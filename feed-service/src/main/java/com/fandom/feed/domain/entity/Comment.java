@@ -21,8 +21,7 @@ import java.util.UUID;
                 @Index(name = "idx_comments_author_id", columnList = "author_id, id DESC")
         }
 )
-@Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @SQLRestriction("deleted_at IS NULL")
 public class Comment extends BaseEntity {
     @Column(nullable = false)
