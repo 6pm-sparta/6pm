@@ -65,3 +65,9 @@ postman/environments/
 
 ## db backup
 backup/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
