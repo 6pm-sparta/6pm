@@ -43,6 +43,10 @@ cloud:
         post: posts
       presigned-url-expiry: 600  # 10분
 
+broadcast:
+  fanout-threshold: 10000
+  chunk-size: 500
+
 cache:
   ttl:
     default: 600  # 10분

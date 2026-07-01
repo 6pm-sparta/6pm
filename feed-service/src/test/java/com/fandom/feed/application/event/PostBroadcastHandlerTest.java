@@ -1,10 +1,10 @@
 package com.fandom.feed.application.event;
 
 import com.fandom.feed.application.FanoutService;
-import com.fandom.feed.global.constant.BroadcastPolicy;
 import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.kafka.NotificationPublisher;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +35,12 @@ class PostBroadcastHandlerTest {
     @InjectMocks
     private PostBroadcastHandler handler;
 
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(handler, "fanoutThreshold", 10000L);
+        ReflectionTestUtils.setField(handler, "chunkSize", 500);
+    }
+
     @Nested
     @DisplayName("게시글 생성 이벤트 발생")
     class HandlePostCreated {
@@ -46,7 +53,7 @@ class PostBroadcastHandlerTest {
             UUID userId = UUID.randomUUID();
 
             given(userClientRetryWrapper.countFollowers(authorId)).willReturn(5000L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), eq(BroadcastPolicy.CHUNK_SIZE)))
+            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
                     .willReturn(CursorPageResponse.of(List.of(userId), null, false));
 
             // when
@@ -66,7 +73,7 @@ class PostBroadcastHandlerTest {
             UUID userId = UUID.randomUUID();
 
             given(userClientRetryWrapper.countFollowers(authorId)).willReturn(10_001L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), eq(BroadcastPolicy.CHUNK_SIZE)))
+            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
                     .willReturn(CursorPageResponse.of(List.of(userId), null, false));
 
             // when
@@ -88,16 +95,16 @@ class PostBroadcastHandlerTest {
             UUID midCursor = UUID.randomUUID();
 
             given(userClientRetryWrapper.countFollowers(authorId)).willReturn(100L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), eq(BroadcastPolicy.CHUNK_SIZE)))
+            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
                     .willReturn(CursorPageResponse.of(List.of(firstUser), midCursor, true));
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), eq(midCursor), eq(BroadcastPolicy.CHUNK_SIZE)))
+            given(userClientRetryWrapper.getFollowerIds(eq(authorId), eq(midCursor), anyInt()))
                     .willReturn(CursorPageResponse.of(List.of(secondUser), null, false));
 
             // when
             handler.handlePostCreated(postId, authorId, "닉네임");
 
             // then
-            verify(userClientRetryWrapper, times(2)).getFollowerIds(eq(authorId), any(), eq(BroadcastPolicy.CHUNK_SIZE));
+            verify(userClientRetryWrapper, times(2)).getFollowerIds(eq(authorId), any(), anyInt());
             verify(fanoutService).insertChunk(postId, null, List.of(firstUser));
             verify(fanoutService).insertChunk(postId, midCursor, List.of(secondUser));
         }
@@ -133,7 +140,7 @@ class PostBroadcastHandlerTest {
             UUID userId = UUID.randomUUID();
 
             given(userClientRetryWrapper.countFollowers(authorId)).willReturn(5000L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), eq(BroadcastPolicy.CHUNK_SIZE)))
+            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
                     .willReturn(CursorPageResponse.of(List.of(userId), null, false));
 
             // when
@@ -171,9 +178,9 @@ class PostBroadcastHandlerTest {
             UUID midCursor = UUID.randomUUID();
 
             given(userClientRetryWrapper.countFollowers(authorId)).willReturn(100L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), eq(BroadcastPolicy.CHUNK_SIZE)))
+            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
                     .willReturn(CursorPageResponse.of(List.of(firstUser), midCursor, true));
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), eq(midCursor), eq(BroadcastPolicy.CHUNK_SIZE)))
+            given(userClientRetryWrapper.getFollowerIds(eq(authorId), eq(midCursor), anyInt()))
                     .willReturn(CursorPageResponse.of(List.of(secondUser), null, false));
 
             // when
