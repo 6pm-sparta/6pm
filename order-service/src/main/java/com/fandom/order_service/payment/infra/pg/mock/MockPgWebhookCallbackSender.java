@@ -1,4 +1,4 @@
-package com.fandom.order_service.payment.infra.pg;
+package com.fandom.order_service.payment.infra.pg.mock;
 
 import com.fandom.order_service.config.OrderProperties;
 import com.fandom.order_service.payment.presentation.dto.request.PgWebhookRequest;
@@ -20,11 +20,11 @@ import java.time.Instant;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PgWebhookCallbackSender {
+public class MockPgWebhookCallbackSender {
 
     private final ThreadPoolTaskScheduler scheduler;
     private final RestClient restClient;
-    private final PgWebhookHmacUtil hmacUtil;
+    private final MockPgWebhookSigner signer;
     private final OrderProperties orderProperties;
 
     public void sendDelayed(PgWebhookRequest payload) {
@@ -39,7 +39,7 @@ public class PgWebhookCallbackSender {
 
     private void send(PgWebhookRequest payload) {
 
-        String signature = hmacUtil.sign(payload);
+        String signature = signer.sign(payload);
 
         try {
             restClient.post()
