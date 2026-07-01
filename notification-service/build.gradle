@@ -19,6 +19,7 @@ dependencies {
 	// implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'          // 서비스 간 동기 호출
 
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'com.google.firebase:firebase-admin:9.4.1' // FCM/APNs
 
 	// 추적
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'

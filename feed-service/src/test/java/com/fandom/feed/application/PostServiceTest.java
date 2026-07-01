@@ -1,12 +1,17 @@
 package com.fandom.feed.application;
 
 import com.fandom.common.auth.UserIdCard;
+import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
+import com.fandom.feed.application.event.Event;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
+import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
+import com.fandom.feed.infra.kafka.outbox.OutboxEventType;
+import com.fandom.feed.infra.kafka.outbox.OutboxEventWriter;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
@@ -19,6 +24,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -68,6 +74,12 @@ class PostServiceTest {
     @Mock
     private PostListCacheService postListCacheService;
 
+    @Mock
+    UserClient userClient;
+
+    @Mock
+    OutboxEventWriter outboxEventWriter;
+
     @InjectMocks
     private PostService postService;
 
@@ -81,6 +93,8 @@ class PostServiceTest {
                 ReflectionTestUtils.invokeMethod(p, "assignId");
                 return p;
             });
+            when(userClient.getUser(any(UUID.class)))
+                    .thenReturn(ApiResponse.success(new UserResponse(UUID.randomUUID(), "닉네임")));
         }
 
         @Test
@@ -99,6 +113,7 @@ class PostServiceTest {
             verify(imageService).saveImages(any(UUID.class), eq(imageKeys));
             verify(imageUrlConverter).toImageUrls(imageKeys);
             verify(postListCacheService).addPost(any(), any());
+            verify(outboxEventWriter).write(any(UUID.class), eq(OutboxEventType.POST_CREATED), any(Event.PostCreated.class));
         }
 
         @Test
@@ -116,6 +131,25 @@ class PostServiceTest {
             verify(postRepository).save(any(Post.class));
             verify(imageService).saveImages(any(), eq(List.of()));
             verify(postListCacheService).addPost(any(), any());
+            verify(outboxEventWriter).write(any(UUID.class), eq(OutboxEventType.POST_CREATED), any(Event.PostCreated.class));
+        }
+
+        @Test
+        @DisplayName("닉네임 조회 결과를 outbox 이벤트에 전달")
+        void createPostUsesNicknameFromUserClient() {
+            // given
+            UUID userId = UUID.randomUUID();
+            String content = "닉네임 조회 확인 게시글";
+            List<String> imageKeys = List.of();
+
+            ArgumentCaptor<Event.PostCreated> captor = ArgumentCaptor.forClass(Event.PostCreated.class);
+
+            // when
+            postService.createPost(content, imageKeys, userId);
+
+            // then
+            verify(outboxEventWriter).write(any(UUID.class), eq(OutboxEventType.POST_CREATED), captor.capture());
+            assertThat(captor.getValue().nickname()).isEqualTo("닉네임");
         }
     }
 

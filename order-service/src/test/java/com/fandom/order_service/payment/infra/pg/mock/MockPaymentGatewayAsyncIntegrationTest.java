@@ -1,7 +1,8 @@
-package com.fandom.order_service.payment.infra.pg;
+package com.fandom.order_service.payment.infra.pg.mock;
 
 import com.fandom.order_service.config.OrderProperties;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
+import com.fandom.order_service.payment.infra.pg.PgWebhookHmacUtil;
 import com.fandom.order_service.payment.presentation.dto.request.PgWebhookRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.web.client.RestClient;
 
@@ -23,7 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * MockPaymentGateway → PgWebhookCallbackSender가 설정된 지연 뒤 실제로 webhook 엔드포인트를
+ * MockPaymentGateway → MockPgWebhookCallbackSender가 설정된 지연 뒤 실제로 webhook 엔드포인트를
  * HTTP로 호출하는지 확인하는 통합 테스트.
  *
  * WireMock 등 외부 라이브러리를 새로 추가하지 않기 위해, 받는 쪽은 JDK 내장
@@ -62,15 +64,17 @@ class MockPaymentGatewayAsyncIntegrationTest {
 
         int port = server.getAddress().getPort();
         OrderProperties properties = new OrderProperties(
-                null, 0, null, null, null, null,
+                null, 0, null, null, null, null, null,
                 new OrderProperties.PgWebhook(SECRET, "http://localhost:" + port + "/webhook", CALLBACK_DELAY_MILLIS, 600L));
 
         scheduler = new ThreadPoolTaskScheduler();
         scheduler.initialize();
 
         hmacUtil = new PgWebhookHmacUtil(properties, objectMapper);
-        PgWebhookCallbackSender sender = new PgWebhookCallbackSender(scheduler, RestClient.create(), hmacUtil, properties);
-        mockPaymentGateway = new MockPaymentGateway(sender);
+        MockPgWebhookSigner signer = new MockPgWebhookSigner(properties, objectMapper);
+        MockPgWebhookCallbackSender sender = new MockPgWebhookCallbackSender(scheduler, RestClient.create(), signer, properties);
+        // 이 테스트의 관심사는 webhook 실제 전송 여부이지 거래 영속화가 아니므로 mock으로 대체한다.
+        mockPaymentGateway = new MockPaymentGateway(sender, Mockito.mock(MockPgTransactionRepository.class));
     }
 
     @AfterEach

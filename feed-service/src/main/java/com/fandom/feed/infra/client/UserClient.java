@@ -2,6 +2,7 @@ package com.fandom.feed.infra.client;
 
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.infra.client.dto.UserResponse;
+import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,4 +17,14 @@ public interface UserClient {
 
     @PostMapping("/internal/v1/users")
     ApiResponse<List<UserResponse>> getUsers(@RequestBody Set<UUID> userIds);
+
+    @GetMapping("/internal/v1/follows/{authorId}/count")
+    ApiResponse<Long> countFollowers(@PathVariable UUID authorId);
+
+    @GetMapping("/internal/v1/follows/{authorId}/followers")
+    ApiResponse<CursorPageResponse<UUID>> getFollowerIds(
+            @PathVariable UUID authorId,
+            @RequestParam(required = false) UUID cursor,
+            @RequestParam int size
+    );
 }

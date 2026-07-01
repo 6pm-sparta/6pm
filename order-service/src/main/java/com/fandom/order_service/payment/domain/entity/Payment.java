@@ -58,13 +58,18 @@ public class Payment extends BaseEntity {
     @Column(nullable = false)
     private Long refundAmount;
 
+    /** 환불 자동 재시도 횟수. */
+    @Column(nullable = false)
+    private Long refundRetryCount;
+
     /** PG사 응답 실패 사유. 성공 시 null. */
     @Column(length = 255)
     private String failureReason;
 
     @Builder
     private Payment(UUID orderId, Long amount, PaymentStatus paymentStatus, PaymentMethod paymentMethod,
-                    String pgTransactionId, String idempotencyKey, Long refundAmount, String failureReason) {
+                    String pgTransactionId, String idempotencyKey, Long refundAmount, Long refundRetryCount,
+                    String failureReason) {
         this.orderId = orderId;
         this.amount = amount;
         this.paymentStatus = paymentStatus;
@@ -72,6 +77,7 @@ public class Payment extends BaseEntity {
         this.pgTransactionId = pgTransactionId;
         this.idempotencyKey = idempotencyKey;
         this.refundAmount = refundAmount != null ? refundAmount : 0L;
+        this.refundRetryCount = refundRetryCount != null ? refundRetryCount : 0L;
         this.failureReason = failureReason;
     }
 
@@ -126,5 +132,15 @@ public class Payment extends BaseEntity {
 
         this.paymentStatus = PaymentStatus.REFUNDED;
         this.refundAmount = this.amount;
+    }
+
+    /** 재환불 시도마다 호출. */
+    public void increaseRefundRetryCount() {
+        this.refundRetryCount++;
+    }
+
+    /** 재시도 소진 여부. */
+    public boolean hasExhaustedRefundRetries(int maxRetries) {
+        return this.refundRetryCount >= maxRetries;
     }
 }

@@ -51,4 +51,23 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("status") OrderStatus status,
             @Param("now") LocalDateTime now,
             Limit limit);
+
+    /**
+     * 환불 복구 배치 재시도 소진 주문 목록. 운영자 수동 검토 대상.
+     */
+    Page<Order> findByStatus(OrderStatus status, Pageable pageable);
+
+    /**
+     * 환불 미완료 복구 배치(#96) 대상 후보 ID 조회. status가 REFUND_REQUESTED/FAILED인 주문만 거르고,
+     * "FAILED 중 payment가 APPROVED인 것"은 건마다 findByOrderIdAndPaymentStatus로 따로 확인한다.
+     * 락 없이 ID만 가져오고, 실제 처리는 건마다 개별 처리한다(배치 전체 락 보유 시간 방지).
+     */
+    @Query("""
+            select o.id from Order o
+            where o.status = :refundRequested or o.status = :failed
+            """)
+    List<UUID> findRefundRecoveryCandidateOrderIds(
+            @Param("refundRequested") OrderStatus refundRequested,
+            @Param("failed") OrderStatus failed,
+            Limit limit);
 }

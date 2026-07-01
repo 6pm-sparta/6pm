@@ -13,9 +13,10 @@ import java.util.Set;
  * - 예매 확정 후 취소(취소 가능 시간 내): CONFIRMED → REFUND_REQUESTED → REFUNDED
  * - SAGA 보상 트랜잭션: PAID → COMPENSATING → REFUND_REQUESTED → REFUNDED
  * - 환불 거절(PG webhook): REFUND_REQUESTED → FAILED
+ * - 환불 복구 배치 재시도 소진: REFUND_REQUESTED/FAILED → MANUAL_REVIEW_REQUIRED (issue #96)
  *
  * CONFIRMED는 취소 가능 기간 내 환불로 전이될 수 있으며,
- * CANCELLED, REFUNDED, FAILED를 종료 상태로 본다.
+ * CANCELLED, REFUNDED, FAILED, MANUAL_REVIEW_REQUIRED를 종료 상태로 본다.
  */
 public enum OrderStatus {
     PENDING,
@@ -26,7 +27,8 @@ public enum OrderStatus {
     REFUND_REQUESTED,
     CANCELLED,
     REFUNDED,
-    FAILED;
+    FAILED,
+    MANUAL_REVIEW_REQUIRED;
 
     /**
      * 동일 seatId에 대해 "진행중"으로 간주하는 상태 집합.
