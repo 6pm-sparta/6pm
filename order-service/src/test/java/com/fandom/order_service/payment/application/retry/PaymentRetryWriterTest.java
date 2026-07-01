@@ -110,7 +110,7 @@ class PaymentRetryWriterTest {
     }
 
     @Test
-    @DisplayName("재시도 횟수가 maxAttempts를 초과하면 Order를 FAILED로 전이하고 EXHAUSTED를 반환한다")
+    @DisplayName("재시도 횟수가 maxAttempts에 도달하면 Order를 FAILED로 전이하고 EXHAUSTED를 반환한다")
     void prepareRetry_exceededMaxAttempts_failsOrderAndReturnsExhausted() {
         // given
         Order order = paymentRequestedOrder();
@@ -120,7 +120,7 @@ class PaymentRetryWriterTest {
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
         given(paymentRepository.findById(latestPaymentId)).willReturn(Optional.of(failedPayment));
-        given(paymentRepository.countByOrderId(orderId)).willReturn((long) MAX_ATTEMPTS + 1); // 초과
+        given(paymentRepository.countByOrderId(orderId)).willReturn((long) MAX_ATTEMPTS); // 정확히 한도 도달(>=)
 
         // when
         PaymentRetryResult result = writer.prepareRetry(orderId);
@@ -129,6 +129,34 @@ class PaymentRetryWriterTest {
         assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.EXHAUSTED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FAILED);
         verify(outboxAppender).appendPaymentFailed(orderId);
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("latestPayment가 REQUESTED(PG 호출 미완료 orphan) 상태이면 SKIPPED를 반환한다")
+    void prepareRetry_latestPaymentStillRequested_returnsSkipped() {
+        // given
+        Order order = paymentRequestedOrder();
+        UUID requestedPaymentId = UUID.randomUUID();
+
+        Payment requestedPayment = Payment.builder()
+                .orderId(orderId)
+                .amount(50_000L)
+                .paymentStatus(PaymentStatus.REQUESTED)
+                .paymentMethod(PaymentMethod.CARD)
+                .idempotencyKey("idem-in-flight")
+                .build();
+        ReflectionTestUtils.setField(requestedPayment, "id", requestedPaymentId);
+        ReflectionTestUtils.setField(order, "latestPaymentId", requestedPaymentId);
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.findById(requestedPaymentId)).willReturn(Optional.of(requestedPayment));
+
+        // when
+        PaymentRetryResult result = writer.prepareRetry(orderId);
+
+        // then
+        assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.SKIPPED);
         verify(paymentRepository, never()).save(any());
     }
 

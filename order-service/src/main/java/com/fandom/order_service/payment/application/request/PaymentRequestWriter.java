@@ -106,6 +106,7 @@ public class PaymentRequestWriter {
         OrderStatus before = order.getStatus();
         order.markPaid();
         payment.approve();
+        paymentRepository.clearRetryableFlagByOrderId(orderId); // 재시도 폴링 대상에서 제외
         saveHistory(order.getId(), before, order.getStatus(), "결제 승인");
         outboxAppender.appendPaymentCompleted(order.getId());
     }
@@ -146,6 +147,7 @@ public class PaymentRequestWriter {
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
         payment.failWithRetry(failureReason);
+        order.updateLatestPayment(payment.getId()); // 포인터가 이미 일치하지만 명시적으로 확인
         saveHistory(order.getId(), OrderStatus.PAYMENT_REQUESTED, OrderStatus.PAYMENT_REQUESTED,
                 "결제 일시적 오류 — 재시도 예정: " + failureReason);
     }

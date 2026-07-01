@@ -54,12 +54,26 @@ public class PaymentRetryWriter {
 
         Payment lastPayment = paymentRepository.findById(order.getLatestPaymentId()).orElse(null);
 
-        if (lastPayment == null || !lastPayment.isRetryable()) {
+        if (lastPayment == null) {
+            log.error("[결제 재시도] latestPaymentId가 가리키는 Payment 없음. orderId={}, latestPaymentId={}",
+                    orderId, order.getLatestPaymentId());
+            return PaymentRetryResult.SKIPPED;
+        }
+
+        // latestPayment가 REQUESTED 상태 — PG 호출 실패로 orphan된 Payment.
+        // 재시도 대상이 아니라 다음 webhook 또는 타임아웃 정리를 기다리는 상태.
+        if (lastPayment.getPaymentStatus() == PaymentStatus.REQUESTED) {
+            log.warn("[결제 재시도] 이전 PG 호출 미완료(REQUESTED). 재시도 보류. orderId={}, paymentId={}",
+                    orderId, lastPayment.getId());
+            return PaymentRetryResult.SKIPPED;
+        }
+
+        if (!lastPayment.isRetryable()) {
             return PaymentRetryResult.SKIPPED;
         }
 
         long totalAttempts = paymentRepository.countByOrderId(orderId);
-        if (totalAttempts > orderProperties.paymentRetry().maxAttempts()) {
+        if (totalAttempts >= orderProperties.paymentRetry().maxAttempts()) {
             order.markFailed();
             saveHistory(orderId, OrderStatus.PAYMENT_REQUESTED, OrderStatus.FAILED,
                     "결제 재시도 횟수 초과(" + totalAttempts + "회)");
@@ -68,8 +82,8 @@ public class PaymentRetryWriter {
             return PaymentRetryResult.EXHAUSTED;
         }
 
-        // 새 idempotencyKey로 새 Payment INSERT — 기존 DB UNIQUE 제약 우회
-        String newIdempotencyKey = "retry-" + totalAttempts + "-" + orderId;
+        // 새 idempotencyKey: UUID 기반으로 생성해 DB UNIQUE 충돌 방지
+        String newIdempotencyKey = "retry-" + orderId + "-" + UUID.randomUUID();
         Payment retryPayment = Payment.builder()
                 .orderId(orderId)
                 .amount(order.getTotalAmount())

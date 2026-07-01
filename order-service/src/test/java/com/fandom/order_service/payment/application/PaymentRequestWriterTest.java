@@ -158,6 +158,7 @@ class PaymentRequestWriterTest {
         assertThat(payment.getPgTransactionId()).isEqualTo("PG-1234"); // approve()는 더 이상 이 값을 건드리지 않음
         verify(orderStatusHistoryRepository).save(any());
         verify(outboxAppender).appendPaymentCompleted(orderId);
+        verify(paymentRepository).clearRetryableFlagByOrderId(orderId); // retryable 플래그 정리 확인
     }
 
     @Test
@@ -256,6 +257,7 @@ class PaymentRequestWriterTest {
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
         assertThat(payment.isRetryable()).isTrue();
         assertThat(payment.getFailureReason()).isEqualTo("TRANSIENT:PG 일시적 오류");
+        assertThat(order.getLatestPaymentId()).isEqualTo(paymentId); // latestPaymentId 포인터 명시 확인
         verify(orderStatusHistoryRepository).save(any());
         // appendPaymentFailed는 호출되지 않는다 — 재시도 여지가 있으므로
         verify(outboxAppender, never()).appendPaymentFailed(any());
