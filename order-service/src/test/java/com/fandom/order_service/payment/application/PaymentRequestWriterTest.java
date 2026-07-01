@@ -228,4 +228,55 @@ class PaymentRequestWriterTest {
         verify(orderStatusHistoryRepository, never()).save(any());
         verify(outboxAppender, never()).appendPaymentFailed(any());
     }
+
+    @Test
+    @DisplayName("일시적 오류 처리 시 Order 상태 유지, Payment FAILED + retryable=true 마킹")
+    void applyFailureWithRetry_success() {
+        // given
+        Order order = pendingOrderWithId(50_000L);
+        order.markPaymentRequested();
+        Payment payment = Payment.builder()
+                .orderId(orderId)
+                .amount(50_000L)
+                .paymentStatus(PaymentStatus.REQUESTED)
+                .paymentMethod(PaymentMethod.CARD)
+                .idempotencyKey("idem-transient")
+                .build();
+        UUID paymentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(payment, "id", paymentId);
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.findById(paymentId)).willReturn(Optional.of(payment));
+
+        // when
+        paymentRequestWriter.applyFailureWithRetry(orderId, paymentId, "TRANSIENT:PG 일시적 오류");
+
+        // then — Order 상태는 PAYMENT_REQUESTED 유지
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_REQUESTED);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(payment.isRetryable()).isTrue();
+        assertThat(payment.getFailureReason()).isEqualTo("TRANSIENT:PG 일시적 오류");
+        verify(orderStatusHistoryRepository).save(any());
+        // appendPaymentFailed는 호출되지 않는다 — 재시도 여지가 있으므로
+        verify(outboxAppender, never()).appendPaymentFailed(any());
+    }
+
+    @Test
+    @DisplayName("일시적 오류 처리 시 PAYMENT_REQUESTED가 아닌 주문이면 no-op 처리한다")
+    void applyFailureWithRetry_notPaymentRequested_noOp() {
+        // given
+        Order order = pendingOrderWithId(50_000L);
+        order.markPaymentRequested();
+        order.markFailed(); // 이미 다른 경로로 처리된 상태
+        UUID paymentId = UUID.randomUUID();
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+
+        // when
+        paymentRequestWriter.applyFailureWithRetry(orderId, paymentId, "TRANSIENT:PG 일시적 오류");
+
+        // then
+        verify(paymentRepository, never()).findById(any());
+        verify(orderStatusHistoryRepository, never()).save(any());
+    }
 }
