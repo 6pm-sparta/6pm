@@ -409,6 +409,7 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(imageKeys);
             verify(postListCacheService).removePost(postId, userId);
+            verify(outboxEventWriter).write(eq(postId), eq(OutboxEventType.POST_DELETED), any(Event.PostDeleted.class));
         }
 
         @Test
@@ -430,6 +431,7 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
             verify(postListCacheService).removePost(postId, userId);
+            verify(outboxEventWriter).write(eq(postId), eq(OutboxEventType.POST_DELETED), any(Event.PostDeleted.class));
         }
 
         @Test
@@ -453,6 +455,7 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
             verify(postListCacheService).removePost(postId, authorId);
+            verify(outboxEventWriter).write(eq(postId), eq(OutboxEventType.POST_DELETED), any(Event.PostDeleted.class));
         }
     }
 
@@ -488,6 +491,7 @@ class PostServiceTest {
             then(imageService).should().publishS3DeleteEvent(imageKeys);
             then(postListCacheService).should().removeAllByAuthorId(postIds, authorId);
             then(postDetailCacheService).should().deleteAll(postIds);
+            verify(outboxEventWriter).writeAll(eq(postIds), eq(OutboxEventType.POST_DELETED), any());
         }
 
         @Test
@@ -506,6 +510,7 @@ class PostServiceTest {
             then(imageService).shouldHaveNoInteractions();
             then(postListCacheService).shouldHaveNoInteractions();
             then(postDetailCacheService).shouldHaveNoInteractions();
+            verify(outboxEventWriter, never()).writeAll(any(), any(), any());
         }
     }
 
