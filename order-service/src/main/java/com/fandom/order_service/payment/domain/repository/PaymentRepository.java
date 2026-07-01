@@ -5,6 +5,7 @@ import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -42,10 +43,10 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     /** retryable=true인 FAILED Payment를 가진 주문 ID 조회. 건별 처리는 Writer가 비관적 락으로 처리. */
     @Query("""
             select distinct p.orderId from Payment p
-            where p.paymentStatus = 'FAILED'
+            where p.paymentStatus = :status
               and p.retryable = true
             """)
-    List<UUID> findRetryableOrderIds(Limit limit);
+    List<UUID> findRetryableOrderIds(@Param("status") PaymentStatus status, Limit limit);
 
     /** orderId 기준 전체 결제 시도 횟수. 재시도 횟수 초과 판별에 사용. */
     long countByOrderId(UUID orderId);

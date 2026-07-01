@@ -1,6 +1,7 @@
 package com.fandom.order_service.payment.application.retry;
 
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.domain.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +29,7 @@ public class PaymentRetryScheduler {
     public void retryFailedPayments() {
 
         List<UUID> candidateIds = paymentRepository.findRetryableOrderIds(
-                Limit.of(orderProperties.paymentRetry().batchSize()));
+                PaymentStatus.FAILED, Limit.of(orderProperties.paymentRetry().batchSize()));
 
         if (candidateIds.isEmpty()) {
             return;

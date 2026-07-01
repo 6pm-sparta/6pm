@@ -9,6 +9,8 @@ import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.domain.repository.PaymentRepository;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
+import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
 import com.fandom.order_service.payment.infra.pg.PaymentGateway;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -19,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -37,6 +38,8 @@ class PaymentRetryWriterTest {
     @Mock private OrderStatusHistoryRepository orderStatusHistoryRepository;
     @Mock private PaymentRepository paymentRepository;
     @Mock private PaymentGateway paymentGateway;
+    @Mock private PaymentRequestWriter paymentRequestWriter;
+    @Mock private OutboxAppender outboxAppender;
 
     private PaymentRetryWriter writer;
 
@@ -47,7 +50,7 @@ class PaymentRetryWriterTest {
     void setUp() {
         OrderProperties.PaymentRetry paymentRetry = new OrderProperties.PaymentRetry(MAX_ATTEMPTS, 100, 15000L);
         OrderProperties properties = new OrderProperties(null, 0, null, paymentRetry, null, null, null, null, null);
-        writer = new PaymentRetryWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, paymentGateway, properties);
+        writer = new PaymentRetryWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, paymentGateway, paymentRequestWriter, outboxAppender, properties);
         orderId = UUID.randomUUID();
     }
 
@@ -85,7 +88,6 @@ class PaymentRetryWriterTest {
         ReflectionTestUtils.setField(order, "latestPaymentId", latestPaymentId);
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderId(orderId)).willReturn(List.of(failedPayment));
         given(paymentRepository.countByOrderId(orderId)).willReturn(1L); // 1회 시도, MAX_ATTEMPTS(3) 미만
         given(paymentRepository.findById(latestPaymentId)).willReturn(Optional.of(failedPayment));
         given(paymentRepository.save(any(Payment.class))).willAnswer(inv -> {
@@ -114,8 +116,10 @@ class PaymentRetryWriterTest {
         Order order = paymentRequestedOrder();
         Payment failedPayment = retryableFailedPayment();
 
+        ReflectionTestUtils.setField(order, "latestPaymentId", latestPaymentId);
+
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderId(orderId)).willReturn(List.of(failedPayment));
+        given(paymentRepository.findById(latestPaymentId)).willReturn(Optional.of(failedPayment));
         given(paymentRepository.countByOrderId(orderId)).willReturn((long) MAX_ATTEMPTS + 1); // 초과
 
         // when
@@ -124,6 +128,7 @@ class PaymentRetryWriterTest {
         // then
         assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.EXHAUSTED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.FAILED);
+        verify(outboxAppender).appendPaymentFailed(orderId);
         verify(paymentRepository, never()).save(any());
     }
 
@@ -160,8 +165,12 @@ class PaymentRetryWriterTest {
                 .build();
         permanentFailed.fail("잔액이 부족합니다."); // retryable=false
 
+        UUID permPaymentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(permanentFailed, "id", permPaymentId);
+        ReflectionTestUtils.setField(order, "latestPaymentId", permPaymentId);
+
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderId(orderId)).willReturn(List.of(permanentFailed));
+        given(paymentRepository.findById(permPaymentId)).willReturn(Optional.of(permanentFailed));
 
         // when
         PaymentRetryResult result = writer.prepareRetry(orderId);

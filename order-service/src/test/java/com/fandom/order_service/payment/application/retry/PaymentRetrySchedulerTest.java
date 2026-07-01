@@ -56,7 +56,7 @@ class PaymentRetrySchedulerTest {
     @DisplayName("재시도 대상이 없으면 Writer를 호출하지 않는다")
     void retryFailedPayments_noCandidates_doesNothing() {
         // given
-        given(paymentRepository.findRetryableOrderIds(any())).willReturn(List.of());
+        given(paymentRepository.findRetryableOrderIds(any(), any())).willReturn(List.of());
 
         // when
         scheduler.retryFailedPayments();
@@ -73,7 +73,7 @@ class PaymentRetrySchedulerTest {
         Payment retryPayment = retryablePayment(orderId);
         PaymentRetryResult retryingResult = PaymentRetryResult.retrying(retryPayment);
 
-        given(paymentRepository.findRetryableOrderIds(any())).willReturn(List.of(orderId));
+        given(paymentRepository.findRetryableOrderIds(eq(PaymentStatus.FAILED), any())).willReturn(List.of(orderId));
         given(paymentRetryWriter.prepareRetry(orderId)).willReturn(retryingResult);
 
         // when
@@ -89,7 +89,7 @@ class PaymentRetrySchedulerTest {
     void retryFailedPayments_exhausted_doesNotCallRequestApproval() {
         // given
         UUID orderId = UUID.randomUUID();
-        given(paymentRepository.findRetryableOrderIds(any())).willReturn(List.of(orderId));
+        given(paymentRepository.findRetryableOrderIds(eq(PaymentStatus.FAILED), any())).willReturn(List.of(orderId));
         given(paymentRetryWriter.prepareRetry(orderId)).willReturn(PaymentRetryResult.EXHAUSTED);
 
         // when
@@ -108,7 +108,7 @@ class PaymentRetrySchedulerTest {
         UUID orderId2 = UUID.randomUUID();
         Payment retryPayment = retryablePayment(orderId2);
 
-        given(paymentRepository.findRetryableOrderIds(any())).willReturn(List.of(orderId1, orderId2));
+        given(paymentRepository.findRetryableOrderIds(eq(PaymentStatus.FAILED), any())).willReturn(List.of(orderId1, orderId2));
         given(paymentRetryWriter.prepareRetry(orderId1)).willThrow(new RuntimeException("DB 오류"));
         given(paymentRetryWriter.prepareRetry(orderId2)).willReturn(PaymentRetryResult.retrying(retryPayment));
 

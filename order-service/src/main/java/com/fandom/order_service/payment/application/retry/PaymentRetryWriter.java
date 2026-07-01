@@ -9,6 +9,8 @@ import com.fandom.order_service.order.domain.repository.OrderStatusHistoryReposi
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.domain.repository.PaymentRepository;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
+import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
 import com.fandom.order_service.payment.infra.pg.PaymentGateway;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +34,8 @@ public class PaymentRetryWriter {
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
+    private final PaymentRequestWriter paymentRequestWriter;
+    private final OutboxAppender outboxAppender;
     private final OrderProperties orderProperties;
 
     @Transactional
@@ -43,10 +47,14 @@ public class PaymentRetryWriter {
             return PaymentRetryResult.SKIPPED;
         }
 
-        boolean hasRetryable = paymentRepository.findByOrderId(orderId).stream()
-                .anyMatch(p -> p.getPaymentStatus() == PaymentStatus.FAILED && p.isRetryable());
+        if (order.getLatestPaymentId() == null) {
+            log.error("[결제 재시도] latestPaymentId 없음. orderId={}", orderId);
+            return PaymentRetryResult.SKIPPED;
+        }
 
-        if (!hasRetryable) {
+        Payment lastPayment = paymentRepository.findById(order.getLatestPaymentId()).orElse(null);
+
+        if (lastPayment == null || !lastPayment.isRetryable()) {
             return PaymentRetryResult.SKIPPED;
         }
 
@@ -55,20 +63,9 @@ public class PaymentRetryWriter {
             order.markFailed();
             saveHistory(orderId, OrderStatus.PAYMENT_REQUESTED, OrderStatus.FAILED,
                     "결제 재시도 횟수 초과(" + totalAttempts + "회)");
+            outboxAppender.appendPaymentFailed(orderId);
             log.warn("[결제 재시도] 횟수 초과 — FAILED 전이. orderId={}, attempts={}", orderId, totalAttempts);
             return PaymentRetryResult.EXHAUSTED;
-        }
-
-        if (order.getLatestPaymentId() == null) {
-            log.error("[결제 재시도] latestPaymentId 없음. orderId={}", orderId);
-            return PaymentRetryResult.SKIPPED;
-        }
-
-        Payment lastPayment = paymentRepository.findById(order.getLatestPaymentId()).orElse(null);
-
-        if (lastPayment == null) {
-            log.error("[결제 재시도] Payment 레코드 없음. orderId={}, paymentId={}", orderId, order.getLatestPaymentId());
-            return PaymentRetryResult.SKIPPED;
         }
 
         // 새 idempotencyKey로 새 Payment INSERT — 기존 DB UNIQUE 제약 우회
@@ -93,7 +90,7 @@ public class PaymentRetryWriter {
         return PaymentRetryResult.retrying(saved);
     }
 
-    /** 트랜잭션 커밋 후 PG 재요청. 실패해도 다음 폴링 주기에 재시도된다. */
+    /** 트랜잭션 커밋 후 PG 재요청. PG 접수 실패 시 retryable 마킹해 다음 폴링에 재시도된다. */
     public void requestApproval(UUID orderId, Payment retryPayment) {
         try {
             String pgTransactionId = paymentGateway.requestApprovalAsync(
@@ -102,17 +99,12 @@ public class PaymentRetryWriter {
                     retryPayment.getAmount(),
                     retryPayment.getPaymentMethod());
 
-            recordPgTransactionId(retryPayment.getId(), pgTransactionId);
+            paymentRequestWriter.recordPgTransactionId(retryPayment.getId(), pgTransactionId);
 
             log.info("[결제 재시도] PG 재요청 접수. orderId={}, pgTransactionId={}", orderId, pgTransactionId);
         } catch (RuntimeException e) {
             log.error("[결제 재시도] PG 재요청 실패. orderId={}, paymentId={}", orderId, retryPayment.getId(), e);
         }
-    }
-
-    @Transactional
-    public void recordPgTransactionId(UUID paymentId, String pgTransactionId) {
-        paymentRepository.findById(paymentId).ifPresent(p -> p.recordPgTransactionId(pgTransactionId));
     }
 
 
