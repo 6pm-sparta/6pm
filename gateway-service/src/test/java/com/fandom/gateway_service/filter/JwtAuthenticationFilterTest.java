@@ -1,9 +1,9 @@
 package com.fandom.gateway_service.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fandom.common.auth.HmacUtils;
 import com.fandom.gateway_service.jwt.JwtValidator;
 import com.fandom.gateway_service.security.GatewaySecurityRules;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,6 +40,8 @@ class JwtAuthenticationFilterTest {
     private GatewayFilterChain chain;
     private JwtAuthenticationFilter filter;
 
+    private static final UUID USER_ID = UUID.randomUUID();
+
     @BeforeEach
     void setUp() {
         jwtValidator = mock(JwtValidator.class);
@@ -51,12 +53,18 @@ class JwtAuthenticationFilterTest {
                 new GatewaySecurityRules());
     }
 
-    private static final UUID USER_ID = UUID.randomUUID();
-
     private Claims claimsOf(String jti) {
+        return claimsWith(USER_ID.toString(), "MEMBER", jti);
+    }
+
+    private Claims claimsWith(String subject, String role) {
+        return claimsWith(subject, role, "jti-x");
+    }
+
+    private Claims claimsWith(String subject, String role, String jti) {
         Claims claims = mock(Claims.class);
-        lenient().when(claims.getSubject()).thenReturn(USER_ID.toString());
-        lenient().when(claims.get("role", String.class)).thenReturn("MEMBER");
+        lenient().when(claims.getSubject()).thenReturn(subject);
+        lenient().when(claims.get("role", String.class)).thenReturn(role);
         lenient().when(claims.getId()).thenReturn(jti);
         return claims;
     }
@@ -160,17 +168,6 @@ class JwtAuthenticationFilterTest {
         verify(chain, never()).filter(any());
     }
 
-    // ===== 비정상 claim 차단 (claim 무결성 검증) =====
-
-    /** subject/role 을 직접 지정한 claims (비정상 케이스용). */
-    private Claims claimsWith(String subject, String role) {
-        Claims claims = mock(Claims.class);
-        lenient().when(claims.getSubject()).thenReturn(subject);
-        lenient().when(claims.get("role", String.class)).thenReturn(role);
-        lenient().when(claims.getId()).thenReturn("jti-x");
-        return claims;
-    }
-
     @Test
     @DisplayName("subject(userId)가 없으면 401로 차단한다")
     void subjectMissing_unauthorized() {
@@ -213,21 +210,6 @@ class JwtAuthenticationFilterTest {
         filter.filter(exchange, chain).block();
 
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-    @Test
-    @DisplayName("Access Token blacklist 조회에 실패하면 503으로 차단한다")
-    void accessBlacklistLookupFailure_serviceUnavailable() {
-        Claims claims = claimsOf("jti-4");
-        given(jwtValidator.parse(anyString())).willReturn(claims);
-        given(redisTemplate.hasKey("blacklist:access:jti-4"))
-                .willReturn(Mono.error(new RuntimeException("redis unavailable")));
-        given(redisTemplate.hasKey("blacklist:user:" + USER_ID)).willReturn(Mono.just(false));
-        MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/v1/users/me")
-                        .header("Authorization", "Bearer redis-error-token").build());
-
-        filter.filter(exchange, chain).block();
-
-        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         verify(chain, never()).filter(any());
     }
 
@@ -257,9 +239,28 @@ class JwtAuthenticationFilterTest {
 
         filter.filter(exchange, chain).block();
 
-        // claim 무결성 검증이 blacklist 조회보다 먼저이므로 Redis hasKey 가 호출되지 않아야 한다
         verify(redisTemplate, never()).hasKey(anyString());
     }
+
+    @Test
+    @DisplayName("Access Token blacklist 조회에 실패하면 503으로 차단한다")
+    void accessBlacklistLookupFailure_serviceUnavailable() {
+        Claims claims = claimsOf("jti-4");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        given(redisTemplate.hasKey("blacklist:access:jti-4"))
+                .willReturn(Mono.error(new RuntimeException("redis unavailable")));
+        given(redisTemplate.hasKey("blacklist:user:" + USER_ID)).willReturn(Mono.just(false));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer redis-error-token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        verify(chain, never()).filter(any());
+    }
+
+    @Test
     @DisplayName("사용자 단위 blacklist 조회에 실패하면 503으로 차단한다")
     void userBlacklistLookupFailure_serviceUnavailable() {
         Claims claims = claimsOf("jti-5");

@@ -81,7 +81,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         try {
             idCard = toUserIdCard(claims);
         } catch (IllegalArgumentException e) {
-            return unauthorized(exchange, CommonErrorCode.INVALID_ID_CARD);
+            return writeErrorResponse(exchange, CommonErrorCode.INVALID_ID_CARD);
         }
 
         String jti = claims.getId();
