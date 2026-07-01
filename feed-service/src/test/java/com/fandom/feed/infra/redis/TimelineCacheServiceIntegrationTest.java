@@ -1,5 +1,6 @@
 package com.fandom.feed.infra.redis;
 
+import com.fandom.feed.domain.util.UuidV7TimestampExtractor;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.redis.config.RedisIntegrationTestSupport;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
@@ -15,6 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 @Import(TimelineCacheService.class)
 class TimelineCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
@@ -69,6 +71,41 @@ class TimelineCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
 
             Set<String> latest = redisTemplate.opsForZSet().reverseRange(key, 0, 0);
             assertThat(latest).containsExactly(newPostId.toString());
+        }
+    }
+
+    @Nested
+    @DisplayName("캐시에 게시글 ID 삭제")
+    class RemovePosts {
+        @Test
+        @DisplayName("정상 동작 - 여러 유저의 타임라인에서 게시글을 일괄 제거")
+        void removePostsMultipleUsers() {
+            // given
+            UUID userId1 = UUID.randomUUID();
+            UUID userId2 = UUID.randomUUID();
+            UUID postId = UUID.randomUUID();
+            long score = UuidV7TimestampExtractor.extract(postId);
+
+            redisTemplate.opsForZSet().add(RedisKeyPrefix.TIMELINE + userId1, postId.toString(), score);
+            redisTemplate.opsForZSet().add(RedisKeyPrefix.TIMELINE + userId2, postId.toString(), score);
+
+            // when
+            timelineCacheService.removePosts(List.of(userId1, userId2), postId);
+
+            // then
+            assertThat(redisTemplate.opsForZSet().size(RedisKeyPrefix.TIMELINE + userId1)).isEqualTo(0);
+            assertThat(redisTemplate.opsForZSet().size(RedisKeyPrefix.TIMELINE + userId2)).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("타임라인에 없는 게시글 제거 - 예외 없이 정상 종료")
+        void removePostsNotExisting() {
+            // given
+            UUID userId = UUID.randomUUID();
+            UUID postId = UUID.randomUUID();
+
+            // when & then
+            assertDoesNotThrow(() -> timelineCacheService.removePosts(List.of(userId), postId));
         }
     }
 }
