@@ -298,7 +298,7 @@ class PostServiceTest {
         postService.getPosts(null, null, null, null);
 
         // then
-        verify(postListCacheService).addPostForWarm(postId, null);
+        verify(postListCacheService).addPostsForWarm(List.of(postId), null);
         verify(postListCacheService).expireCache(null);
         verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
     }

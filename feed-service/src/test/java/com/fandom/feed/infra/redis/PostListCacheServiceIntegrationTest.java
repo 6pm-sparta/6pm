@@ -138,7 +138,7 @@ class PostListCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
         private final String authorKey = RedisKeyPrefix.POST_LIST + authorId;
 
         @Test
-        @DisplayName("워밍업 아님 - 두 키에 모두 저장")
+        @DisplayName("성공 - 두 키에 모두 저장")
         void addPost() {
             // Given
             UUID postId = UUID.randomUUID();
@@ -178,15 +178,22 @@ class PostListCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
             assertThat(allSize).isEqualTo(FeedPolicy.MAX_CACHE_SIZE);
             assertThat(authorSize).isEqualTo(FeedPolicy.MAX_CACHE_SIZE);
         }
+    }
+
+    @Nested
+    @DisplayName("캐시에 게시글 ID 목록 추가")
+    class AddPostsForWarm {
+        private final UUID authorId = UUID.randomUUID();
+        private final String authorKey = RedisKeyPrefix.POST_LIST + authorId;
 
         @Test
-        @DisplayName("authorId 없는 워밍업 - all 키에만 저장")
-        void addPostForWarmWithoutAuthorId() {
+        @DisplayName("authorId 없음 - all 키에만 저장")
+        void addPostsForWarmWithoutAuthorId() {
             // Given
             UUID postId = UUID.randomUUID();
 
             // When
-            postListCacheService.addPostForWarm(postId, null);
+            postListCacheService.addPostsForWarm(List.of(postId), null);
 
             // Then
             Double allScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_ALL, postId.toString());
@@ -197,13 +204,13 @@ class PostListCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
         }
 
         @Test
-        @DisplayName("authorId 있는 워밍업 - author 키에만 저장")
-        void addPostForWarmWithAuthorId() {
+        @DisplayName("authorId 있음 - author 키에만 저장")
+        void addPostsForWarmWithAuthorId() {
             // Given
             UUID postId = UUID.randomUUID();
 
             // When
-            postListCacheService.addPostForWarm(postId, authorId);
+            postListCacheService.addPostsForWarm(List.of(postId), authorId);
 
             // Then
             Double allScore = redisTemplate.opsForZSet().score(RedisKeyPrefix.POST_LIST_ALL, postId.toString());

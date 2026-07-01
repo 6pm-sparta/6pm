@@ -145,9 +145,9 @@ public class PostService {
      */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
         List<Post> posts = postRepository.findByCursorForWarm(authorId);
+        List<UUID> postIds = posts.stream().map(Post::getId).toList();
 
-        posts.forEach(post -> postListCacheService.addPostForWarm(post.getId(), authorId));
-
+        postListCacheService.addPostsForWarm(postIds, authorId);
         postListCacheService.expireCache(authorId);
 
         boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;

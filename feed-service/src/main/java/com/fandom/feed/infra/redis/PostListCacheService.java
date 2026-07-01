@@ -70,12 +70,19 @@ public class PostListCacheService {
     }
 
     /**
-     * 게시글 목록 캐시에 게시글 ID를 추가하는 워밍업 메서드
+     * 게시글 목록 캐시에 게시글 ID 목록을 추가하는 워밍업 메서드
      */
-    public void addPostForWarm(UUID postId, UUID authorId) {
-        String member = postId.toString();
-        long score = UuidV7TimestampExtractor.extract(postId);
-        redisTemplate.opsForZSet().add(resolveKey(authorId), member, score);
+    public void addPostsForWarm(List<UUID> postIds, UUID authorId) {
+        if (postIds.isEmpty()) return;
+        String key = resolveKey(authorId);
+
+        redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            postIds.forEach(postId -> {
+                long score = UuidV7TimestampExtractor.extract(postId);
+                connection.zSetCommands().zAdd(key.getBytes(), score, postId.toString().getBytes());
+            });
+            return null;
+        });
     }
 
     /**
