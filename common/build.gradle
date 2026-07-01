@@ -5,4 +5,5 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'        // GlobalExceptionHandler(@RestControllerAdvice)
     implementation 'com.fasterxml.uuid:java-uuid-generator:5.1.0'            // UUIDv7 생성 (BaseEntity)
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'io.micrometer:micrometer-tracing'
 }
