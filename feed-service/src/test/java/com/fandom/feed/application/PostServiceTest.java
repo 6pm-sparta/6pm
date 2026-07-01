@@ -75,10 +75,10 @@ class PostServiceTest {
     private PostListCacheService postListCacheService;
 
     @Mock
-    UserClient userClient;
+    private UserClient userClient;
 
     @Mock
-    OutboxEventWriter outboxEventWriter;
+    private OutboxEventWriter outboxEventWriter;
 
     @InjectMocks
     private PostService postService;

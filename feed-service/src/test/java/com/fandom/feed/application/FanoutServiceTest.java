@@ -24,10 +24,10 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class FanoutServiceTest {
     @Mock
-    TimelineCacheService timelineCacheService;
+    private TimelineCacheService timelineCacheService;
 
     @InjectMocks
-    FanoutService fanoutService;
+    private FanoutService fanoutService;
 
     @Nested
     @DisplayName("팔로워 청크로 타임라인 추가 요청")

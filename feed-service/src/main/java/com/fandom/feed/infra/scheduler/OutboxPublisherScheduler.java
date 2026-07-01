@@ -28,8 +28,16 @@ public class OutboxPublisherScheduler {
 
         for (OutboxEvent event : pending) {
             try {
-                Event.PostCreated payload = objectMapper.readValue(event.getPayload(), Event.PostCreated.class);
-                postBroadcastHandler.handle(payload.postId(), payload.authorId(), payload.nickname());
+                switch (event.getEventType()) {
+                    case POST_CREATED -> {
+                        Event.PostCreated payload = objectMapper.readValue(event.getPayload(), Event.PostCreated.class);
+                        postBroadcastHandler.handlePostCreated(payload.postId(), payload.authorId(), payload.nickname());
+                    }
+                    case POST_DELETED -> {
+                        Event.PostDeleted payload = objectMapper.readValue(event.getPayload(), Event.PostDeleted.class);
+                        postBroadcastHandler.handlePostDeleted(payload.postId(), payload.authorId());
+                    }
+                }
                 event.markPublished();
             } catch (JsonProcessingException e) {
                 log.error("Outbox 이벤트 역직렬화 실패 - eventId={}, aggregateId={}", event.getId(), event.getAggregateId(), e);

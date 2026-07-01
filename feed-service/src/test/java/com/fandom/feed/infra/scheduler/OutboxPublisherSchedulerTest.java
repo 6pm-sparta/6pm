@@ -27,16 +27,16 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class OutboxPublisherSchedulerTest {
     @Mock
-    OutboxEventRepository outboxEventRepository;
+    private OutboxEventRepository outboxEventRepository;
 
     @Mock
-    PostBroadcastHandler postBroadcastHandler;
+    private PostBroadcastHandler postBroadcastHandler;
 
     @Mock
-    ObjectMapper objectMapper;
+    private ObjectMapper objectMapper;
 
     @InjectMocks
-    OutboxPublisherScheduler outboxPublisherScheduler;
+    private OutboxPublisherScheduler outboxPublisherScheduler;
 
     @Test
     @DisplayName("정상 작동 - 역직렬화 후 핸들러를 호출하고 PUBLISHED로 마킹")
@@ -56,7 +56,7 @@ class OutboxPublisherSchedulerTest {
         outboxPublisherScheduler.publishPendingEvents();
 
         // then
-        verify(postBroadcastHandler).handle(postId, authorId, "닉네임");
+        verify(postBroadcastHandler).handlePostCreated(postId, authorId, "닉네임");
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.PUBLISHED);
         verify(outboxEventRepository).save(event);
     }
@@ -75,7 +75,7 @@ class OutboxPublisherSchedulerTest {
         assertDoesNotThrow(() -> outboxPublisherScheduler.publishPendingEvents());
 
         // then
-        verify(postBroadcastHandler, never()).handle(any(), any(), any());
+        verify(postBroadcastHandler, never()).handlePostCreated(any(), any(), any());
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.FAILED);
         assertThat(event.getRetryCount()).isEqualTo(0);
         verify(outboxEventRepository).save(event);
@@ -94,7 +94,7 @@ class OutboxPublisherSchedulerTest {
 
         given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING)).willReturn(List.of(event));
         given(objectMapper.readValue(json, Event.PostCreated.class)).willReturn(payload);
-        doThrow(new RuntimeException("User 서비스 장애")).when(postBroadcastHandler).handle(postId, authorId, "닉네임");
+        doThrow(new RuntimeException("User 서비스 장애")).when(postBroadcastHandler).handlePostCreated(postId, authorId, "닉네임");
 
         // when
         outboxPublisherScheduler.publishPendingEvents();
@@ -123,7 +123,7 @@ class OutboxPublisherSchedulerTest {
         // then
         assertThat(event.getStatus()).isEqualTo(OutboxStatus.FAILED);
         assertThat(event.getRetryCount()).isEqualTo(0);
-        verify(postBroadcastHandler, never()).handle(any(), any(), any());
+        verify(postBroadcastHandler, never()).handlePostCreated(any(), any(), any());
         verify(outboxEventRepository).save(event);
     }
 
@@ -145,8 +145,8 @@ class OutboxPublisherSchedulerTest {
         outboxPublisherScheduler.publishPendingEvents();
 
         // then
-        verify(postBroadcastHandler).handle(payload1.postId(), payload1.authorId(), payload1.nickname());
-        verify(postBroadcastHandler).handle(payload2.postId(), payload2.authorId(), payload2.nickname());
+        verify(postBroadcastHandler).handlePostCreated(payload1.postId(), payload1.authorId(), payload1.nickname());
+        verify(postBroadcastHandler).handlePostCreated(payload2.postId(), payload2.authorId(), payload2.nickname());
         verify(outboxEventRepository, times(2)).save(any());
     }
 
@@ -160,7 +160,7 @@ class OutboxPublisherSchedulerTest {
         outboxPublisherScheduler.publishPendingEvents();
 
         // then
-        verify(postBroadcastHandler, never()).handle(any(), any(), any());
+        verify(postBroadcastHandler, never()).handlePostCreated(any(), any(), any());
         verify(outboxEventRepository, never()).save(any());
     }
 }

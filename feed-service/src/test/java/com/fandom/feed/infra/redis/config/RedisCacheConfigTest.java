@@ -29,6 +29,7 @@ class RedisCacheConfigTest {
     @Test
     @DisplayName("캐시 직렬화 설정 확인")
     void cacheManagerSerializationConfig() {
+        // given
         RedisCacheConfiguration config = cacheManager.getCacheConfigurations().get(RedisKeyPrefix.POST_DETAIL);
 
         assertThat(config).isNotNull();
@@ -37,6 +38,7 @@ class RedisCacheConfigTest {
                 UUID.randomUUID(), null, "내용", List.of(), LocalDateTime.now(), LocalDateTime.now()
         );
 
+        // when & then
         assertDoesNotThrow(() -> {
             Assertions.assertNotNull(cache);
             cache.put("test-key", cachedPost);
