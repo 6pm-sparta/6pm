@@ -9,6 +9,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,8 +26,18 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     }
 
     @Override
+    public List<Notification> saveAll(List<Notification> notifications) {
+        return jpaRepository.saveAll(notifications);
+    }
+
+    @Override
     public Optional<Notification> findById(UUID id) {
         return jpaRepository.findById(id);
+    }
+
+    @Override
+    public List<UUID> findExistingUserIds(UUID referenceId, NotificationType type, Collection<UUID> userIds) {
+        return jpaRepository.findUserIdsByReferenceIdAndTypeAndUserIdIn(referenceId, type, userIds);
     }
 
     @Override
@@ -40,11 +51,6 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     @Override
     public void softDeleteAllByUserId(UUID userId) {
         jpaRepository.softDeleteAllByUserId(userId, LocalDateTime.now());
-    }
-
-    @Override
-    public boolean existsByUserIdAndTypeAndReferenceId(UUID userId, NotificationType type, UUID referenceId) {
-        return jpaRepository.existsByUserIdAndTypeAndReferenceId(userId, type, referenceId);
     }
 
     @Override

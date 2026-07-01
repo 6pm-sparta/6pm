@@ -13,4 +13,7 @@ public interface NotificationDeliveryRepository {
     Optional<NotificationDelivery> findByNotificationIdAndDeviceToken(UUID notificationId, String deviceToken);
 
     List<NotificationDelivery> findAllByNotificationId(UUID notificationId);
+
+    // 탈퇴 시 해당 유저의 알림의 전달 레코드 하드 삭제 -> divice token 제거
+    void deleteByUserId(UUID userId);
 }

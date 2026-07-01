@@ -14,4 +14,7 @@ public interface ChatMessageRepository {
 
     // 크리에이터 메시지 + 본인 메시지
     List<ChatMessage> findMessagesForFan(UUID roomId, UUID requesterId, UUID cursor, int limit);
+
+    // 방 삭제 시 메시지 일괄 삭제 - soft
+    void softDeleteAllByRoomId(UUID roomId, UUID deletedBy);
 }

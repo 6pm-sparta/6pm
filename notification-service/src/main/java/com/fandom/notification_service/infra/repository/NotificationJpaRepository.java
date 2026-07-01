@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,7 +22,13 @@ public interface NotificationJpaRepository extends JpaRepository<Notification, U
 
     List<Notification> findByUserIdAndIdLessThanOrderByIdDesc(UUID userId, UUID cursor, Pageable pageable);
 
-    boolean existsByUserIdAndTypeAndReferenceId(UUID userId, NotificationType type, UUID referenceId);
+    // 멱등성 일괄 체크
+    @Query("SELECT n.userId FROM Notification n " +
+           "WHERE n.referenceId = :referenceId AND n.type = :type AND n.userId IN :userIds")
+    List<UUID> findUserIdsByReferenceIdAndTypeAndUserIdIn(
+            @Param("referenceId") UUID referenceId,
+            @Param("type") NotificationType type,
+            @Param("userIds") Collection<UUID> userIds);
 
     List<Notification> findBySendStatusAndCreatedAtBefore(
             NotificationSendStatus status, LocalDateTime cutoff, Pageable pageable);

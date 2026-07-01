@@ -8,16 +8,16 @@ spring:
     import: "optional:configserver:http://localhost:8888"
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${CHAT_DB_URL}
+    username: ${CHAT_DB_USERNAME}
+    password: ${CHAT_DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        default_schema: chat_db
         format_sql: true
+        log_slow_query: 500
     show-sql: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -25,9 +25,23 @@ spring:
       group-id: chat-service
   data:
     redis:
-      host: ${REDIS_HOST}
-      port: ${REDIS_PORT}
-      password: ${REDIS_PASSWORD}
+      host: ${REDIS_GENERAL_HOST}
+      port: ${REDIS_GENERAL_PORT}
+      password: ${REDIS_GENERAL_PASSWORD}
+
+chat:
+  notification:
+    chunk-size: 500
+
+logging:
+  file:
+    name: ./logs/chat-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
+    org.hibernate.SQL_SLOW: info
 
 eureka:
   client:
@@ -45,6 +59,9 @@ management:
   endpoint:
     health:
       show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
   tracing:
     sampling:
       probability: 1.0

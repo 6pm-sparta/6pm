@@ -3,9 +3,7 @@ package com.fandom.chat_service.application.service;
 import com.fandom.chat_service.application.port.ChatNotificationPort;
 import com.fandom.chat_service.application.port.OnlineStatePort;
 import com.fandom.chat_service.domain.entity.ChatRoom;
-import com.fandom.chat_service.domain.entity.ChatRoomMember;
 import com.fandom.chat_service.domain.entity.SenderRole;
-import com.fandom.chat_service.domain.repository.ChatRoomMemberRepository;
 import com.fandom.chat_service.presentation.dto.response.MessageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,37 +21,35 @@ import java.util.UUID;
 public class MessageDeliveryService {
 
     private static final String USER_QUEUE = "/queue/messages";
+    private static final String ROOM_TOPIC_PREFIX = "/topic/room.";
 
     private final SimpMessagingTemplate messagingTemplate;
     private final OnlineStatePort onlineState;
-    private final ChatRoomMemberRepository memberRepository;
+    private final RoomMemberCacheService roomMemberCache;
     private final ChatNotificationPort chatNotificationPort;
 
     public void deliver(ChatRoom room, MessageResponse message) {
-        // 에코
-        sendToUser(message.senderId(), message);
-
-        if (message.senderRole() == SenderRole.CREATOR) {
-            deliverBroadcast(room, message);
-        } else {
-            deliverReplyToCreator(room, message);
+        try {
+            if (message.senderRole() == SenderRole.CREATOR) {
+                deliverBroadcast(room, message);
+            } else {
+                sendToUser(message.senderId(), message);
+                deliverReplyToCreator(room, message);
+            }
+        } catch (Exception e) {
+            log.error("메시지 전달 실패 room_id={}, message_id={}", room.getId(), message.id(), e);
         }
     }
 
-    // 크리에이터 메시지
+    // 크리에이터 메시지 - 온라인은 방 토픽 1회 발행, 오프라인은 알림
     private void deliverBroadcast(ChatRoom room, MessageResponse message) {
-        UUID creatorId = room.getCreatorId();
-        List<UUID> fans = memberRepository.findAllByRoomId(room.getId()).stream()
-                .map(ChatRoomMember::getUserId)
-                .filter(userId -> !userId.equals(creatorId))
-                .toList();
+        messagingTemplate.convertAndSend(ROOM_TOPIC_PREFIX + room.getId(), message);
+
+        Set<UUID> fans = roomMemberCache.getFans(room.getId(), room.getCreatorId());
         if (fans.isEmpty()) {
             return;
         }
-
         Set<UUID> online = new HashSet<>(onlineState.filterOnline(fans));
-        online.forEach(fan -> sendToUser(fan, message)); // online → WS
-
         List<UUID> offline = fans.stream().filter(fan -> !online.contains(fan)).toList();
         if (!offline.isEmpty()) { // offline 처리
             chatNotificationPort.notifyNewMessage(message.id(), room.getTitle(), message.content(), offline);

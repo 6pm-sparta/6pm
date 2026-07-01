@@ -3,6 +3,7 @@ package com.fandom.chat_service.application.service;
 import com.fandom.chat_service.domain.entity.ChatRoom;
 import com.fandom.chat_service.domain.entity.ChatRoomMember;
 import com.fandom.chat_service.domain.exception.ChatErrorCode;
+import com.fandom.chat_service.domain.repository.ChatMessageRepository;
 import com.fandom.chat_service.domain.repository.ChatRoomMemberRepository;
 import com.fandom.chat_service.domain.repository.ChatRoomRepository;
 import com.fandom.common.exception.CustomException;
@@ -10,7 +11,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -20,6 +24,8 @@ public class ChatRoomCommandService {
 
     private final ChatRoomRepository roomRepository;
     private final ChatRoomMemberRepository memberRepository;
+    private final ChatMessageRepository messageRepository;
+    private final RoomMemberCacheService roomMemberCache;
 
     // 크리에이터 생성/전환
     @Transactional
@@ -61,6 +67,7 @@ public class ChatRoomCommandService {
                 .userId(followerId)
                 .nickname(nickname)
                 .build());
+        afterCommit(() -> roomMemberCache.onMemberAdded(room.getId(), followerId));
         log.info("입장 room_id={}, user_id={}", room.getId(), followerId);
     }
 
@@ -74,6 +81,7 @@ public class ChatRoomCommandService {
         roomRepository.findByCreatorId(followeeId).ifPresentOrElse(
                 room -> {
                     memberRepository.deleteByRoomIdAndUserId(room.getId(), followerId);
+                    afterCommit(() -> roomMemberCache.onMemberRemoved(room.getId(), followerId));
                     log.info("퇴장 room_id={}, user_id={}", room.getId(), followerId);
                 },
                 () -> log.warn("퇴장 대상 방 없음 - 스킵 followee_id={}, user_id={}", followeeId, followerId)
@@ -87,13 +95,35 @@ public class ChatRoomCommandService {
             log.warn("user.deleted user_id 없음 - 스킵");
             return;
         }
+        // 삭제 전에 멤버였던 방 목록
+        List<UUID> memberRoomIds = memberRepository.findAllByUserId(userId).stream()
+                .map(ChatRoomMember::getRoomId)
+                .toList();
+
         roomRepository.findByCreatorId(userId).ifPresent(room -> {
+            messageRepository.softDeleteAllByRoomId(room.getId(), userId);
             memberRepository.deleteByRoomId(room.getId());
             room.softDelete(userId);
             roomRepository.save(room);
+            afterCommit(() -> roomMemberCache.evictRoom(room.getId()));
             log.info("크리에이터 탈퇴 - 방 삭제 room_id={}, creator_id={}", room.getId(), userId);
         });
         memberRepository.deleteByUserId(userId);
+        afterCommit(() -> memberRoomIds.forEach(roomId -> roomMemberCache.onMemberRemoved(roomId, userId)));
         log.info("탈퇴 멤버십 정리 완료 user_id={}", userId);
+    }
+
+    // 트랜잭션 커밋 후 캐시 반영
+    private void afterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+        } else {
+            action.run();
+        }
     }
 }

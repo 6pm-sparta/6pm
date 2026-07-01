@@ -9,6 +9,7 @@ import com.fandom.notification_service.domain.entity.UserNotificationToken;
 import com.fandom.notification_service.domain.repository.NotificationDeliveryRepository;
 import com.fandom.notification_service.domain.repository.NotificationRepository;
 import com.fandom.notification_service.domain.repository.UserNotificationTokenRepository;
+import com.fandom.notification_service.support.LogMask;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -82,7 +83,7 @@ public class NotificationDispatchService {
                 delivery.markFailed();
                 deliveryRepository.save(delivery);
                 allOk = false;
-                log.error("기기 발송 실패 token={}, id={}", t.getDeviceToken(), notificationId, e);
+                log.error("기기 발송 실패 token={}, id={}", LogMask.token(t.getDeviceToken()), notificationId, e);
                 if (delivery.getAttemptCount() < maxAttempt) {
                     retryTokens.add(t.getDeviceToken());
                 }
@@ -105,14 +106,14 @@ public class NotificationDispatchService {
                 .findByNotificationIdAndDeviceToken(notificationId, deviceToken)
                 .orElse(null);
         if (d == null) {
-            log.warn("재발송 delivery 없음 id={}, token={}", notificationId, deviceToken);
+            log.warn("재발송 delivery 없음 id={}, token={}", notificationId, LogMask.token(deviceToken));
             return;
         }
         if (d.getStatus() == NotificationSendStatus.SUCCESS) {
             return; // 이미 성공
         }
         if (d.getAttemptCount() >= maxAttempt) {
-            log.error("재발송 한계 도달, 포기 id={}, token={}", notificationId, deviceToken);
+            log.error("재발송 한계 도달, 포기 id={}, token={}", notificationId, LogMask.token(deviceToken));
             return;
         }
 
@@ -133,7 +134,7 @@ public class NotificationDispatchService {
             if (d.getAttemptCount() < maxAttempt) {
                 publishRetryAfterCommit(notificationId, List.of(deviceToken));
             } else {
-                log.error("재발송 최종 실패(포기) id={}, token={}", notificationId, deviceToken, e);
+                log.error("재발송 최종 실패(포기) id={}, token={}", notificationId, LogMask.token(deviceToken), e);
             }
         }
     }
