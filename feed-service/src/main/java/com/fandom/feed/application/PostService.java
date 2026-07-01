@@ -127,9 +127,7 @@ public class PostService {
         return PostResponse.Delete.from(post);
     }
 
-    /**
-     * DB에서 게시글 목록을 가져오는 메서드
-     */
+    /** DB에서 게시글 목록을 가져오는 메서드 */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDB(UUID cursor, UUID authorId, String keyword, UUID userId) {
         List<Post> posts = postRepository.findByCursor(cursor, authorId, keyword);
 
@@ -140,15 +138,12 @@ public class PostService {
         return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
     }
 
-    /**
-     * DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드
-     */
+    /** DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드 */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
         List<Post> posts = postRepository.findByCursorForWarm(authorId);
         List<UUID> postIds = posts.stream().map(Post::getId).toList();
 
         postListCacheService.addPostsForWarm(postIds, authorId);
-        postListCacheService.expireCache(authorId);
 
         boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
         List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
@@ -157,9 +152,7 @@ public class PostService {
         return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
     }
 
-    /**
-     * 작성자 ID로 모든 게시글을 삭제하는 메서드
-     */
+    /** 작성자 ID로 모든 게시글을 삭제하는 메서드 */
     @Transactional
     public void deleteAllByAuthorId(UUID authorId) {
         List<UUID> postIds = postRepository.findAllIdsByAuthorId(authorId);

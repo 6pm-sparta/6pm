@@ -210,7 +210,6 @@ class PostServiceTest {
             // then
             verify(postRepository).findByCursorForWarm(null);
             verify(postListCacheService, never()).addPost(any(), isNull());
-            verify(postListCacheService).expireCache(null);
             verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
         }
 
@@ -299,7 +298,6 @@ class PostServiceTest {
 
         // then
         verify(postListCacheService).addPostsForWarm(List.of(postId), null);
-        verify(postListCacheService).expireCache(null);
         verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
     }
 

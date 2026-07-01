@@ -132,6 +132,35 @@ class PostListCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
     }
 
     @Nested
+    @DisplayName("캐시 워밍업 완료 여부 확인")
+    class IsCacheReady {
+        private final UUID authorId = UUID.randomUUID();
+
+        @Test
+        @DisplayName("워밍업 마커 있음 - true")
+        void isCacheReadyWhenWarmed() {
+            // Given
+            postListCacheService.addPostsForWarm(List.of(UUID.randomUUID()), authorId);
+
+            // When
+            boolean result = postListCacheService.isCacheReady(authorId);
+
+            // Then
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        @DisplayName("워밍업 마커 없음 - false")
+        void isCacheReadyWhenNotWarmed() {
+            // When
+            boolean result = postListCacheService.isCacheReady(authorId);
+
+            // Then
+            assertThat(result).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("캐시에 게시글 ID 추가")
     class AddPost {
         private final UUID authorId = UUID.randomUUID();
@@ -218,6 +247,34 @@ class PostListCacheServiceIntegrationTest extends RedisIntegrationTestSupport {
 
             assertThat(allScore).isNull();
             assertThat(authorScore).isNotNull();
+        }
+
+        @Test
+        @DisplayName("워밍업 완료 마커가 함께 저장")
+        void addPostsForWarmAddsWarmedMarker() {
+            // Given
+            UUID postId = UUID.randomUUID();
+
+            // When
+            postListCacheService.addPostsForWarm(List.of(postId), authorId);
+
+            // Then
+            Double markerScore = redisTemplate.opsForZSet().score(authorKey, FeedPolicy.WARMED_MARKER);
+            assertThat(markerScore).isEqualTo(-1);
+        }
+
+        @Test
+        @DisplayName("TTL 설정")
+        void addPostsForWarmSetsExpire() {
+            // Given
+            UUID postId = UUID.randomUUID();
+
+            // When
+            postListCacheService.addPostsForWarm(List.of(postId), authorId);
+
+            // Then
+            Long ttl = redisTemplate.getExpire(authorKey);
+            assertThat(ttl).isPositive();
         }
     }
 
