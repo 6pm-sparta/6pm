@@ -8,6 +8,7 @@ import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.exception.OrderErrorCode;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
 import com.fandom.order_service.order.domain.repository.OrderStatusHistoryRepository;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,6 +38,9 @@ class OrderConfirmationWriterTest {
     @Mock
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
 
+    @Mock
+    private OutboxAppender outboxAppender;
+
     private OrderConfirmationWriter orderConfirmationWriter;
 
     private UUID orderId;
@@ -45,7 +49,7 @@ class OrderConfirmationWriterTest {
 
     @BeforeEach
     void setUp() {
-        orderConfirmationWriter = new OrderConfirmationWriter(orderRepository, orderStatusHistoryRepository);
+        orderConfirmationWriter = new OrderConfirmationWriter(orderRepository, orderStatusHistoryRepository, outboxAppender);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
         seatId = UUID.randomUUID();
@@ -74,6 +78,7 @@ class OrderConfirmationWriterTest {
         assertThat(result.userId()).isEqualTo(userId);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
         verify(orderStatusHistoryRepository).save(any());
+        verify(outboxAppender).appendOrderCompletedNotification(orderId, userId);
     }
 
     @Test
@@ -91,6 +96,7 @@ class OrderConfirmationWriterTest {
         assertThat(result.type()).isEqualTo(OrderConfirmationResult.Type.ALREADY_CONFIRMED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
         verify(orderStatusHistoryRepository, never()).save(any());
+        verify(outboxAppender, never()).appendOrderCompletedNotification(any(), any());
     }
 
     @Test

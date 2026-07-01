@@ -213,6 +213,21 @@ class JwtAuthenticationFilterTest {
         filter.filter(exchange, chain).block();
 
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    @Test
+    @DisplayName("Access Token blacklist 조회에 실패하면 503으로 차단한다")
+    void accessBlacklistLookupFailure_serviceUnavailable() {
+        Claims claims = claimsOf("jti-4");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        given(redisTemplate.hasKey("blacklist:access:jti-4"))
+                .willReturn(Mono.error(new RuntimeException("redis unavailable")));
+        given(redisTemplate.hasKey("blacklist:user:" + USER_ID)).willReturn(Mono.just(false));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer redis-error-token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         verify(chain, never()).filter(any());
     }
 
@@ -244,5 +259,21 @@ class JwtAuthenticationFilterTest {
 
         // claim 무결성 검증이 blacklist 조회보다 먼저이므로 Redis hasKey 가 호출되지 않아야 한다
         verify(redisTemplate, never()).hasKey(anyString());
+    }
+    @DisplayName("사용자 단위 blacklist 조회에 실패하면 503으로 차단한다")
+    void userBlacklistLookupFailure_serviceUnavailable() {
+        Claims claims = claimsOf("jti-5");
+        given(jwtValidator.parse(anyString())).willReturn(claims);
+        given(redisTemplate.hasKey("blacklist:access:jti-5")).willReturn(Mono.just(false));
+        given(redisTemplate.hasKey("blacklist:user:" + USER_ID))
+                .willReturn(Mono.error(new RuntimeException("redis unavailable")));
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/users/me")
+                        .header("Authorization", "Bearer redis-error-token").build());
+
+        filter.filter(exchange, chain).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        verify(chain, never()).filter(any());
     }
 }

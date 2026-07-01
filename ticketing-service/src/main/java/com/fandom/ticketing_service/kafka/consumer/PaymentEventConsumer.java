@@ -3,7 +3,7 @@ package com.fandom.ticketing_service.kafka.consumer;
 import com.fandom.ticketing_service.kafka.KafkaTopics;
 import com.fandom.ticketing_service.kafka.event.PaymentCompletedEvent;
 import com.fandom.ticketing_service.kafka.event.PaymentFailedEvent;
-import com.fandom.ticketing_service.seat.service.SeatConfirmService;
+import com.fandom.ticketing_service.seat.application.SeatConfirmService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

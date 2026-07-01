@@ -2,21 +2,23 @@
 
 > 담당: 하준영(인프라) · 목적: "운영 profile로 갈 때 서비스별로 뭘 점검/변경하나" + **지금 설계에 미리 반영할 것**
 > 실제 전환은 W3+(선택). 단, **구조를 알면 지금 코딩 시 미리 대비** 가능 → 이 문서가 그 구조.
+> 최종 수정: 2026-06-29, 이재범(User, Auth and Gateway)
 
 ---
 
 ## 1. 인프라 매핑 (로컬 → 운영)
 | 구성 | 로컬 | 운영(AWS) | 서비스 영향 |
 |---|---|---|---|
-| DB | docker postgres `localhost:5432` | **RDS** PostgreSQL (Writer+ReadReplica) | 접속 주소만 바뀜 |
-| Redis | docker redis `localhost:6379` | **ElastiCache** (일반/티켓팅 분리) | 접속 주소·분리 |
+| DB | docker postgres **서비스별 인스턴스**(5432~5438) | **RDS** PostgreSQL 서비스별(Writer+ReadReplica) | 접속 주소만 바뀜 (이미 인스턴스 분리됨) |
+| Redis | docker redis **2개**(6379/6380) | **ElastiCache** (일반/티켓팅 분리) | 접속 주소만 바뀜 (이미 분리됨) |
 | Kafka | docker `localhost:9092` | **MSK** | bootstrap 주소 |
 | 서비스 실행 | IntelliJ/로컬 | **ECS Fargate** (컨테이너) | 이미지화·헬스체크 |
 | 설정/시크릿 | `.env` | **SSM Parameter Store / Secrets Manager** | 주입 방식 |
 | 로그 | 파일→Loki | CloudWatch(ECS awslogs) | **형식 동일(ECS JSON)** |
 | 진입 | gateway 직접 | **ALB → gateway** | - |
 
-> 코드(IaC): `/terraform`. 설계 근거: `decisions.md` D6.
+> 코드(IaC): `/terraform`. 설계 근거: `decisions.md` D6, D11.
+> ℹ️ 2026-06-29(#207): DB/Redis는 로컬에서 이미 서비스별 인스턴스·Redis 2개로 분리 완료. 운영 전환 시 연결 주소만 환경별로 교체.
 
 ## 2. 전환 시 공통 변경 (모든 서비스)
 - **profile 분리**: `application-prod.yml` 추가 → DB/Redis/Kafka **엔드포인트, eureka/config 주소**만 다르게. 로컬은 `application.yml`.
