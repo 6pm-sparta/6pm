@@ -183,5 +183,22 @@ class PostBroadcastHandlerTest {
             verify(fanoutService).removeChunk(postId, null, List.of(firstUser));
             verify(fanoutService).removeChunk(postId, midCursor, List.of(secondUser));
         }
+
+        @Test
+        @DisplayName("팔로워 없음 - 팔로워 목록 조회 없이 즉시 종료")
+        void handleDeletedNoFollowers() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID authorId = UUID.randomUUID();
+
+            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(0L);
+
+            // when
+            handler.handlePostDeleted(postId, authorId);
+
+            // then
+            verify(userClientRetryWrapper, never()).getFollowerIds(any(), any(), anyInt());
+            verify(fanoutService, never()).removeChunk(any(), any(), any());
+        }
     }
 }

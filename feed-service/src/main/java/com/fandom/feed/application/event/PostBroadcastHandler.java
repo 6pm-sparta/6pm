@@ -45,7 +45,7 @@ public class PostBroadcastHandler {
     public void handlePostDeleted(UUID postId, UUID authorId) {
         long followerCount = userClientRetryWrapper.countFollowers(authorId);
 
-        if (followerCount > BroadcastPolicy.FANOUT_THRESHOLD) return;
+        if (followerCount == 0 || followerCount > BroadcastPolicy.FANOUT_THRESHOLD) return;
 
         UUID cursor = null;
         boolean hasMore = true;
