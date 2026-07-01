@@ -68,4 +68,8 @@ public class OutboxEvent extends SimpleBaseEntity {
         this.retryCount++;
         this.status = retryCount >= 3 ? OutboxStatus.FAILED : OutboxStatus.PENDING;
     }
+
+    public void markFailedImmediately() {
+        this.status = OutboxStatus.FAILED;
+    }
 }

@@ -5,6 +5,7 @@ import com.fandom.feed.application.event.PostBroadcastHandler;
 import com.fandom.feed.infra.kafka.outbox.OutboxEvent;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventRepository;
 import com.fandom.feed.infra.kafka.outbox.OutboxStatus;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,9 @@ public class OutboxPublisherScheduler {
                 Event.PostCreated payload = objectMapper.readValue(event.getPayload(), Event.PostCreated.class);
                 postBroadcastHandler.handle(payload.postId(), payload.authorId(), payload.nickname());
                 event.markPublished();
+            } catch (JsonProcessingException e) {
+                log.error("Outbox 이벤트 역직렬화 실패 - eventId={}, aggregateId={}", event.getId(), event.getAggregateId(), e);
+                event.markFailedImmediately();
             } catch (Exception e) {
                 log.error("Outbox 이벤트 처리 실패 - eventId={}, aggregateId={}", event.getId(), event.getAggregateId(), e);
                 event.markFailed();
