@@ -2,9 +2,9 @@
 # 6pm MSA Docker Compose — Profile 기반
 # =====================================================================
 # 인프라 재구성(Production 대비):
-#   * DB-per-service: 단일 postgres(fandom_db) → 서비스별 독립 인스턴스 7개
+#   * DB-per-service: 단일 postgres(fandom_db) → 서비스별 독립 인스턴스 8개
 #       user(5432) feed(5433) ticketing(5434) order(5435)
-#       notification(5436) aiops(5437) chat(5438)
+#       notification(5436) aiops(5437) chat(5438) cs(5439)
 #     - auth/gateway 는 DB 미사용 → 인스턴스 없음
 #     - 테이블은 각 서비스 JPA(ddl-auto=update) 가 생성. aiops 만 incident 테이블 init 선반영.
 #     - AWS RDS N개 구조에 1:1 대응 (연결 주소만 환경별로 전환)
@@ -14,7 +14,7 @@
 #   * o11y(prometheus/alertmanager/loki/promtail/grafana) 유지
 #
 # Profile 그룹 (서비스별 1:1 — 필요한 것만 정확히 띄운다. 묶고 싶으면 여러 개 나열):
-#   DB:    db-user / db-feed / db-ticketing / db-order / db-notification / db-aiops / db-chat
+#   DB:    db-user / db-feed / db-ticketing / db-order / db-notification / db-aiops / db-chat / db-cs
 #   Redis: redis-general(6379) / redis-ticketing(6380)
 #   묶음:  infra(=DB·Redis·kafka·zipkin 전부) / core / apps / o11y / all
 #
@@ -135,6 +135,20 @@ services:
       TZ: Asia/Seoul
     volumes:
       - postgres_chat_data:/var/lib/postgresql/data
+
+  postgres-cs:
+    image: postgres:17-alpine
+    profiles: ["db-cs", "infra", "all"]
+    container_name: 6pm-postgres-cs
+    ports:
+      - "5439:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: cs_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_cs_data:/var/lib/postgresql/data
 
   # ===== Redis 분리: 일반(세션/캐시/refresh/blacklist) vs 티켓팅(대기열/재고/분산락) =====
   # 티켓 오픈 시 티켓팅 부하가 일반 Redis(인증 blacklist 등)를 잠식하지 않도록 물리 분리.
@@ -318,6 +332,26 @@ services:
     container_name: 6pm-aiops
     ports: ["8086:8086"]
 
+  chat-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: chat-service
+    profiles: [ "apps", "all" ]
+    container_name: 6pm-chat
+    ports: [ "8088:8088" ]
+
+  cs-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: notification-service
+    profiles: ["apps", "all"]
+    container_name: 6pm-cs
+    ports: ["8089:8089"]
+
   # chat-service: 레포에 모듈이 있으면 위 auth-service 형식으로 복구(SERVICE/포트만 변경).
   #   레포에 아직 없으면 compose에서 빼는 게 맞고, 리뷰어에는 "미구현 서비스라 제외"로 답변.
   #   (develop 의 정의가 있으면 그걸 그대로 가져오는 게 가장 안전)
@@ -393,5 +427,6 @@ volumes:
   postgres_notification_data:
   postgres_aiops_data:
   postgres_chat_data:
+  postgres_cs_data:
   kafka_data:
   loki_data:

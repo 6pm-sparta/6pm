@@ -1,0 +1,24 @@
+dependencies {
+    implementation project(':common')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly    'org.postgresql:postgresql'
+
+    implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // 서비스 등록/발견 (lb://)
+    implementation 'org.springframework.cloud:spring-cloud-starter-config'                // config-server 설정 수신
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'                // /actuator/health, prometheus
+
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave'                        // 분산추적(Zipkin)
+    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+    implementation 'io.micrometer:micrometer-registry-prometheus'                         // Prometheus 메트릭
+
+    // === 본인 도메인에 필요한 것만 주석 해제 ===
+    // implementation 'org.springframework.boot:spring-boot-starter-data-redis'           // 캐시/세션 (user/feed/ticketing)
+    // implementation 'org.redisson:redisson-spring-boot-starter:3.35.0'                  // 분산락/대기열 (ticketing)
+    // implementation 'org.springframework.kafka:spring-kafka'                            // 이벤트 (ticketing/order/notification/feed)
+    // implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'          // 서비스 간 동기 호출
+
+    // 추적
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+    implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+}
