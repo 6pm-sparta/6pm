@@ -1,6 +1,7 @@
 package com.fandom.order_service.order.application.query;
 
 import com.fandom.order_service.order.domain.entity.Order;
+import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.exception.OrderErrorCode;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
 import com.fandom.common.exception.CommonErrorCode;
@@ -44,6 +45,17 @@ public class OrderQueryService {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Order> orders = orderRepository.findByUserId(requesterId, pageable);
+
+        return PageResponse.from(orders.map(OrderSummaryResponse::from));
+    }
+
+    /** 운영자용 — MANUAL_REVIEW_REQUIRED 주문 목록. 최신 순 정렬. */
+    public PageResponse<OrderSummaryResponse> getManualReviewOrders(int page, int size) {
+
+        validatePagingParams(page, size);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "statusUpdatedAt"));
+        Page<Order> orders = orderRepository.findByStatus(OrderStatus.MANUAL_REVIEW_REQUIRED, pageable);
 
         return PageResponse.from(orders.map(OrderSummaryResponse::from));
     }

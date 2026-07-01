@@ -118,6 +118,8 @@ public class RefundRecoveryWriter {
         order.markManualReviewRequired();
         saveHistory(order.getId(), before, order.getStatus(), "환불 복구 배치: " + reason);
 
+        log.error("[환불 복구] 수동 처리 필요. orderId={}, reason={}", order.getId(), reason);
+
         return RefundRecoveryResult.EXHAUSTED;
     }
 
