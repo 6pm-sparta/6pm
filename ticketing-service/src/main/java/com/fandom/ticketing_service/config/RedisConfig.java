@@ -1,6 +1,6 @@
 package com.fandom.ticketing_service.config;
 
-import com.fandom.ticketing_service.seat.listener.SeatHoldExpirationListener;
+import com.fandom.ticketing_service.seat.infrastructure.listener.SeatHoldExpirationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnection;

@@ -1,6 +1,7 @@
 package com.fandom.order_service.payment.infra.pg;
 
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.payment.infra.pg.mock.MockPgWebhookSigner;
 import com.fandom.order_service.payment.presentation.dto.request.PgWebhookRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,12 +18,16 @@ class PgWebhookHmacUtilTest {
     private static final String SECRET = "test-pg-webhook-secret-key-at-least-32-bytes-long";
 
     private PgWebhookHmacUtil hmacUtil;
+    // sign()은 MockPgWebhookSigner로 분리됐다. 테스트용 서명을 만들기 위해서만 사용.
+    private MockPgWebhookSigner signer;
 
     @BeforeEach
     void setUp() {
         OrderProperties.PgWebhook pgWebhook = new OrderProperties.PgWebhook(SECRET, "http://localhost", 0L, 0L);
-        OrderProperties properties = new OrderProperties(null, 0, null, null, null, pgWebhook);
-        hmacUtil = new PgWebhookHmacUtil(properties, new ObjectMapper().findAndRegisterModules());
+        OrderProperties properties = new OrderProperties(null, 0, null, null, null, null, pgWebhook);
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        hmacUtil = new PgWebhookHmacUtil(properties, objectMapper);
+        signer = new MockPgWebhookSigner(properties, objectMapper);
     }
 
     @Test
@@ -32,7 +37,7 @@ class PgWebhookHmacUtilTest {
         PgWebhookRequest request = new PgWebhookRequest("PG-1234", UUID.randomUUID(), "APPROVED", 50_000L, null);
 
         // when
-        String signature = hmacUtil.sign(request);
+        String signature = signer.sign(request);
 
         // then
         assertThat(hmacUtil.verify(request, signature)).isTrue();
@@ -43,7 +48,7 @@ class PgWebhookHmacUtilTest {
     void verify_failsWhenPayloadTampered() {
         // given
         PgWebhookRequest original = new PgWebhookRequest("PG-1234", UUID.randomUUID(), "APPROVED", 50_000L, null);
-        String signature = hmacUtil.sign(original);
+        String signature = signer.sign(original);
 
         // when — amount만 다르게 바꿔서 검증(금액 위변조 시뮬레이션)
         PgWebhookRequest tampered = new PgWebhookRequest(

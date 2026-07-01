@@ -2,6 +2,7 @@ package com.fandom.order_service.order.application.cancellation;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
@@ -38,6 +39,7 @@ public class OrderCancelWriter {
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final PaymentRepository paymentRepository;
     private final OrderProperties orderProperties;
+    private final OutboxAppender outboxAppender;
 
     @Transactional
     public OrderCancelDecision decide(UUID orderId, UUID requesterId) {
@@ -56,6 +58,7 @@ public class OrderCancelWriter {
             case PENDING -> {
                 order.markCancelled();
                 saveHistory(order.getId(), before, order.getStatus(), "유저 직접 취소(결제 전)");
+                outboxAppender.appendHoldReleased(order.getId());
                 yield OrderCancelDecision.cancelled(order.getId(), order.getStatus(), order.getStatusUpdatedAt());
             }
 
