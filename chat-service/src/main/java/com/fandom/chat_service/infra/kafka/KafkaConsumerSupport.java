@@ -8,10 +8,12 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.util.backoff.FixedBackOff;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 public final class KafkaConsumerSupport {
 
     private static final String TRUSTED_PACKAGES = "com.fandom.chat_service.presentation.dto.message";
@@ -36,7 +38,11 @@ public final class KafkaConsumerSupport {
         ConcurrentKafkaListenerContainerFactory<String, T> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(new DefaultKafkaConsumerFactory<>(props));
-        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 2L)));
+        factory.setCommonErrorHandler(new DefaultErrorHandler(
+                (record, ex) -> log.error(
+                        "Kafka 처리 실패 - 스킵: topic={}, partition={}, offset={}, value={}",
+                        record.topic(), record.partition(), record.offset(), record.value(), ex),
+                new FixedBackOff(1000L, 2L)));
         return factory;
     }
 }

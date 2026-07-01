@@ -8,9 +8,9 @@ spring:
     import: "optional:configserver:http://localhost:8888"
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:fandom_redis_pw}
+      host: ${REDIS_GENERAL_HOST:localhost}
+      port: ${REDIS_GENERAL_PORT:6379}
+      password: ${REDIS_GENERAL_PASSWORD:fandom_redis_pw}
   cloud:
     gateway:
       globalcors:

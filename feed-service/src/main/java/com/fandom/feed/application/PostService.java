@@ -2,22 +2,23 @@ package com.fandom.feed.application;
 
 import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.exception.CustomException;
+import com.fandom.feed.application.event.Event;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
+import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.kafka.outbox.OutboxEventType;
+import com.fandom.feed.infra.kafka.outbox.OutboxEventWriter;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.PostListCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostDetailCache;
 import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
-import com.fandom.feed.infra.s3.S3Service;
-import com.fandom.feed.infra.s3.dto.PresignedUrlInfo;
 import com.fandom.feed.infra.s3.util.ImageUrlConverter;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import com.fandom.feed.presentation.dto.response.PostResponse;
-import com.fandom.feed.presentation.dto.response.PresignedUrlResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -36,25 +37,30 @@ public class PostService {
     private final CommentService commentService;
     private final LikeService likeService;
     private final PostRepository postRepository;
-    private final S3Service s3Service;
     private final PostDetailCacheService postDetailCacheService;
     private final PostListCacheService postListCacheService;
     private final ReactionCacheService reactionCacheService;
     private final ImageUrlConverter imageUrlConverter;
-
-    public PresignedUrlResponse generatePresignedUrls(List<String> imageNames) {
-        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(imageNames);
-        return PresignedUrlResponse.from(uploadUrls);
-    }
+    private final OutboxEventWriter outboxEventWriter;
+    private final UserClient userClient;
 
     @Transactional
     public PostResponse.Create createPost(String content, List<String> imageKeys, UUID userId) {
         Post post = Post.builder().authorId(userId).content(content).build();
         postRepository.save(post);
 
-        imageService.saveImages(post.getId(), imageKeys);
+        UUID postId = post.getId();
 
-        postListCacheService.addPost(post.getId(), post.getAuthorId());
+        imageService.saveImages(postId, imageKeys);
+        postListCacheService.addPost(postId, post.getAuthorId());
+
+        // 알람 발행에 게시글 생성 시 닉네임 사용
+        String nickname = userClient.getUser(userId).getData().nickname();
+        outboxEventWriter.write(
+                postId,
+                OutboxEventType.POST_CREATED,
+                new Event.PostCreated(post.getId(), userId, nickname)
+        );
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
     }

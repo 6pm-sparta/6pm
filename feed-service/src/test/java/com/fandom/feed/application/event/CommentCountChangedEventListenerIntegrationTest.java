@@ -12,13 +12,13 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Import(CommentCountEventListener.class)
-class CommentCountEventListenerIntegrationTest extends RedisIntegrationTestSupport {
+@Import(CommentCountChangedEventListener.class)
+class CommentCountChangedEventListenerIntegrationTest extends RedisIntegrationTestSupport {
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
 
     @Autowired
-    private CommentCountEventListener listener;
+    private CommentCountChangedEventListener listener;
 
     @Test
     @DisplayName("댓글 생성 이벤트 발생 - Redis 댓글 수 증가")
@@ -51,7 +51,7 @@ class CommentCountEventListenerIntegrationTest extends RedisIntegrationTestSuppo
 
     @Test
     @DisplayName("댓글 수 0일 때 삭제 이벤트 발생 - 0 미만으로 내려가지 않음")
-    void handleCommentDeleted_minZero() {
+    void handleCommentDeletedMinZero() {
         // given
         UUID postId = UUID.randomUUID();
         String key = RedisKeyPrefix.COMMENT_COUNT + postId;

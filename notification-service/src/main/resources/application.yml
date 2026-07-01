@@ -8,16 +8,16 @@ spring:
     import: "optional:configserver:http://localhost:8888"
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${DB_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
+    url: ${NOTIFICATION_DB_URL}
+    username: ${NOTIFICATION_DB_USERNAME}
+    password: ${NOTIFICATION_DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        default_schema: notify_db
         format_sql: true
+        log_slow_query: 500
     show-sql: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -32,6 +32,7 @@ logging:
       file: ecs
   level:
     root: INFO
+    org.hibernate.SQL_SLOW: info
 
 notification:
   reconciler:
@@ -57,6 +58,9 @@ management:
   endpoint:
     health:
       show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
   tracing:
     sampling:
       probability: 1.0

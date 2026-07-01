@@ -13,7 +13,7 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
-public class CommentCountEventListener {
+public class CommentCountChangedEventListener {
     private final RedisTemplate<String, String> redisTemplate;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

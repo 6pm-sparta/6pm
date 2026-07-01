@@ -1,11 +1,15 @@
-package com.fandom.order_service.payment.infra.pg;
+package com.fandom.order_service.payment.infra.pg.mock;
 
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
+import com.fandom.order_service.payment.infra.pg.PaymentGateway;
+import com.fandom.order_service.payment.infra.pg.PgTransactionStatus;
 import com.fandom.order_service.payment.presentation.dto.request.PgWebhookRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -30,22 +34,32 @@ public class MockPaymentGateway implements PaymentGateway {
     private static final String REFUND_FAIL_MARKER = "REFUND_FAIL_";
     private static final String REFUND_TIMEOUT_MARKER = "REFUND_TIMEOUT_";
 
-    private final PgWebhookCallbackSender callbackSender;
+    private final MockPgWebhookCallbackSender callbackSender;
+    private final MockPgTransactionRepository mockPgTransactionRepository;
 
     @Override
+    @Transactional
     public String requestApprovalAsync(UUID orderId, String idempotencyKey, Long amount, PaymentMethod paymentMethod) {
 
         String pgTransactionId = "PG-" + refundScenarioMarker(idempotencyKey) + UUID.randomUUID();
+        boolean willFail = idempotencyKey != null && idempotencyKey.startsWith(FAIL_PREFIX);
+
+        // PG는 결과와 무관하게 항상 자신의 거래 기록을 먼저 영속화한다(진짜 상태).
+        // webhook 발송 여부(TIMEOUT 시나리오)는 이 기록과 별개다 — "PG는 처리했지만
+        // 우리에게 통지만 못 받은" 상황을 재현하기 위함.
+        MockPgTransaction transaction = willFail
+                ? MockPgTransaction.failed(pgTransactionId, orderId, amount, "잔액이 부족합니다.")
+                : MockPgTransaction.approved(pgTransactionId, orderId, amount);
+        mockPgTransactionRepository.save(transaction);
 
         if (idempotencyKey != null && idempotencyKey.startsWith(TIMEOUT_PREFIX)) {
 
-            // PG가 결과 웹훅을 보내지 않는 상황을 시뮬레이션한다.
+            // PG가 결과 웹훅을 보내지 않는 상황을 시뮬레이션한다. 거래 기록 자체는 위에서 이미 저장됨.
             log.warn("[MockPG] 비동기 타임아웃 시뮬레이션(webhook 미발송). orderId={}, pgTransactionId={}",
                     orderId, pgTransactionId);
             return pgTransactionId;
         }
 
-        boolean willFail = idempotencyKey != null && idempotencyKey.startsWith(FAIL_PREFIX);
         PgWebhookRequest payload = willFail
                 ? new PgWebhookRequest(pgTransactionId, orderId, "FAILED", amount, "잔액이 부족합니다.")
                 : new PgWebhookRequest(pgTransactionId, orderId, "APPROVED", amount, null);
@@ -58,6 +72,7 @@ public class MockPaymentGateway implements PaymentGateway {
     }
 
     @Override
+    @Transactional
     public void requestRefundAsync(UUID orderId, String pgTransactionId, Long amount) {
 
         if (pgTransactionId == null) {
@@ -65,15 +80,32 @@ public class MockPaymentGateway implements PaymentGateway {
             return;
         }
 
+        MockPgTransaction transaction = mockPgTransactionRepository.findByPgTransactionIdForUpdate(pgTransactionId)
+                .orElse(null);
+        if (transaction == null) {
+            // 정상 흐름이라면 결제 승인 시점에 이미 저장돼 있어야 한다. 데이터 불일치 방어용 로그.
+            log.error("[MockPG] 거래 기록을 찾을 수 없어 환불 처리를 건너뜁니다. pgTransactionId={}, orderId={}",
+                    pgTransactionId, orderId);
+            return;
+        }
+
+        boolean willFail = pgTransactionId.contains(REFUND_FAIL_MARKER);
+
+        // 거래 상태를 먼저 영속화한다(진짜 상태). webhook 발송 여부와 무관하다.
+        if (willFail) {
+            transaction.markRefundFailed("PG 환불 처리 중 오류가 발생했습니다.");
+        } else {
+            transaction.markRefunded();
+        }
+
         if (pgTransactionId.contains(REFUND_TIMEOUT_MARKER)) {
 
-            // 환불 결과 웹훅이 오지 않는 상황을 시뮬레이션한다.
+            // 환불 결과 웹훅이 오지 않는 상황을 시뮬레이션한다. 거래 기록 자체는 위에서 이미 갱신됨.
             log.warn("[MockPG] 환불 비동기 타임아웃 시뮬레이션(webhook 미발송). orderId={}, pgTransactionId={}",
                     orderId, pgTransactionId);
             return;
         }
 
-        boolean willFail = pgTransactionId.contains(REFUND_FAIL_MARKER);
         PgWebhookRequest payload = willFail
                 ? new PgWebhookRequest(pgTransactionId, orderId, "REFUND_FAILED", amount, "PG 환불 처리 중 오류가 발생했습니다.")
                 : new PgWebhookRequest(pgTransactionId, orderId, "REFUNDED", amount, null);
@@ -81,6 +113,14 @@ public class MockPaymentGateway implements PaymentGateway {
         log.info("[MockPG] 비동기 환불 요청 접수. orderId={}, pgTransactionId={}, amount={}",
                 orderId, pgTransactionId, amount);
         callbackSender.sendDelayed(payload);
+    }
+
+    @Override
+    public Optional<PgTransactionStatus> inquireTransaction(String pgTransactionId) {
+
+        return mockPgTransactionRepository.findByPgTransactionId(pgTransactionId)
+                .map(t -> new PgTransactionStatus(
+                        t.getPgTransactionId(), t.getOrderId(), t.getAmount(), t.getStatus(), t.getFailureReason()));
     }
 
     /**
