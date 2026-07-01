@@ -19,6 +19,8 @@ spring:
       hibernate:
         default_schema: feed_db
         format_sql: true
+        jdbc:
+          batch_size: 50
     show-sql: true
   cloud:
     openfeign:
