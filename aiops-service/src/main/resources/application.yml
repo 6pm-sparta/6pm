@@ -75,7 +75,7 @@ management:
       show-details: always
   tracing:
     sampling:
-      probability: 1.0
+      probability: 0.1 # 부하테스트 용으로 (추후 1.0으로 수정 예정)
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
