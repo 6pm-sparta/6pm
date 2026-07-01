@@ -1,16 +1,16 @@
 server:
   port: 8888
-
 spring:
   application:
     name: config-server
-  profiles:
-    active: native
   cloud:
     config:
       server:
-        native:
-          search-locations: classpath:/config/
+        git:
+          uri: https://github.com/<org>/6pm-config.git   # 방금 만든 Private 레포
+          default-label: main
+          username: ${CONFIG_GIT_USERNAME:}   # GitHub 계정
+          password: ${CONFIG_GIT_TOKEN:}      # PAT (Private 레포라 필수)
 
 management:
   tracing:
