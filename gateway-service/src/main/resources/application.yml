@@ -13,6 +13,12 @@ spring:
       password: ${REDIS_GENERAL_PASSWORD:fandom_redis_pw}
   cloud:
     gateway:
+      # downstream 응답 지연/장애 시 Gateway가 무한대기하지 않도록 전역 timeout을 건다.
+      # connect-timeout: 연결 수립 상한(ms). response-timeout: 응답 대기 상한(Duration).
+      # response-timeout 초과 시 Gateway가 504를 반환한다. (route별 세부 timeout은 부하테스트 후 후속)
+      httpclient:
+        connect-timeout: 2000
+        response-timeout: 10s
       globalcors:
         cors-configurations:
           '[/**]':
@@ -39,32 +45,67 @@ spring:
           uri: lb://AUTH-SERVICE
           predicates:
             - Path=/api/v1/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authCircuitBreaker
+                fallbackUri: forward:/fallback
         - id: user-service
           uri: lb://USER-SERVICE
           # NOTE(임시): 회원가입 경로가 /api/v1/members, /api/v1/creators 로 분리돼 있어 함께 라우팅한다.
           # 추후 user-service 경로를 /api/v1/users/** 로 통일하는 리팩터링 시 정리한다.
           predicates:
             - Path=/api/v1/users/**,/api/v1/members/**,/api/v1/creators/**,/api/v1/follows/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: userCircuitBreaker
+                fallbackUri: forward:/fallback
         - id: feed-service
           uri: lb://FEED-SERVICE
           predicates:
             - Path=/api/v1/feeds/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: feedCircuitBreaker
+                fallbackUri: forward:/fallback
         - id: ticketing-service
           uri: lb://TICKETING-SERVICE
           predicates:
             - Path=/api/v1/tickets/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: ticketingCircuitBreaker
+                fallbackUri: forward:/fallback
         - id: order-service
           uri: lb://ORDER-SERVICE
           predicates:
             - Path=/api/v1/orders/**,/api/v1/payments/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderCircuitBreaker
+                fallbackUri: forward:/fallback
         - id: notification-service
           uri: lb://NOTIFICATION-SERVICE
           predicates:
             - Path=/api/v1/notifications/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notificationCircuitBreaker
+                fallbackUri: forward:/fallback
         - id: chat-service
           uri: lb://CHAT-SERVICE
           predicates:
             - Path=/api/v1/chats/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: chatCircuitBreaker
+                fallbackUri: forward:/fallback
         - id: cs-service
           uri: lb://CS-SERVICE
           predicates:
@@ -87,6 +128,37 @@ jwt:
 hmac:
   secret-key: ${HMAC_SECRET_KEY:6pm-fandom-sns-hmac-shared-secret-key-must-be-at-least-32-bytes-long}
 
+# 장애대응(Circuit Breaker) 공통 설정. route별 CB가 이 default 설정을 공유한다.
+# 1차는 공통 기본값 하나만 두고, 서비스별 임계치 튜닝은 부하테스트 후 후속 이슈로 분리한다.
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        register-health-indicator: true      # actuator health에 CB 상태 노출
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10              # 최근 10개 요청 기준으로 판단
+        failure-rate-threshold: 50           # 실패율 50% 이상이면 open
+        wait-duration-in-open-state: 10s     # open 상태 유지 시간(이후 half-open으로 전환 시도)
+        permitted-number-of-calls-in-half-open-state: 3
+        minimum-number-of-calls: 5           # 최소 5개 요청이 모여야 실패율 계산(초기 오판 방지)
+        record-exceptions:                   # 어떤 예외를 '실패'로 셀지 명시
+          - java.lang.Exception
+    instances:
+      authCircuitBreaker:
+        base-config: default
+      userCircuitBreaker:
+        base-config: default
+      feedCircuitBreaker:
+        base-config: default
+      ticketingCircuitBreaker:
+        base-config: default
+      orderCircuitBreaker:
+        base-config: default
+      notificationCircuitBreaker:
+        base-config: default
+      chatCircuitBreaker:
+        base-config: default
+
 management:
   endpoints:
     web:
@@ -95,6 +167,11 @@ management:
   endpoint:
     gateway:
       access: unrestricted
+    health:
+      show-details: always            # health에 CB 상태 상세 표시
+  health:
+    circuitbreakers:
+      enabled: true                   # circuitBreakers health indicator 활성화
   tracing:
     sampling:
       probability: 1.0
