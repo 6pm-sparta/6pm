@@ -163,4 +163,29 @@ class OutboxPublisherSchedulerTest {
         verify(postBroadcastHandler, never()).handlePostCreated(any(), any(), any());
         verify(outboxEventRepository, never()).save(any());
     }
+
+    @Test
+    @DisplayName("POST_DELETED 이벤트 - handlePostDeleted를 호출하고 PUBLISHED로 마킹")
+    void publishPendingEventsPostDeleted() throws Exception {
+        // given
+        UUID postId = UUID.randomUUID();
+        UUID authorId = UUID.randomUUID();
+        String json = "{\"postId\":\"...\"}";
+
+        OutboxEvent event = OutboxEvent.of(postId, OutboxEventType.POST_DELETED, json);
+        Event.PostDeleted payload = new Event.PostDeleted(postId, authorId);
+
+        given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING))
+                .willReturn(List.of(event));
+        given(objectMapper.readValue(json, Event.PostDeleted.class)).willReturn(payload);
+
+        // when
+        outboxPublisherScheduler.publishPendingEvents();
+
+        // then
+        verify(postBroadcastHandler).handlePostDeleted(postId, authorId);
+        verify(postBroadcastHandler, never()).handlePostCreated(any(), any(), any());
+        assertThat(event.getStatus()).isEqualTo(OutboxStatus.PUBLISHED);
+        verify(outboxEventRepository).save(event);
+    }
 }
