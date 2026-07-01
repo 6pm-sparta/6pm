@@ -347,7 +347,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       args:
-        SERVICE: notification-service
+        SERVICE: cs-service
     profiles: ["apps", "all"]
     container_name: 6pm-cs
     ports: ["8089:8089"]
