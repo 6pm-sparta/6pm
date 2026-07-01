@@ -59,7 +59,10 @@ class PaymentRetryWriterTest {
         return order;
     }
 
+    private UUID latestPaymentId;
+
     private Payment retryableFailedPayment() {
+        latestPaymentId = UUID.randomUUID();
         Payment payment = Payment.builder()
                 .orderId(orderId)
                 .amount(50_000L)
@@ -68,7 +71,7 @@ class PaymentRetryWriterTest {
                 .idempotencyKey("idem-transient")
                 .build();
         payment.failWithRetry("TRANSIENT:PG 일시적 오류");
-        ReflectionTestUtils.setField(payment, "id", UUID.randomUUID());
+        ReflectionTestUtils.setField(payment, "id", latestPaymentId);
         return payment;
     }
 
@@ -79,10 +82,12 @@ class PaymentRetryWriterTest {
         Order order = paymentRequestedOrder();
         Payment failedPayment = retryableFailedPayment();
 
+        ReflectionTestUtils.setField(order, "latestPaymentId", latestPaymentId);
+
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
         given(paymentRepository.findByOrderId(orderId)).willReturn(List.of(failedPayment));
         given(paymentRepository.countByOrderId(orderId)).willReturn(1L); // 1회 시도, MAX_ATTEMPTS(3) 미만
-        given(paymentRepository.findByOrderIdOrderByCreatedAtDescIdDesc(orderId)).willReturn(List.of(failedPayment));
+        given(paymentRepository.findById(latestPaymentId)).willReturn(Optional.of(failedPayment));
         given(paymentRepository.save(any(Payment.class))).willAnswer(inv -> {
             Payment p = inv.getArgument(0);
             ReflectionTestUtils.setField(p, "id", UUID.randomUUID());

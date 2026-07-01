@@ -28,8 +28,6 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PaymentRetryWriter {
 
-    private static final String TRANSIENT_PREFIX = "TRANSIENT:";
-
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final PaymentRepository paymentRepository;
@@ -61,11 +59,15 @@ public class PaymentRetryWriter {
             return PaymentRetryResult.EXHAUSTED;
         }
 
-        Payment lastPayment = paymentRepository.findByOrderIdOrderByCreatedAtDescIdDesc(orderId)
-                .stream().findFirst().orElse(null);
+        if (order.getLatestPaymentId() == null) {
+            log.error("[결제 재시도] latestPaymentId 없음. orderId={}", orderId);
+            return PaymentRetryResult.SKIPPED;
+        }
+
+        Payment lastPayment = paymentRepository.findById(order.getLatestPaymentId()).orElse(null);
 
         if (lastPayment == null) {
-            log.error("[결제 재시도] Payment 레코드 없음. orderId={}", orderId);
+            log.error("[결제 재시도] Payment 레코드 없음. orderId={}, paymentId={}", orderId, order.getLatestPaymentId());
             return PaymentRetryResult.SKIPPED;
         }
 
@@ -112,6 +114,7 @@ public class PaymentRetryWriter {
     public void recordPgTransactionId(UUID paymentId, String pgTransactionId) {
         paymentRepository.findById(paymentId).ifPresent(p -> p.recordPgTransactionId(pgTransactionId));
     }
+
 
     private void saveHistory(UUID orderId, OrderStatus from, OrderStatus to, String reason) {
         orderStatusHistoryRepository.save(
