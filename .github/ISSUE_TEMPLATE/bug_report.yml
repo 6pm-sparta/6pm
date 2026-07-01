@@ -23,6 +23,7 @@ body:
         - notification-service
         - chat-service
         - aiops-service
+        - cs-service
         - common
         - infra (docker/CI/CD/DB)
         - 잘 모르겠음

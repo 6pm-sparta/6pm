@@ -56,7 +56,7 @@ subprojects {
 }
 configure(subprojects.findAll { it.name in [
         'user-service', 'feed-service', 'ticketing-service', 'order-service',
-        'notification-service', 'aiops-service', 'auth-service', 'chat-service'
+        'notification-service', 'aiops-service', 'auth-service', 'chat-service', 'cs-service'
 ] }) {
     dependencies {
         implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
