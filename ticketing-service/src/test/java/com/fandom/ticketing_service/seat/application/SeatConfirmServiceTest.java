@@ -24,6 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -59,12 +60,16 @@ class SeatConfirmServiceTest {
             seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
 
             // when
             seatConfirmService.confirmSeat(orderId);
 
             // then
-            verify(redisTemplate, times(2)).delete(anyString());
+            // seatKey는 DELETE가 아니라 "BOOKED"로 SET — 삭제하면 getSeats()가 기본값 "AVAILABLE"로 반환해
+            // 이미 팔린 좌석이 재선점 가능한 것처럼 보이는 버그가 있었음
+            verify(valueOperations).set(anyString(), eq("BOOKED"));
+            verify(redisTemplate, times(1)).delete(anyString());
 
             ArgumentCaptor<SeatBookedEvent> captor = ArgumentCaptor.forClass(SeatBookedEvent.class);
             verify(seatEventProducer).publishSeatBooked(captor.capture());
@@ -100,6 +105,7 @@ class SeatConfirmServiceTest {
             seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
             doThrow(new RuntimeException("redis down")).when(redisTemplate).delete(anyString());
 
             // when

@@ -155,7 +155,7 @@ sequenceDiagram
 
 **hold ↔ release 동시 호출 레이스 방지:** `hold()`가 주문 생성(`orderClient.create`, 외부 네트워크 호출)을 하는 동안 owner 키 상태를 `PENDING`으로 두고, 주문 생성이 끝나야 `CONFIRMED`로 바꾼다. `releaseHold()`는 `PENDING`인 동안은 무조건 `SEAT_HOLD_PROCESSING`(409)으로 거부한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
 
-> **알려진 제약:** order-service에 생성된 주문을 취소하는 API가 아직 없어서, `releaseHold()`/`releaseExpiredHold()`는 ticketing-service 쪽 상태만 정리한다. order-service의 주문은 별도로 만료/취소 처리가 필요하다 (TODO).
+> **주문 취소 연동 (완료, 2026-07-01):** `releaseHold()`는 `OrderClient.cancel(orderId)`로 order-service 주문도 함께 취소한다. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
 
 ---
 
@@ -196,10 +196,8 @@ sequenceDiagram
 | 항목 | 현황 | 결정 필요 사항 |
 |---|---|---|
 | `holdId` | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 사용할지 |
-| 주문 취소 연동 | 미구현 | `releaseHold`/`releaseExpiredHold` 시 order-service의 주문도 취소하는 API 연동 필요 (`OrderClient`에 취소 메서드 없음) |
 | 스케줄러 분산 락 | 미구현 | `QueueScheduler`가 멀티 인스턴스로 떠 있을 때 같은 배치를 중복 처리할 수 있음. ShedLock 등 분산 락 적용 필요 |
 | `GET /purchase-limit` 엔드포인트 | 미문서화 | `SeatController.java:54-60`에 구현되어 있으나 섹션 6 API 명세에 누락. 코드에 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있어 설계 자체도 미확정 |
 | 구매 한도 값(`MAX_PER_USER`) | 미문서화 | 섹션 3 Redis 키 설계에 `purchase-count` 키는 있지만 실제 한도 값(현재 코드상 4)이 어디에도 명시돼 있지 않음. 2→4 변경 사실도 문서에 반영 안 됨 |
-| `purchase-token` 검증 미연결 (버그) | 미구현 | 문서(구간 2, 260623 대기열 토큰.md, TODO.md)는 `SeatService.hold()` 진입 시 `purchase-token` 존재 여부를 가장 먼저 검증한다고 명시하지만, 실제 `SeatService.hold()`(`SeatService.java:99-135`)에는 해당 검증 호출이 없음. `PurchaseTokenService.exists()`가 코드 어디에서도 호출되지 않아, 대기열을 거치지 않고 바로 `hold()`를 호출해도 선점이 통과됨 |
 | SSE `ENTERED` 이벤트 (문서/코드 불일치) | 미구현 | "260623 대기열 토큰.md"는 토큰 발급 시 SSE로 `ENTERED` 이벤트를 전송한다고 적혀 있으나, 실제 `QueueSseService.java:58,61`에서는 `READY`/`RANK` 이벤트만 전송하고 `ENTERED`는 코드 어디에도 없음 |
 | CHANGELOG.md API 경로 변경 이력 | 수정 필요 | `/queue/enter` → `/queue/shows/{showId}/enter` 기록 이후 실제로는 `/api/v1/tickets/shows/{showId}/queue`로 한 번 더 변경됐는데 반영 안 됨. 최신 경로 변경 이력 추가 필요 |
