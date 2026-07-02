@@ -253,8 +253,8 @@ class PostServiceTest {
     @DisplayName("DB에서 게시글 목록 조회")
     class GetPostsFromDB {
         @Test
-        @DisplayName("PAGE_SIZE 이하 - hasMore = false, nextCursor = null")
-        void noHasMoreWhenUnderPageSize() {
+        @DisplayName("PAGE_SIZE 이하 - hasNext = false, nextCursor = null")
+        void noHasNextWhenUnderPageSize() {
             // given
             Post post = mockPost();
             when(postRepository.findByCursor(any(), any(), any())).thenReturn(List.of(post));
@@ -267,8 +267,8 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
-        void hasMoreWhenExceedsPageSize() {
+        @DisplayName("PAGE_SIZE 초과 - hasNext = true, nextCursor = 마지막 postId")
+        void hasNextWhenExceedsPageSize() {
             // given
             List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
             UUID expectedCursor = posts.get(FeedPolicy.PAGE_SIZE - 1).getId();

@@ -101,20 +101,16 @@ public class CommentService {
         return CommentResponse.Delete.from(comment);
     }
 
-    /**
-     * 댓글 ID로 댓글을 조회하는 메서드
-     */
+    /** 댓글 ID로 댓글을 조회하는 메서드 */
     public Comment findById(UUID commentId) {
         return commentRepository.findById(commentId)
                 .orElseThrow(() -> new CustomException(CommentErrorCode.COMMENT_NOT_FOUND));
     }
 
-    /**
-     * Comment 엔티티로 응답을 구성하는 메서드
-     */
+    /** Comment 엔티티로 응답을 구성하는 메서드 */
     private CursorPageResponse<CommentResponse.Detail> buildResponse(List<Comment> comments) {
-        boolean hasMore = comments.size() > FeedPolicy.PAGE_SIZE;
-        if (hasMore) comments = comments.subList(0, FeedPolicy.PAGE_SIZE);
+        boolean hasNext = comments.size() > FeedPolicy.PAGE_SIZE;
+        if (hasNext) comments = comments.subList(0, FeedPolicy.PAGE_SIZE);
 
         Set<UUID> authorIds = comments.stream().map(Comment::getAuthorId).filter(Objects::nonNull).collect(Collectors.toSet());
 
@@ -126,29 +122,23 @@ public class CommentService {
         List<CommentResponse.Detail> content = comments.stream()
                 .map(c -> CommentResponse.Detail.of(c, UserResponse.of(c.getAuthorId(), userMap))).toList();
 
-        UUID nextCursor = hasMore ? comments.getLast().getId() : null;
-        return CursorPageResponse.of(content, nextCursor, hasMore);
+        UUID nextCursor = hasNext ? comments.getLast().getId() : null;
+        return CursorPageResponse.of(content, nextCursor, hasNext);
     }
 
-    /**
-     * 작성자 ID로 모든 댓글을 익명 처리하는 메서드
-     */
+    /** 작성자 ID로 모든 댓글을 익명 처리하는 메서드 */
     @Transactional
-    public void anonymizeByAuthorId(UUID authorId) {
-        commentRepository.anonymizeByAuthorId(authorId);
+    public void anonymizeAllByAuthorId(UUID authorId) {
+        commentRepository.anonymizeAllByAuthorId(authorId);
     }
 
-    /**
-     * 게시글 ID로 모든 댓글을 삭제하는 메서드
-     */
+    /** 게시글 ID로 모든 댓글을 삭제하는 메서드 */
     @Transactional
     public void deleteAllByPostId(UUID postId, UUID userId) {
         deleteAllByPostIds(List.of(postId), userId);
     }
 
-    /**
-     * 게시글 ID 목록으로 댓글을 삭제하는 메서드
-     */
+    /** 게시글 ID 목록으로 댓글을 삭제하는 메서드 */
     @Transactional
     public void deleteAllByPostIds(List<UUID> postIds, UUID userId) {
         commentRepository.softDeleteAllByPostIds(postIds, userId);

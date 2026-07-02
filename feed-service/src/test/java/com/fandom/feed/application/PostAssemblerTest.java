@@ -51,8 +51,8 @@ class PostAssemblerTest {
     @DisplayName("캐시에서 가져온 postId 목록으로 응답 구성")
     class BuildCacheResponse {
         @Test
-        @DisplayName("PAGE_SIZE 이하 - hasMore = false, nextCursor = null")
-        void noHasMoreWhenUnderPageSize() {
+        @DisplayName("PAGE_SIZE 이하 - hasNext = false, nextCursor = null")
+        void noHasNextWhenUnderPageSize() {
             // given
             UUID postId = UUID.randomUUID();
 
@@ -64,14 +64,14 @@ class PostAssemblerTest {
             CursorPageResponse<PostResponse.Summary> result = postAssembler.buildCacheResponse(List.of(postId), null);
 
             // then
-            assertThat(result.hasMore()).isFalse();
+            assertThat(result.hasNext()).isFalse();
             assertThat(result.nextCursor()).isNull();
             assertThat(result.content()).hasSize(1);
         }
 
         @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
-        void hasMoreWhenExceedsPageSize() {
+        @DisplayName("PAGE_SIZE 초과 - hasNext = true, nextCursor = 마지막 postId")
+        void hasNextWhenExceedsPageSize() {
             // given
             List<UUID> postIds = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
 
@@ -85,7 +85,7 @@ class PostAssemblerTest {
             CursorPageResponse<PostResponse.Summary> result = postAssembler.buildCacheResponse(postIds, null);
 
             // then
-            assertThat(result.hasMore()).isTrue();
+            assertThat(result.hasNext()).isTrue();
             assertThat(result.nextCursor()).isEqualTo(postIds.get(FeedPolicy.PAGE_SIZE - 1));
             assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
@@ -122,7 +122,7 @@ class PostAssemblerTest {
         }
 
         @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor 설정")
+        @DisplayName("PAGE_SIZE 초과 - hasNext = true, nextCursor 설정")
         void buildDBResponseWhenExceedsPageSize() {
             // given
             List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE).mapToObj(i -> mockPost()).toList();
@@ -142,7 +142,7 @@ class PostAssemblerTest {
             );
 
             // then
-            assertThat(result.hasMore()).isTrue();
+            assertThat(result.hasNext()).isTrue();
             assertThat(result.nextCursor()).isNotNull();
             assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }

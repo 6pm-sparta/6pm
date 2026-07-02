@@ -131,11 +131,11 @@ public class PostService {
     private CursorPageResponse<PostResponse.Summary> getPostsFromDB(UUID cursor, UUID authorId, String keyword, UUID userId) {
         List<Post> posts = postRepository.findByCursor(cursor, authorId, keyword);
 
-        boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
+        boolean hasNext = posts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasNext ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
-        UUID nextCursor = hasMore ? page.getLast().getId() : null;
-        return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
+        UUID nextCursor = hasNext ? page.getLast().getId() : null;
+        return postAssembler.buildDBResponse(page, nextCursor, hasNext, userId, false);
     }
 
     /** DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드 */
@@ -145,11 +145,11 @@ public class PostService {
 
         postListCacheService.addPostsForWarm(postIds, authorId);
 
-        boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
+        boolean hasNext = posts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasNext ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
-        UUID nextCursor = hasMore ? page.getLast().getId() : null;
-        return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
+        UUID nextCursor = hasNext ? page.getLast().getId() : null;
+        return postAssembler.buildDBResponse(page, nextCursor, hasNext, userId, false);
     }
 
     /** 작성자 ID로 모든 게시글을 삭제하는 메서드 */

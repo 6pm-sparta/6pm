@@ -29,12 +29,10 @@ public class PostAssembler {
     private final ReactionCacheService reactionCacheService;
     private final UserClient userClient;
 
-    /**
-     * 게시글 목록 캐시에서 가져온 ID 목록으로 응답을 구성하는 메서드
-     */
+    /** 게시글 목록 캐시에서 가져온 ID 목록으로 응답을 구성하는 메서드 */
     public CursorPageResponse<PostResponse.Summary> buildCacheResponse(List<UUID> postIds, UUID userId) {
-        boolean hasMore = postIds.size() > FeedPolicy.PAGE_SIZE;
-        List<UUID> pageIds = hasMore ? postIds.subList(0, FeedPolicy.PAGE_SIZE) : postIds;
+        boolean hasNext = postIds.size() > FeedPolicy.PAGE_SIZE;
+        List<UUID> pageIds = hasNext ? postIds.subList(0, FeedPolicy.PAGE_SIZE) : postIds;
 
         List<PostDetailCache> posts = postDetailCacheService.getPostDetailBatch(pageIds);
         List<ReactionInfoCache> reactionInfos = reactionCacheService.getReactionInfoBatch(pageIds, userId, false);
@@ -43,15 +41,13 @@ public class PostAssembler {
                 .mapToObj(i -> PostResponse.Summary.of(posts.get(i), reactionInfos.get(i)))
                 .toList();
 
-        UUID nextCursor = hasMore ? pageIds.getLast() : null;
-        return CursorPageResponse.of(summaries, nextCursor, hasMore);
+        UUID nextCursor = hasNext ? pageIds.getLast() : null;
+        return CursorPageResponse.of(summaries, nextCursor, hasNext);
     }
 
-    /**
-     * Post 엔티티로 응답을 구성하는 메서드
-     */
+    /** Post 엔티티로 응답을 구성하는 메서드 */
     public CursorPageResponse<PostResponse.Summary> buildDBResponse(
-            List<Post> page, UUID nextCursor, boolean hasMore, UUID userId, boolean isLiked
+            List<Post> page, UUID nextCursor, boolean hasNext, UUID userId, boolean isLiked
     ) {
         if (page.isEmpty())
             return CursorPageResponse.of(List.of(), null, false);
@@ -78,6 +74,6 @@ public class PostAssembler {
                 .mapToObj(i -> PostResponse.Summary.of(details.get(i), reactionInfos.get(i)))
                 .toList();
 
-        return CursorPageResponse.of(summaries, nextCursor, hasMore);
+        return CursorPageResponse.of(summaries, nextCursor, hasNext);
     }
 }

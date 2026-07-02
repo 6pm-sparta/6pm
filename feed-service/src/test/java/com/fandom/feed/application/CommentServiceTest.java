@@ -159,7 +159,7 @@ class CommentServiceTest {
 
             // then
             assertThat(response.content()).hasSize(2);
-            assertThat(response.hasMore()).isFalse();
+            assertThat(response.hasNext()).isFalse();
             assertThat(response.nextCursor()).isNull();
 
             verify(postReader).findById(postId);
@@ -168,7 +168,7 @@ class CommentServiceTest {
         }
 
         @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true")
+        @DisplayName("PAGE_SIZE 초과 - hasNext = true")
         void getCommentsForPostWhenExceedsPageSize() {
             // given
             List<Comment> comments = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1)
@@ -189,7 +189,7 @@ class CommentServiceTest {
 
             // then
             assertThat(response.content()).hasSize(FeedPolicy.PAGE_SIZE);
-            assertThat(response.hasMore()).isTrue();
+            assertThat(response.hasNext()).isTrue();
             assertThat(response.nextCursor()).isNotNull();
 
             verify(postReader).findById(postId);
@@ -276,7 +276,7 @@ class CommentServiceTest {
 
             // then
             assertThat(response.content()).hasSize(2);
-            assertThat(response.hasMore()).isFalse();
+            assertThat(response.hasNext()).isFalse();
 
             verify(commentRepository).findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId);
             verify(userClient).getUsers(any());

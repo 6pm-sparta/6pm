@@ -32,9 +32,9 @@ public class PostBroadcastHandler {
         boolean shouldFanout = followerCount <= fanoutThreshold;
 
         UUID cursor = null;
-        boolean hasMore = true;
+        boolean hasNext = true;
 
-        while (hasMore) {
+        while (hasNext) {
             CursorPageResponse<UUID> page = userClientRetryWrapper.getFollowerIds(authorId, cursor, chunkSize);
 
             List<UUID> chunk = page.content();
@@ -44,7 +44,7 @@ public class PostBroadcastHandler {
             }
 
             cursor = page.nextCursor();
-            hasMore = page.hasMore();
+            hasNext = page.hasNext();
         }
     }
 
@@ -54,16 +54,16 @@ public class PostBroadcastHandler {
         if (followerCount == 0 || followerCount > fanoutThreshold) return;
 
         UUID cursor = null;
-        boolean hasMore = true;
+        boolean hasNext = true;
 
-        while (hasMore) {
+        while (hasNext) {
             CursorPageResponse<UUID> page = userClientRetryWrapper.getFollowerIds(authorId, cursor, chunkSize);
 
             List<UUID> chunk = page.content();
             if (!chunk.isEmpty()) fanoutService.removeChunk(postId, cursor, chunk);
 
             cursor = page.nextCursor();
-            hasMore = page.hasMore();
+            hasNext = page.hasNext();
         }
     }
 }
