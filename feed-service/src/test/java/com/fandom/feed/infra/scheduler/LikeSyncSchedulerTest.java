@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -38,12 +39,21 @@ class LikeSyncSchedulerTest {
             .withUsername("test")
             .withPassword("test");
 
+    @SuppressWarnings("resource")
+    @Container
+    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
+            .withExposedPorts(6379);
+
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+
+        registry.add("spring.data.redis.host", redis::getHost);
+        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
     }
 
     @Test
@@ -52,7 +62,7 @@ class LikeSyncSchedulerTest {
         // Given
         UUID postId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
-        redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, userId.toString());
+        redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE + postId, userId.toString());
 
         // When
         likeSyncScheduler.syncLikes();
@@ -62,6 +72,6 @@ class LikeSyncSchedulerTest {
         assertThat(likes).extracting(Like::getUserId).contains(userId);
 
         // Cleanup
-        redisTemplate.delete(RedisKeyPrefix.LIKE_SET + postId);
+        redisTemplate.delete(RedisKeyPrefix.LIKE + postId);
     }
 }

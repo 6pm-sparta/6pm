@@ -44,7 +44,7 @@ class FanoutServiceTest {
             fanoutService.insertChunk(postId, cursor, followerChunk);
 
             // then
-            verify(timelineCacheService).addPosts(followerChunk, postId, expectedScore);
+            verify(timelineCacheService).addPost(followerChunk, postId, expectedScore);
         }
 
         @Test
@@ -55,7 +55,7 @@ class FanoutServiceTest {
             UUID cursor = UUID.randomUUID();
             List<UUID> followerChunk = List.of(UUID.randomUUID());
 
-            doThrow(new RuntimeException("Redis 연결 실패")).when(timelineCacheService).addPosts(any(), any(), anyLong());
+            doThrow(new RuntimeException("Redis 연결 실패")).when(timelineCacheService).addPost(any(), any(), anyLong());
 
             // when & then
             assertDoesNotThrow(() -> fanoutService.insertChunk(postId, cursor, followerChunk));
@@ -77,7 +77,7 @@ class FanoutServiceTest {
             fanoutService.removeChunk(postId, cursor, followerChunk);
 
             // then
-            verify(timelineCacheService).removePosts(followerChunk, postId);
+            verify(timelineCacheService).removePost(followerChunk, postId);
         }
 
         @Test
@@ -88,7 +88,7 @@ class FanoutServiceTest {
             UUID cursor = UUID.randomUUID();
             List<UUID> followerChunk = List.of(UUID.randomUUID());
 
-            doThrow(new RuntimeException("Redis 연결 실패")).when(timelineCacheService).removePosts(any(), any());
+            doThrow(new RuntimeException("Redis 연결 실패")).when(timelineCacheService).removePost(any(), any());
 
             // when & then
             assertDoesNotThrow(() -> fanoutService.removeChunk(postId, cursor, followerChunk));

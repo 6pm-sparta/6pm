@@ -140,7 +140,7 @@ public class PostService {
 
     /** DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드 */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
-        List<Post> posts = postRepository.findByCursorForWarm(authorId);
+        List<Post> posts = postRepository.findByAuthorIdForWarm(authorId);
         List<UUID> postIds = posts.stream().map(Post::getId).toList();
 
         postListCacheService.addPostsForWarm(postIds, authorId);

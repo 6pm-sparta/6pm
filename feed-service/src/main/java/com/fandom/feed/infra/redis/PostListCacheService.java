@@ -5,11 +5,14 @@ import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.connection.StringRedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -41,6 +44,50 @@ public class PostListCacheService {
 
         if (postIds == null) return List.of();
         return postIds.stream().map(UUID::fromString).toList();
+    }
+
+    /**
+     * 팔로잉 ID 목록으로 게시글 목록 캐시에서 게시글 ID 목록을 조회하는 메서드<br>
+     * - 각 팔로잉별로 5페이지 초과 시 null로 표시
+     */
+    public Map<UUID, List<UUID>> getPostIdsBatch(List<UUID> followingIds, UUID cursor) {
+        List<Object> cursorScores = (cursor != null)
+                ? redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+                    StringRedisConnection stringConn = (StringRedisConnection) connection;
+                    followingIds.forEach(authorId -> stringConn.zScore(resolveKey(authorId), cursor.toString()));
+                    return null;
+                })
+                : null;
+
+        List<Object> rangeResults = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
+            for (int i = 0; i < followingIds.size(); i++) {
+                String key = resolveKey(followingIds.get(i));
+                Double cursorScore = (cursorScores != null) ? (Double) cursorScores.get(i) : null;
+                double max = (cursorScore != null) ? cursorScore - 1 : Double.MAX_VALUE;
+
+                stringConn.zRevRangeByScore(key, 0, max, 0, FeedPolicy.PAGE_SIZE + 1);
+            }
+            return null;
+        });
+
+        Map<UUID, List<UUID>> result = new LinkedHashMap<>();
+        for (int i = 0; i < followingIds.size(); i++) {
+            UUID authorId = followingIds.get(i);
+            Double cursorScore = (cursorScores != null) ? (Double) cursorScores.get(i) : null;
+
+            // cursor는 있는데 캐시에 없으면 5페이지 초과
+            if (cursor != null && cursorScore == null) {
+                result.put(authorId, null);
+                continue;
+            }
+
+            @SuppressWarnings("unchecked")
+            Set<String> raw = (Set<String>) rangeResults.get(i);
+            List<UUID> postIds = (raw == null) ? List.of() : raw.stream().map(UUID::fromString).toList();
+            result.put(authorId, postIds);
+        }
+        return result;
     }
 
     /** 게시글 목록 캐시가 워밍업 되었는지 확인하는 메서드 */

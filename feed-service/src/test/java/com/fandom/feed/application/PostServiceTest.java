@@ -200,13 +200,13 @@ class PostServiceTest {
         void getPostsCacheNotReady() {
             // given
             when(postListCacheService.isCacheReady(null)).thenReturn(false);
-            when(postRepository.findByCursorForWarm(null)).thenReturn(List.of());
+            when(postRepository.findByAuthorIdForWarm(null)).thenReturn(List.of());
 
             // when
             postService.getPosts(null, null, null, null);
 
             // then
-            verify(postRepository).findByCursorForWarm(null);
+            verify(postRepository).findByAuthorIdForWarm(null);
             verify(postListCacheService, never()).addPost(any(), isNull());
             verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
         }
@@ -289,7 +289,7 @@ class PostServiceTest {
 
         when(post.getId()).thenReturn(postId);
         when(postListCacheService.isCacheReady(null)).thenReturn(false);
-        when(postRepository.findByCursorForWarm(null)).thenReturn(List.of(post));
+        when(postRepository.findByAuthorIdForWarm(null)).thenReturn(List.of(post));
 
         // when
         postService.getPosts(null, null, null, null);

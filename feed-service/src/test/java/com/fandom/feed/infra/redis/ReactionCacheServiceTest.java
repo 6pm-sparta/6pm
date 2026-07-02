@@ -142,7 +142,7 @@ class ReactionCacheServiceTest {
             // Given
             UUID postId = UUID.randomUUID();
             when(valueOperations.get(RedisKeyPrefix.COMMENT_COUNT + postId)).thenReturn("5"); // 로드 여부 확인용
-            when(setOperations.size(RedisKeyPrefix.LIKE_SET + postId)).thenReturn(3L);
+            when(setOperations.size(RedisKeyPrefix.LIKE + postId)).thenReturn(3L);
 
             // When
             ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, null);
@@ -170,7 +170,7 @@ class ReactionCacheServiceTest {
 
             // Then
             assertThat(info.likeCount()).isEqualTo(1L);
-            verify(setOperations).add(eq(RedisKeyPrefix.LIKE_SET + postId), any(String[].class));
+            verify(setOperations).add(eq(RedisKeyPrefix.LIKE + postId), any(String[].class));
         }
     }
 }

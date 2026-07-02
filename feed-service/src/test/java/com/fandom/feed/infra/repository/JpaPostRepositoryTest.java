@@ -98,12 +98,12 @@ class JpaPostRepositoryTest {
 
     @Nested
     @DisplayName("워밍업용 100개 조회")
-    class FindByCursorForWarm {
+    class FindByAuthorIdForWarm {
         @Test
         @DisplayName("authorId 없음 - 전체 게시글 대상")
         void findTopForWarmWithoutAuthorId() {
             // when
-            List<Post> results = jpaPostRepository.findByCursorForWarm(null, PageRequest.of(0, 100));
+            List<Post> results = jpaPostRepository.findByAuthorIdForWarm(null, PageRequest.of(0, 100));
 
             // then
             assertThat(results).hasSize(3);
@@ -119,7 +119,7 @@ class JpaPostRepositoryTest {
             jpaPostRepository.save(post);
 
             // when
-            List<Post> results = jpaPostRepository.findByCursorForWarm(authorId, PageRequest.of(0, 100));
+            List<Post> results = jpaPostRepository.findByAuthorIdForWarm(authorId, PageRequest.of(0, 100));
 
             // then
             assertThat(results).hasSize(1);

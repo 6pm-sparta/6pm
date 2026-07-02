@@ -72,6 +72,8 @@ cache:
     post-detail: 3600  # 60분
     post-list: 300  # 5분
     comment-count: 300  # 5분
+    timeline: 86400  # 24시간
+    large-following: 600  # 10분
 
 scheduler:
   like-sync:

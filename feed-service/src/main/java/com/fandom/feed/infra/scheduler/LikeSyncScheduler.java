@@ -28,9 +28,9 @@ public class LikeSyncScheduler {
     @Transactional
     @Scheduled(fixedDelayString = "#{${scheduler.like-sync.fixed-delay} * 1000}")
     public void syncLikes() {
-        // Redis scan으로 LIKE_SET 키 전체 수집
+        // Redis scan으로 LIKE 키 전체 수집
         Set<String> keys = new HashSet<>();
-        ScanOptions options = ScanOptions.scanOptions().match(RedisKeyPrefix.LIKE_SET + "*").count(100).build();
+        ScanOptions options = ScanOptions.scanOptions().match(RedisKeyPrefix.LIKE + "*").count(100).build();
 
         try (Cursor<String> cursor = redisTemplate.scan(options)) {
             cursor.forEachRemaining(keys::add);
@@ -41,7 +41,7 @@ public class LikeSyncScheduler {
         List<Like> likesToInsert = new ArrayList<>();
 
         keys.forEach(key -> {
-            UUID postId = UUID.fromString(key.replace(RedisKeyPrefix.LIKE_SET, ""));
+            UUID postId = UUID.fromString(key.replace(RedisKeyPrefix.LIKE, ""));
             Set<String> redisUserIds = redisTemplate.opsForSet().members(key);
 
             if (redisUserIds == null || redisUserIds.isEmpty()) return;

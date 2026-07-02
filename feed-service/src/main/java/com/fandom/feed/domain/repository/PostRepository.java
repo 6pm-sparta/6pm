@@ -7,9 +7,12 @@ import java.util.UUID;
 
 public interface PostRepository extends BaseRepository<Post, UUID> {
     List<Post> findByCursor(UUID cursor, UUID authorId, String keyword);
-    List<Post> findByCursorForWarm(UUID authorId);
+    List<Post> findByAuthorIdForWarm(UUID authorId);
     void incrementCommentCount(UUID postId);
     void decrementCommentCount(UUID postId);
     void softDeleteAllByAuthorId(UUID authorId);
     List<UUID> findAllIdsByAuthorId(UUID authorId);
+    List<Post> findByCursorAndAuthorIdIn(UUID cursor, List<UUID> authorIds);
+    List<UUID> findIdsByCursorAndAuthorIdIn(UUID cursor, List<UUID> authorIds);
+    List<Post> findByAuthorIdInForWarm(List<UUID> authorIds);
 }
