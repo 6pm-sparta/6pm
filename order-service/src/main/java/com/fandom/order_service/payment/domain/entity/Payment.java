@@ -66,6 +66,10 @@ public class Payment extends BaseEntity {
     @Column(length = 255)
     private String failureReason;
 
+    /** FAILED webhook 일시적 오류 시 true. PaymentRetryScheduler 폴링 기준. */
+    @Column(nullable = false)
+    private boolean retryable;
+
     @Builder
     private Payment(UUID orderId, Long amount, PaymentStatus paymentStatus, PaymentMethod paymentMethod,
                     String pgTransactionId, String idempotencyKey, Long refundAmount, Long refundRetryCount,
@@ -79,6 +83,7 @@ public class Payment extends BaseEntity {
         this.refundAmount = refundAmount != null ? refundAmount : 0L;
         this.refundRetryCount = refundRetryCount != null ? refundRetryCount : 0L;
         this.failureReason = failureReason;
+        this.retryable = false;
     }
 
     /**
@@ -119,6 +124,18 @@ public class Payment extends BaseEntity {
 
         this.paymentStatus = PaymentStatus.FAILED;
         this.failureReason = failureReason;
+    }
+
+    /** REQUESTED → FAILED + retryable=true. Order 상태 유지, 재시도는 PaymentRetryScheduler가 처리. */
+    public void failWithRetry(String failureReason) {
+
+        if (this.paymentStatus != PaymentStatus.REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.paymentStatus = PaymentStatus.FAILED;
+        this.failureReason = failureReason;
+        this.retryable = true;
     }
 
     /**

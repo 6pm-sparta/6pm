@@ -38,7 +38,7 @@ class OrderTimeoutSchedulerTest {
     @BeforeEach
     void setUp() {
         OrderProperties orderProperties = new OrderProperties(
-                null, 10, null, null, null,
+                null, 10, null, null, null, null,
                 new OrderProperties.Timeout(100, 5000L), null, null);
         scheduler = new OrderTimeoutScheduler(orderRepository, orderTimeoutWriter, orderProperties);
     }
