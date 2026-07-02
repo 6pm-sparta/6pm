@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Mock PG 클라이언트.
@@ -27,12 +26,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * - REFUND_TIMEOUT_  : 승인 후 환불 웹훅 미발송
  * - 그 외             : 승인(APPROVED), 환불(REFUNDED)
  *
- * 확률적 장애 주입 모드(CHAOS_MODE_ENABLED):
- * 위 마커는 기능 검증용 결정론적 시나리오라 부하 테스트에서 매 요청마다 지정할 수 없다.
- * 마커가 없는 요청에 한해 CHAOS_MODE_ENABLED가 켜져 있으면 확률적으로 결과를 흔든다
- * PG 호출 자체는 논블로킹이라 여기서 지연을 줘도 Tomcat 스레드는 잡히지 않는다 — 지연/실패는
- * webhook 도착 타이밍과 결과에만 영향을 주며, 실제 부하는 이 webhook을 order-service가
- * 수신·처리하는 시점(DB 락, 커넥션 풀, Kafka 발행)에 걸린다.
+ * 확률적 장애 주입 모드(#236): 위 마커는 기능 검증용 결정론적 시나리오라 부하 테스트에서 매 요청마다
+ * 지정할 수 없다. 마커 없는 요청에 한해 MockPgChaosPolicy(ChaosProperties.enabled)가 확률적으로 결과를
+ * 흔든다. 판단 자체는 MockPgChaosPolicy에 위임하고, 여기서는 그 결과를 받아 기존 마커 로직과 동일한 흐름
+ * (거래 영속화 → webhook 발송)으로 처리한다. 마커가 항상 우선하므로 기존 기능 테스트에는 영향 없다.
  */
 @Slf4j
 @Component
@@ -46,21 +43,11 @@ public class MockPaymentGateway implements PaymentGateway {
     private static final String PAYMENT_FAILURE_REASON = "결제 실패";
     private static final String REFUND_FAIL_MARKER = "REFUND_FAIL_";
     private static final String REFUND_TIMEOUT_MARKER = "REFUND_TIMEOUT_";
-
-    // 부하 테스트용 확률적 장애 주입 모드. 마커 없는 요청에만 적용.
-    // 부하 테스트 시나리오 실행 전에 true로 바꿔서 재배포.
-    private static final boolean CHAOS_MODE_ENABLED = false;
-    private static final int CHAOS_FAILED_PERCENT = 3;  // 실패 webhook
-    private static final int CHAOS_LOST_PERCENT = 2;    // 승인되지만 webhook 미발송(유실)
-    private static final int CHAOS_SLOW_PERCENT = 10;   // 승인 + 지연 지터. 나머지 85는 정상
-    private static final int CHAOS_ROLL_BOUND = 100;     // roll 범위: 0~99
-    private static final long CHAOS_JITTER_MIN_MILLIS = 1_000L;
-    private static final long CHAOS_JITTER_MAX_MILLIS = 3_000L;
-
-    enum ChaosOutcome { NORMAL, SLOW, FAILED, LOST }
+    private static final String REFUND_FAILURE_REASON = "PG 환불 처리 중 오류가 발생했습니다.";
 
     private final MockPgWebhookCallbackSender callbackSender;
     private final MockPgTransactionRepository mockPgTransactionRepository;
+    private final MockPgChaosPolicy chaosPolicy;
 
     @Override
     @Transactional
@@ -68,70 +55,35 @@ public class MockPaymentGateway implements PaymentGateway {
 
         String pgTransactionId = "PG-" + refundScenarioMarker(idempotencyKey) + UUID.randomUUID();
 
-        // 1단계: 마커로 결과가 이미 정해진 요청인지 확인한다.
-        boolean isMarkedTransientFail = false;
-        boolean isMarkedFail = false;
-        boolean isMarkedTimeout = false;
-
-        if (idempotencyKey != null) {
-            if (idempotencyKey.startsWith(TRANSIENT_FAIL_PREFIX)) {
-                isMarkedTransientFail = true;
-            } else if (idempotencyKey.startsWith(FAIL_PREFIX)) {
-                isMarkedFail = true;
-            } else if (idempotencyKey.startsWith(TIMEOUT_PREFIX)) {
-                isMarkedTimeout = true;
-            }
-        }
+        boolean isMarkedTransientFail = idempotencyKey != null && idempotencyKey.startsWith(TRANSIENT_FAIL_PREFIX);
+        boolean isMarkedFail = !isMarkedTransientFail && idempotencyKey != null && idempotencyKey.startsWith(FAIL_PREFIX);
+        boolean isMarkedTimeout = !isMarkedTransientFail && !isMarkedFail
+                && idempotencyKey != null && idempotencyKey.startsWith(TIMEOUT_PREFIX);
         boolean hasMarker = isMarkedTransientFail || isMarkedFail || isMarkedTimeout;
 
-        // 2단계: 마커가 없고 확률모드가 켜져 있을 때만 주사위를 굴린다.
-        ChaosOutcome chaos = ChaosOutcome.NORMAL;
-        if (!hasMarker && CHAOS_MODE_ENABLED) {
-            chaos = rollChaosOutcome();
-        }
+        MockPgChaosPolicy.Outcome chaos = chaosPolicy.decide(hasMarker);
+        ApprovalDecision decision = decideApprovalOutcome(isMarkedTransientFail, isMarkedFail, isMarkedTimeout, chaos);
 
-        // 3단계: 마커와 chaos 결과를 합쳐서, 이번 요청의 최종 결과를 하나로 정리한다.
-        boolean isApproved;
-        String failureReason = null;
-
-        if (isMarkedTransientFail) {
-            isApproved = false;
-            failureReason = TRANSIENT_FAILURE_REASON;
-        } else if (isMarkedFail || chaos == ChaosOutcome.FAILED) {
-            isApproved = false;
-            failureReason = PAYMENT_FAILURE_REASON;
-        } else {
-            isApproved = true;
-        }
-
-        boolean webhookLost = isMarkedTimeout || chaos == ChaosOutcome.LOST;
-
-        // 4단계: PG 자체 거래 기록은 결과와 무관하게 항상 저장한다(진짜 상태).
-        MockPgTransaction transaction = isApproved
+        // PG는 결과와 무관하게 항상 자신의 거래 기록을 먼저 영속화한다(진짜 상태).
+        // webhook 발송 여부(TIMEOUT/LOST 시나리오)는 이 기록과 별개다.
+        MockPgTransaction transaction = decision.approved()
                 ? MockPgTransaction.approved(pgTransactionId, orderId, amount)
-                : MockPgTransaction.failed(pgTransactionId, orderId, amount, failureReason);
+                : MockPgTransaction.failed(pgTransactionId, orderId, amount, decision.failureReason());
         mockPgTransactionRepository.save(transaction);
 
-        // 5단계: webhook이 유실되는 시나리오면 여기서 끝낸다.
-        if (webhookLost) {
+        if (decision.webhookLost()) {
             log.warn("[MockPG] 비동기 타임아웃/유실 시뮬레이션(webhook 미발송). orderId={}, pgTransactionId={}, chaos={}",
                     orderId, pgTransactionId, chaos);
             return pgTransactionId;
         }
 
-        // 6단계: webhook에 담을 내용을 만든다.
-        String status = isApproved ? "APPROVED" : "FAILED";
-        PgWebhookRequest payload = new PgWebhookRequest(pgTransactionId, orderId, status, amount, failureReason);
+        String status = decision.approved() ? "APPROVED" : "FAILED";
+        PgWebhookRequest payload = new PgWebhookRequest(pgTransactionId, orderId, status, amount, decision.failureReason());
 
         log.info("[MockPG] 비동기 결제 승인 요청 접수. orderId={}, pgTransactionId={}, paymentMethod={}, chaos={}",
                 orderId, pgTransactionId, paymentMethod, chaos);
 
-        // 7단계: SLOW면 지연을 추가해서 보내고, 아니면 평소대로 보낸다.
-        if (chaos == ChaosOutcome.SLOW) {
-            callbackSender.sendDelayed(payload, randomJitterMillis());
-        } else {
-            callbackSender.sendDelayed(payload);
-        }
+        dispatchWebhook(payload, chaos);
 
         return pgTransactionId;
     }
@@ -154,49 +106,34 @@ public class MockPaymentGateway implements PaymentGateway {
             return;
         }
 
-        // 1단계: 마커 확인
         boolean isMarkedFail = pgTransactionId.contains(REFUND_FAIL_MARKER);
         boolean isMarkedTimeout = pgTransactionId.contains(REFUND_TIMEOUT_MARKER);
         boolean hasMarker = isMarkedFail || isMarkedTimeout;
 
-        // 2단계: 마커가 없을 때만 주사위
-        ChaosOutcome chaos = ChaosOutcome.NORMAL;
-        if (!hasMarker && CHAOS_MODE_ENABLED) {
-            chaos = rollChaosOutcome();
-        }
+        MockPgChaosPolicy.Outcome chaos = chaosPolicy.decide(hasMarker);
+        RefundDecision decision = decideRefundOutcome(isMarkedFail, isMarkedTimeout, chaos);
 
-        // 3단계: 최종 결과 정리
-        boolean isRefundFailed = isMarkedFail || chaos == ChaosOutcome.FAILED;
-        boolean webhookLost = isMarkedTimeout || chaos == ChaosOutcome.LOST;
-
-        // 4단계: 거래 상태를 먼저 갱신한다(진짜 상태). webhook 발송 여부와 무관하다.
-        if (isRefundFailed) {
-            transaction.markRefundFailed("PG 환불 처리 중 오류가 발생했습니다.");
+        // 거래 상태를 먼저 갱신한다(진짜 상태). webhook 발송 여부와 무관하다.
+        if (decision.failed()) {
+            transaction.markRefundFailed(REFUND_FAILURE_REASON);
         } else {
             transaction.markRefunded();
         }
 
-        // 5단계: webhook이 유실되는 시나리오면 여기서 끝낸다.
-        if (webhookLost) {
+        if (decision.webhookLost()) {
             log.warn("[MockPG] 환불 비동기 타임아웃/유실 시뮬레이션(webhook 미발송). orderId={}, pgTransactionId={}, chaos={}",
                     orderId, pgTransactionId, chaos);
             return;
         }
 
-        // 6단계: webhook 내용을 만든다.
-        PgWebhookRequest payload = isRefundFailed
-                ? new PgWebhookRequest(pgTransactionId, orderId, "REFUND_FAILED", amount, "PG 환불 처리 중 오류가 발생했습니다.")
+        PgWebhookRequest payload = decision.failed()
+                ? new PgWebhookRequest(pgTransactionId, orderId, "REFUND_FAILED", amount, REFUND_FAILURE_REASON)
                 : new PgWebhookRequest(pgTransactionId, orderId, "REFUNDED", amount, null);
 
         log.info("[MockPG] 비동기 환불 요청 접수. orderId={}, pgTransactionId={}, amount={}, chaos={}",
                 orderId, pgTransactionId, amount, chaos);
 
-        // 7단계: SLOW면 지연을 추가해서 보내고, 아니면 평소대로 보낸다.
-        if (chaos == ChaosOutcome.SLOW) {
-            callbackSender.sendDelayed(payload, randomJitterMillis());
-        } else {
-            callbackSender.sendDelayed(payload);
-        }
+        dispatchWebhook(payload, chaos);
     }
 
     @Override
@@ -227,34 +164,38 @@ public class MockPaymentGateway implements PaymentGateway {
         return "";
     }
 
-    private ChaosOutcome rollChaosOutcome() {
-        int roll = ThreadLocalRandom.current().nextInt(CHAOS_ROLL_BOUND); // 0 이상 99 이하 정수
-        return resolveChaosOutcome(roll);
+    /** 마커 + chaos 판정 결과를 "승인 여부 / webhook 발송 여부 / 실패 사유" 하나로 정리한다. */
+    private ApprovalDecision decideApprovalOutcome(boolean isMarkedTransientFail, boolean isMarkedFail,
+                                                   boolean isMarkedTimeout, MockPgChaosPolicy.Outcome chaos) {
+        if (isMarkedTransientFail) {
+            return new ApprovalDecision(false, false, TRANSIENT_FAILURE_REASON);
+        }
+        if (isMarkedFail || chaos == MockPgChaosPolicy.Outcome.FAILED) {
+            return new ApprovalDecision(false, false, PAYMENT_FAILURE_REASON);
+        }
+        boolean webhookLost = isMarkedTimeout || chaos == MockPgChaosPolicy.Outcome.LOST;
+        return new ApprovalDecision(true, webhookLost, null);
     }
 
-    /**
-     * roll(0~99)을 누적 확률 구간에 매핑한다. 정수 비교라 부동소수점 오차가 없다.
-     * 순수 함수로 분리해서 랜덤 시드 없이 경계값 테스트가 가능하도록 함.
-     */
-    static ChaosOutcome resolveChaosOutcome(int roll) {
-        int failedBoundary = CHAOS_FAILED_PERCENT;                // 3
-        int lostBoundary = failedBoundary + CHAOS_LOST_PERCENT;   // 5
-        int slowBoundary = lostBoundary + CHAOS_SLOW_PERCENT;     // 15
-
-        if (roll < failedBoundary) {
-            return ChaosOutcome.FAILED;
-        }
-        if (roll < lostBoundary) {
-            return ChaosOutcome.LOST;
-        }
-        if (roll < slowBoundary) {
-            return ChaosOutcome.SLOW;
-        }
-        return ChaosOutcome.NORMAL;
+    /** 마커 + chaos 판정 결과를 "환불 실패 여부 / webhook 발송 여부" 하나로 정리한다. */
+    private RefundDecision decideRefundOutcome(boolean isMarkedFail, boolean isMarkedTimeout, MockPgChaosPolicy.Outcome chaos) {
+        boolean failed = isMarkedFail || chaos == MockPgChaosPolicy.Outcome.FAILED;
+        boolean webhookLost = isMarkedTimeout || chaos == MockPgChaosPolicy.Outcome.LOST;
+        return new RefundDecision(failed, webhookLost);
     }
 
-    private long randomJitterMillis() {
-        // CHAOS_JITTER_MAX_MILLIS 값도 나오게 하려고 +1 (nextLong의 두 번째 인자는 포함 안 됨)
-        return ThreadLocalRandom.current().nextLong(CHAOS_JITTER_MIN_MILLIS, CHAOS_JITTER_MAX_MILLIS + 1);
+    /** SLOW면 지연 지터를 추가해서 보내고, 아니면 평소대로 보낸다. */
+    private void dispatchWebhook(PgWebhookRequest payload, MockPgChaosPolicy.Outcome chaos) {
+        if (chaos == MockPgChaosPolicy.Outcome.SLOW) {
+            callbackSender.sendDelayed(payload, chaosPolicy.randomJitterMillis());
+        } else {
+            callbackSender.sendDelayed(payload);
+        }
+    }
+
+    private record ApprovalDecision(boolean approved, boolean webhookLost, String failureReason) {
+    }
+
+    private record RefundDecision(boolean failed, boolean webhookLost) {
     }
 }
