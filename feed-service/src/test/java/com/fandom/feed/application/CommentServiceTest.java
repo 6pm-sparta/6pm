@@ -1,7 +1,6 @@
 package com.fandom.feed.application;
 
 import com.fandom.common.auth.UserIdCard;
-import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.event.Event;
@@ -12,7 +11,7 @@ import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.CommentRepository;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.global.constant.ReactionSort;
-import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.presentation.dto.response.CommentResponse;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
@@ -52,7 +51,7 @@ class CommentServiceTest {
     private ApplicationEventPublisher applicationEventPublisher;
 
     @Mock
-    private UserClient userClient;
+    private UserClientRetryWrapper userClient;
 
     @InjectMocks
     private CommentService commentService;
@@ -150,7 +149,7 @@ class CommentServiceTest {
             // given
             when(postReader.findById(postId)).thenReturn(post);
             when(commentRepository.findByCursorAndPostId(null, ReactionSort.LATEST, postId)).thenReturn(comments);
-            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+            when(userClient.getUsers(any())).thenReturn(List.of(userResponse));
 
             // when
             CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForPost(
@@ -180,7 +179,7 @@ class CommentServiceTest {
 
             when(postReader.findById(postId)).thenReturn(post);
             when(commentRepository.findByCursorAndPostId(null, ReactionSort.LATEST, postId)).thenReturn(comments);
-            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+            when(userClient.getUsers(any())).thenReturn(List.of(userResponse));
 
             // when
             CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForPost(
@@ -267,7 +266,7 @@ class CommentServiceTest {
             // given
             UserIdCard idCard = UserIdCard.of(authorId, "MEMBER");
             when(commentRepository.findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId)).thenReturn(comments);
-            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+            when(userClient.getUsers(any())).thenReturn(List.of(userResponse));
 
             // when
             CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(
@@ -288,7 +287,7 @@ class CommentServiceTest {
             // given
             UserIdCard idCard = UserIdCard.of(UUID.randomUUID(), "MASTER");
             when(commentRepository.findByCursorAndAuthorId(null, ReactionSort.LATEST, authorId)).thenReturn(comments);
-            when(userClient.getUsers(any())).thenReturn(ApiResponse.success(List.of(userResponse)));
+            when(userClient.getUsers(any())).thenReturn(List.of(userResponse));
 
             // when
             CursorPageResponse<CommentResponse.Detail> response = commentService.getCommentsForUser(

@@ -15,17 +15,14 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PostBroadcastHandler {
     private final FanoutService fanoutService;
-    private final UserClientRetryWrapper userClientRetryWrapper;
+    private final UserClientRetryWrapper userClient;
     private final NotificationPublisher notificationPublisher;
 
     @Value("${broadcast.fanout-threshold}")
     private long fanoutThreshold;
 
-    @Value("${broadcast.chunk-size}")
-    private int chunkSize;
-
     public void handlePostCreated(UUID postId, UUID authorId, String nickname) {
-        long followerCount = userClientRetryWrapper.countFollowers(authorId);
+        long followerCount = userClient.countFollowers(authorId);
 
         if (followerCount == 0) return;
 
@@ -35,7 +32,7 @@ public class PostBroadcastHandler {
         boolean hasNext = true;
 
         while (hasNext) {
-            CursorPageResponse<UUID> page = userClientRetryWrapper.getFollowerIds(authorId, cursor, chunkSize);
+            CursorPageResponse<UUID> page = userClient.getFollowerIds(authorId, cursor);
 
             List<UUID> chunk = page.content();
             if (!chunk.isEmpty()) {
@@ -49,7 +46,7 @@ public class PostBroadcastHandler {
     }
 
     public void handlePostDeleted(UUID postId, UUID authorId) {
-        long followerCount = userClientRetryWrapper.countFollowers(authorId);
+        long followerCount = userClient.countFollowers(authorId);
 
         if (followerCount == 0 || followerCount > fanoutThreshold) return;
 
@@ -57,7 +54,7 @@ public class PostBroadcastHandler {
         boolean hasNext = true;
 
         while (hasNext) {
-            CursorPageResponse<UUID> page = userClientRetryWrapper.getFollowerIds(authorId, cursor, chunkSize);
+            CursorPageResponse<UUID> page = userClient.getFollowerIds(authorId, cursor);
 
             List<UUID> chunk = page.content();
             if (!chunk.isEmpty()) fanoutService.removeChunk(postId, cursor, chunk);

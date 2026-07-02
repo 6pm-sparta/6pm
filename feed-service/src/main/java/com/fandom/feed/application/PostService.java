@@ -7,7 +7,7 @@ import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventType;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventWriter;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
@@ -42,7 +42,7 @@ public class PostService {
     private final ReactionCacheService reactionCacheService;
     private final ImageUrlConverter imageUrlConverter;
     private final OutboxEventWriter outboxEventWriter;
-    private final UserClient userClient;
+    private final UserClientRetryWrapper userClient;
 
     @Transactional
     public PostResponse.Create createPost(String content, List<String> imageKeys, UUID userId) {
@@ -55,7 +55,7 @@ public class PostService {
         postListCacheService.addPost(postId, post.getAuthorId());
 
         // 알람 발행에 게시글 생성 시 닉네임 사용
-        String nickname = userClient.getUser(userId).getData().nickname();
+        String nickname = userClient.getUser(userId).nickname();
         outboxEventWriter.write(postId, OutboxEventType.POST_CREATED, new Event.PostCreated(postId, userId, nickname));
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));

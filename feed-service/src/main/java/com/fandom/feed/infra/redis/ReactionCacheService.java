@@ -35,16 +35,12 @@ public class ReactionCacheService {
     @Value("${cache.ttl.comment-count}")
     private long commentCountTtl;
 
-    /**
-     * 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드
-     */
+    /** 게시글 ID로 캐시에서 게시글 리액션 정보를 조회하는 메서드 */
     public ReactionInfoCache getReactionInfo(UUID postId, UUID userId) {
         return new ReactionInfoCache(getCommentCount(postId), getLikeCount(postId), isLiked(postId, userId));
     }
 
-    /**
-     * 게시글 ID 목록으로 캐시에서 게시글 리액션 정보를 조회하는 메서드
-     */
+    /** 게시글 ID 목록으로 캐시에서 게시글 리액션 정보를 조회하는 메서드 */
     public List<ReactionInfoCache> getReactionInfoBatch(List<UUID> postIds, UUID userId, boolean isLiked) {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
         List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
@@ -123,9 +119,7 @@ public class ReactionCacheService {
         return Long.parseLong(count);
     }
 
-    /**
-     * 좋아요 캐시에 사용자 ID를 추가하는 메서드
-     */
+    /** 좋아요 캐시에 사용자 ID를 추가하는 메서드 */
     public long addLike(UUID postId, UUID userId) {
         Long added = redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, userId.toString());
 
@@ -159,25 +153,19 @@ public class ReactionCacheService {
         return (size != null) ? size : 0L;
     }
 
-    /**
-     * 게시글 ID로 캐시에서 좋아요 수를 조회하는 메서드
-     */
+    /** 게시글 ID로 좋아요 캐시에서 좋아요 수를 조회하는 메서드 */
     private long getLikeCountFromCache(UUID postId) {
         Long size = redisTemplate.opsForSet().size(RedisKeyPrefix.LIKE_SET + postId);
         return (size != null) ? size : 0L;
     }
 
-    /**
-     * 캐시에서 사용자 ID를 삭제하는 메서드
-     */
+    /** 좋아요 캐시에서 사용자 ID를 삭제하는 메서드 */
     public long removeLike(UUID postId, UUID userId) {
         redisTemplate.opsForSet().remove(RedisKeyPrefix.LIKE_SET + postId, userId.toString());
         return getLikeCountFromCache(postId);
     }
 
-    /**
-     * 게시글 ID 목록으로 캐시에서 사용자 ID를 삭제하는 메서드
-     */
+    /** 게시글 ID 목록으로 좋아요 캐시에서 사용자 ID를 삭제하는 메서드 */
     public void removeLikeBatch(List<UUID> postIds, UUID userId) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
             postIds.forEach(postId ->
@@ -190,9 +178,7 @@ public class ReactionCacheService {
         });
     }
 
-    /**
-     * 게시글 ID 목록으로 캐시에서 좋아요 Set을 삭제하는 메서드
-     */
+    /** 게시글 ID 목록으로 좋아요 캐시를 삭제하는 메서드 */
     public void deleteLikeSetBatch(List<UUID> postIds) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
             postIds.forEach(postId ->
@@ -202,17 +188,13 @@ public class ReactionCacheService {
         });
     }
 
-    /**
-     * 캐시에서 좋아요 상태를 조회하는 메서드
-     */
+    /** 좋아요 캐시에서 좋아요 상태를 조회하는 메서드 */
     private boolean isLiked(UUID postId, UUID userId) {
         if (userId == null) return false;
         return Boolean.TRUE.equals(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + postId, userId.toString()));
     }
 
-    /**
-     * DB에서 댓글 수와 좋아요 사용자를 조회한 뒤, 캐시에 저장하는 메서드
-     */
+    /** DB에서 댓글 수와 좋아요 사용자를 조회한 뒤, 캐시에 저장하는 메서드 */
     private Map<UUID, long[]> fetchFromDbAndCache(List<UUID> missedIds) {
         Map<UUID, Long> commentCounts = postReader.findAllByIds(missedIds)
                 .stream().collect(Collectors.toMap(Post::getId, Post::getCommentCount));

@@ -10,7 +10,7 @@ import com.fandom.feed.domain.entity.Comment;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.CommentErrorCode;
 import com.fandom.feed.domain.repository.CommentRepository;
-import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.presentation.dto.response.CommentResponse;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
@@ -35,7 +35,7 @@ public class CommentService {
     private final PostUpdater postUpdater;
     private final CommentRepository commentRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
-    private final UserClient userClient;
+    private final UserClientRetryWrapper userClient;
 
     @Transactional
     public CommentResponse.Create createComment(UUID postId, String content, UUID userId) {
@@ -116,7 +116,7 @@ public class CommentService {
 
         // 모두 탈퇴 시 User 서비스 호출 생략
         Map<UUID, UserResponse> userMap = authorIds.isEmpty()
-                ? new HashMap<>() : userClient.getUsers(authorIds).getData()
+                ? new HashMap<>() : userClient.getUsers(authorIds)
                              .stream().collect(Collectors.toMap(UserResponse::userId, u -> u));
 
         List<CommentResponse.Detail> content = comments.stream()

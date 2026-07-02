@@ -2,7 +2,7 @@ package com.fandom.feed.application;
 
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
@@ -27,7 +27,7 @@ public class PostAssembler {
     private final ImageService imageService;
     private final PostDetailCacheService postDetailCacheService;
     private final ReactionCacheService reactionCacheService;
-    private final UserClient userClient;
+    private final UserClientRetryWrapper userClient;
 
     /** 게시글 목록 캐시에서 가져온 ID 목록으로 응답을 구성하는 메서드 */
     public CursorPageResponse<PostResponse.Summary> buildCacheResponse(List<UUID> postIds, UUID userId) {
@@ -58,7 +58,7 @@ public class PostAssembler {
         Map<UUID, List<String>> imageUrlsMap = imageService.findAllByPostIds(postIds);
 
         Set<UUID> authorIds = page.stream().map(Post::getAuthorId).collect(Collectors.toSet());
-        Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()
+        Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds)
                 .stream().collect(Collectors.toMap(UserResponse::userId, Function.identity()));
 
         List<ReactionInfoCache> reactionInfos = reactionCacheService.getReactionInfoBatch(postIds, userId, isLiked);

@@ -1,10 +1,8 @@
 package com.fandom.feed.application;
 
-import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.infra.client.UserClient;
-import com.fandom.feed.infra.client.dto.UserResponse;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostDetailCache;
@@ -42,7 +40,7 @@ class PostAssemblerTest {
     private ReactionCacheService reactionCacheService;
 
     @Mock
-    private UserClient userClient;
+    private UserClientRetryWrapper userClient;
 
     @InjectMocks
     private PostAssembler postAssembler;
@@ -100,11 +98,9 @@ class PostAssemblerTest {
             // given
             List<Post> posts = List.of(mockPost(), mockPost(), mockPost());
             List<UUID> postIds = posts.stream().map(Post::getId).toList();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(imageService.findAllByPostIds(postIds)).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
+            when(userClient.getUsers(any())).thenReturn(List.of());
             when(reactionCacheService.getReactionInfoBatch(postIds, null, false))
                     .thenReturn(List.of(
                             mock(ReactionInfoCache.class),
@@ -126,12 +122,10 @@ class PostAssemblerTest {
         void buildDBResponseWhenExceedsPageSize() {
             // given
             List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE).mapToObj(i -> mockPost()).toList();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
             UUID nextCursor = UUID.randomUUID();
 
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
+            when(userClient.getUsers(any())).thenReturn(List.of());
             when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
                     .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                             .mapToObj(i -> mock(ReactionInfoCache.class)).toList());

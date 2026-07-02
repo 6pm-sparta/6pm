@@ -1,14 +1,13 @@
 package com.fandom.feed.application;
 
 import com.fandom.common.auth.UserIdCard;
-import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.event.Event;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventType;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventWriter;
@@ -75,7 +74,7 @@ class PostServiceTest {
     private PostListCacheService postListCacheService;
 
     @Mock
-    private UserClient userClient;
+    private UserClientRetryWrapper userClient;
 
     @Mock
     private OutboxEventWriter outboxEventWriter;
@@ -93,8 +92,7 @@ class PostServiceTest {
                 ReflectionTestUtils.invokeMethod(p, "assignId");
                 return p;
             });
-            when(userClient.getUser(any(UUID.class)))
-                    .thenReturn(ApiResponse.success(new UserResponse(UUID.randomUUID(), "닉네임")));
+            when(userClient.getUser(any(UUID.class))).thenReturn(new UserResponse(UUID.randomUUID(), "닉네임"));
         }
 
         @Test
