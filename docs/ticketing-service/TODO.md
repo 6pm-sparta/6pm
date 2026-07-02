@@ -4,8 +4,9 @@
 
 ### 즉시 처리 필요
 
-- [ ] `domain/` 패키지 미사용 엔티티 삭제
-  - `Performance.java`, `Show.java`, `ShowSeat.java`, `Venue.java`, `VenueSeat.java`
+- [x] `domain/` 패키지 미사용 엔티티 삭제 (#225 패키지 구조 정리로 해소, 2026-06-30 확인)
+  - `Performance.java`, `Show.java`, `Venue.java`, `VenueSeat.java`는 `show/`, `venue/` 도메인 패키지로 이동
+  - 중복돼 있던 `ShowSeat.java`는 `seat/domain/entity/`로 단일화
 
 ### 기능 미구현
 
@@ -34,9 +35,9 @@
 
 ### 기능 미구현
 
-- [ ] order-service 주문 취소 연동
-  - `releaseHold()`/`releaseExpiredHold()`는 ticketing-service 쪽 상태(Redis/DB)만 정리하고, order-service에 생성된 주문은 그대로 남음
-  - `OrderClient`에 취소 메서드가 없어서 발생 (#56 작업 중 발견)
+- [x] order-service 주문 취소 연동 (#155, #231, 완료 2026-07-01 확인)
+  - ticketing→order: `releaseHold()`가 `OrderClient.cancel(orderId)` 호출 (`SeatService.java`)
+  - order→ticketing: order-service 타임아웃 자동취소(#231)가 `order.hold.released` 발행, ticketing `PaymentEventConsumer.onHoldReleased()`가 구독해 `SeatConfirmService.releaseSeat()` 호출
 
 ### 알려진 제약 (낮은 우선순위)
 

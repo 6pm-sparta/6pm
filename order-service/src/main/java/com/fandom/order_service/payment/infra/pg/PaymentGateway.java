@@ -2,6 +2,7 @@ package com.fandom.order_service.payment.infra.pg;
 
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -23,4 +24,7 @@ public interface PaymentGateway {
      * 비동기 환불을 요청한다. 최종 결과(REFUNDED/FAILED)는 webhook 콜백으로 전달된다.
      */
     void requestRefundAsync(UUID orderId, String pgTransactionId, Long amount);
+
+    /** PG에 실제로 기록된 거래의 진짜 상태를 조회한다(webhook 유실 복구 등에 사용). */
+    Optional<PgTransactionStatus> inquireTransaction(String pgTransactionId);
 }

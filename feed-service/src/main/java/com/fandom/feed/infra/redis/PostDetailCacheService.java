@@ -36,7 +36,7 @@ public class PostDetailCacheService {
     private final RedisTemplate<String, String> redisTemplate;
 
     /**
-     * 게시글 ID로 캐시에서 게시글 상세를 조회하는 메서드<br>
+     * 게시글 ID로 케시글 상세 캐시를 조회하는 메서드<br>
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     @Cacheable(value = RedisKeyPrefix.POST_DETAIL, key = "#postId")
@@ -49,7 +49,7 @@ public class PostDetailCacheService {
     }
 
     /**
-     * 게시글 ID 목록으로 캐시에서 게시글 상세를 조회하는 메서드<br>
+     * 게시글 ID 목록으로 게시글 상세 캐시를 조회하는 메서드<br>
      * - 캐시 미스 발생 시, DB 조회 후 캐시에 저장
      */
     public List<PostDetailCache> getPostDetailBatch(List<UUID> postIds) {
@@ -93,7 +93,7 @@ public class PostDetailCacheService {
     }
 
     /**
-     * 게시글 ID 목록으로 케시에서 게시글 상세를 삭제하는 메서드
+     * 게시글 ID 목록으로 게시글 상세 케시를 삭제하는 메서드
      */
     public void deleteAll(List<UUID> postIds) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {

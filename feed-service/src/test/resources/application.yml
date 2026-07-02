@@ -13,8 +13,12 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
-  autoconfigure:
-    exclude: org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: feed-service-test
+    listener:
+      auto-startup: false
 
 eureka:
   client:
@@ -48,4 +52,6 @@ cache:
 
 scheduler:
   like-sync:
+    fixed-delay: 5  # 5초
+  outbox-publish:
     fixed-delay: 5  # 5초

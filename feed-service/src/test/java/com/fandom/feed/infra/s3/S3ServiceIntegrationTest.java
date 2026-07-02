@@ -18,7 +18,6 @@ import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -38,9 +37,6 @@ class S3ServiceIntegrationTest {
 
     @Autowired
     private S3Client s3Client;
-
-    @Autowired
-    private S3Presigner s3Presigner;
 
     @Value("${cloud.aws.s3.bucket}")
     private String bucket;

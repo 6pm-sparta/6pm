@@ -28,6 +28,7 @@ jobs:
           - order-service
           - notification-service
           - chat-service
+          - cs-service
     uses: ./.github/workflows/_service-ci.yml
     with:
       service: ${{ matrix.service }}

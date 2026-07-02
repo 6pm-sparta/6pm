@@ -1,6 +1,5 @@
 package com.fandom.feed.domain.entity;
 
-import com.fandom.common.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Index;
@@ -20,7 +19,7 @@ import java.util.UUID;
         indexes = @Index(name = "idx_likes_user_id", columnList = "user_id, id DESC")
 )
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Like extends BaseEntity {
+public class Like extends SimpleBaseEntity {
     @Column(nullable = false)
     private UUID postId;
 
