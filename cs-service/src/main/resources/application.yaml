@@ -1,0 +1,57 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: cs-service
+  config:
+    import: "optional:configserver:http://localhost:8888"
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${CS_DB_URL}
+    username: ${CS_DB_USERNAME}
+    password: ${CS_DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        log_slow_query: 500
+    show-sql: true
+
+logging:
+  file:
+    name: ./logs/cs-service.log
+  structured:
+    format:
+      file: ecs
+  level:
+    root: INFO
+    org.hibernate.SQL_SLOW: info
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${random.uuid}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans

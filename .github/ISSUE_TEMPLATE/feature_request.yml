@@ -22,6 +22,7 @@ body:
         - notification-service
         - aiops-service
         - chat-service
+        - cs-service
         - common
         - infra (docker/CI/CD/DB)
     validations:

@@ -54,3 +54,12 @@
 
 ### PostgreSQL 17 채택
 - **이유**: EOL이 2029년 11월로 15보다 2년 더 길고, SKIP LOCKED 성능 개선으로 배치 처리에 유리. 신규 프로젝트 기준 15를 선택할 이유 없음.
+
+---
+
+## 2026-07-01
+
+### 주문 취소 연동 완료 (#155)
+- **방향**: `OrderClient`에 `cancel(orderId)` Feign 메서드 추가, `SeatService.releaseHold()`가 좌석 해제와 함께 order-service 주문도 취소하도록 연결.
+- **경로 정렬**: `OrderClient`(`/internal/v1/orders`)와 order-service `InternalOrderController`(`/internal/v1/orders`) 경로 불일치 없음 확인 — E2E 점검(260624)에서 발견됐던 버그 후보는 이미 해소된 상태였음.
+- **[공유 완료] order-service 타임아웃 자동취소 연동**: order-service #231의 `order.hold.released` 토픽을 ticketing `PaymentEventConsumer.onHoldReleased()`가 구독, `SeatConfirmService.releaseSeat()`로 좌석을 해제. `releaseHold()`가 먼저 해제한 경우엔 멱등하게 무시됨.

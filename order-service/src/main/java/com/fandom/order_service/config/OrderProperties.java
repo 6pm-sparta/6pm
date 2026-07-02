@@ -20,6 +20,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *
  * timeout.batchSize/pollIntervalMs: 타임아웃 스케줄러 배치 크기/폴링 주기.
  *
+ * refundRecovery.batchSize/pollIntervalMs: 환불 복구 배치(#96) 배치 크기/폴링 주기.
+ * refundRecovery.maxRetries: 자동 재시도 최대 횟수. 초과 시 MANUAL_REVIEW_REQUIRED로 전환.
+ *
  * pgWebhook.secretKey: PG → order-service 콜백 서명(X-PG-Signature) 검증 키.
  * pgWebhook.callbackUrl: MockPaymentGateway가 비동기 콜백을 쏠 자기 자신의 webhook 엔드포인트 URL.
  * pgWebhook.callbackDelayMillis: MockPaymentGateway가 결과를 콜백하기까지의 인위적 지연(비동기 흐름 시뮬레이션).
@@ -33,6 +36,7 @@ public record OrderProperties(
         Cancellation cancellation,
         Compensation compensation,
         Timeout timeout,
+        RefundRecovery refundRecovery,
         PgWebhook pgWebhook) {
     public record Hold(
             long claimTtlSeconds,
@@ -71,6 +75,14 @@ public record OrderProperties(
     public record Timeout(
             int batchSize,
             long pollIntervalMs
+    ) {
+    }
+
+    /** batchSize/pollIntervalMs: 환불 복구 배치 폴링 단위. maxRetries: 자동 재시도 최대 횟수. */
+    public record RefundRecovery(
+            int batchSize,
+            long pollIntervalMs,
+            int maxRetries
     ) {
     }
 
