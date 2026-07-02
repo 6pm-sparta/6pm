@@ -59,6 +59,14 @@ public class Order extends BaseEntity {
      */
     private LocalDateTime expiredAt;
 
+    /**
+     * 현재 활성 결제 레코드 포인터.
+     * 재시도마다 새 Payment INSERT → O(1)로 최신 결제 조회.
+     * Payment INSERT와 같은 트랜잭션에서 갱신. 주문 생성 시점엔 nullable.
+     */
+    @Column
+    private UUID latestPaymentId;
+
     @Builder
     private Order(UUID seatId, UUID userId, Long totalAmount, LocalDateTime expiredAt) {
         this.seatId = seatId;
@@ -76,6 +84,11 @@ public class Order extends BaseEntity {
                 .totalAmount(totalAmount)
                 .expiredAt(expiredAt)
                 .build();
+    }
+
+    /** 결제 시도(신규/재시도) 시 최신 Payment 포인터 갱신. */
+    public void updateLatestPayment(UUID paymentId) {
+        this.latestPaymentId = paymentId;
     }
 
     /**
