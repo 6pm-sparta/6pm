@@ -59,6 +59,20 @@ class FollowServiceTest {
     @InjectMocks
     private FollowService followService;
 
+    // 커서 페이징 테스트용 고정 ID (가독성: 무작위 UUID 대신 의도가 드러나는 고정값 사용)
+    private static final UUID USER_ID = uuid("a0001");
+    private static final UUID FOLLOW_1 = uuid("f0001");
+    private static final UUID FOLLOW_2 = uuid("f0002");
+    private static final UUID FOLLOW_3 = uuid("f0003");
+    private static final UUID AUTHOR_1 = uuid("c0001");
+    private static final UUID AUTHOR_2 = uuid("c0002");
+    private static final UUID AUTHOR_3 = uuid("c0003");
+
+    /** 뒷자리 suffix만 지정해 읽기 쉬운 고정 UUID를 만든다. 예: uuid("a0001") -> 00000000-0000-0000-0000-00000000a0001 */
+    private static UUID uuid(String suffix) {
+        return UUID.fromString("00000000-0000-0000-0000-0000000" + suffix);
+    }
+
     @Test
     @DisplayName("팔로우에 성공하면 관계를 저장하고 카운트를 증가시킨다")
     void follow_success() {
@@ -423,18 +437,18 @@ class FollowServiceTest {
     @Test
     @DisplayName("팔로잉 ID 목록: followerCount > minFollowerCount 면 isLarge=true, 이하면 false")
     void getFollowingIds_marksLargeByThreshold() {
-        UUID userId = UUID.randomUUID();
-        UUID largeAuthor = UUID.randomUUID();
-        UUID smallAuthor = UUID.randomUUID();
-        UUID boundaryAuthor = UUID.randomUUID();
+        UUID userId = USER_ID;
+        UUID largeAuthor = AUTHOR_1;
+        UUID smallAuthor = AUTHOR_2;
+        UUID boundaryAuthor = AUTHOR_3;
         long minFollowerCount = 10_000L;
         // size=3 -> limit=4로 조회, 결과 3개(size 이하) -> 마지막 페이지
         // 경계값(=minFollowerCount)은 초과가 아니므로 isLarge=false
         given(followRepository.findFollowingRowsByFollowerId(userId, null, 4))
                 .willReturn(List.of(
-                        new FollowingCursorRow(UUID.randomUUID(), largeAuthor, 10_001L),
-                        new FollowingCursorRow(UUID.randomUUID(), smallAuthor, 5L),
-                        new FollowingCursorRow(UUID.randomUUID(), boundaryAuthor, 10_000L)
+                        new FollowingCursorRow(FOLLOW_1, largeAuthor, 10_001L),
+                        new FollowingCursorRow(FOLLOW_2, smallAuthor, 5L),
+                        new FollowingCursorRow(FOLLOW_3, boundaryAuthor, 10_000L)
                 ));
 
         CursorPageResponse<InternalFollowingResponse> response =
@@ -452,13 +466,13 @@ class FollowServiceTest {
     @Test
     @DisplayName("팔로잉 ID 목록: 결과가 size 초과면 hasNext=true, 마지막은 잘리고 nextCursor는 반환된 마지막의 followId")
     void getFollowingIds_hasNext() {
-        UUID userId = UUID.randomUUID();
-        UUID follow1 = UUID.randomUUID();
-        UUID follow2 = UUID.randomUUID();
-        UUID follow3 = UUID.randomUUID();
-        UUID author1 = UUID.randomUUID();
-        UUID author2 = UUID.randomUUID();
-        UUID author3 = UUID.randomUUID();
+        UUID userId = USER_ID;
+        UUID follow1 = FOLLOW_1;
+        UUID follow2 = FOLLOW_2;
+        UUID follow3 = FOLLOW_3;
+        UUID author1 = AUTHOR_1;
+        UUID author2 = AUTHOR_2;
+        UUID author3 = AUTHOR_3;
         // size=2 -> limit=3으로 조회, 결과 3개(size 초과) -> hasNext, 마지막 1개 잘라냄
         given(followRepository.findFollowingRowsByFollowerId(userId, null, 3))
                 .willReturn(List.of(
@@ -481,7 +495,7 @@ class FollowServiceTest {
     @Test
     @DisplayName("팔로잉 ID 목록: size가 범위 밖이면 예외가 발생한다")
     void getFollowingIds_invalidSize() {
-        UUID userId = UUID.randomUUID();
+        UUID userId = USER_ID;
 
         assertThatThrownBy(() -> followService.getFollowingIds(userId, null, 0, 10_000L))
                 .isInstanceOf(CustomException.class)
@@ -492,14 +506,14 @@ class FollowServiceTest {
     @Test
     @DisplayName("대형 팔로잉 ID 목록: authorId(UUID)만 반환하며 hasNext=false면 nextCursor=null")
     void getLargeFollowingIds_lastPage() {
-        UUID userId = UUID.randomUUID();
-        UUID largeAuthor1 = UUID.randomUUID();
-        UUID largeAuthor2 = UUID.randomUUID();
+        UUID userId = USER_ID;
+        UUID largeAuthor1 = AUTHOR_1;
+        UUID largeAuthor2 = AUTHOR_2;
         // 필터링은 DB에서 수행되므로 리포지토리가 대형만 넘겨준다고 가정. size=3 -> limit=4
         given(followRepository.findLargeFollowingRowsByFollowerId(userId, 10_000L, null, 4))
                 .willReturn(List.of(
-                        new FollowingCursorRow(UUID.randomUUID(), largeAuthor1, 15_000L),
-                        new FollowingCursorRow(UUID.randomUUID(), largeAuthor2, 99_999L)
+                        new FollowingCursorRow(FOLLOW_1, largeAuthor1, 15_000L),
+                        new FollowingCursorRow(FOLLOW_2, largeAuthor2, 99_999L)
                 ));
 
         CursorPageResponse<UUID> response =
@@ -513,13 +527,13 @@ class FollowServiceTest {
     @Test
     @DisplayName("대형 팔로잉 ID 목록: 결과가 size 초과면 hasNext=true, nextCursor는 반환된 마지막의 followId")
     void getLargeFollowingIds_hasNext() {
-        UUID userId = UUID.randomUUID();
-        UUID follow1 = UUID.randomUUID();
-        UUID follow2 = UUID.randomUUID();
-        UUID follow3 = UUID.randomUUID();
-        UUID author1 = UUID.randomUUID();
-        UUID author2 = UUID.randomUUID();
-        UUID author3 = UUID.randomUUID();
+        UUID userId = USER_ID;
+        UUID follow1 = FOLLOW_1;
+        UUID follow2 = FOLLOW_2;
+        UUID follow3 = FOLLOW_3;
+        UUID author1 = AUTHOR_1;
+        UUID author2 = AUTHOR_2;
+        UUID author3 = AUTHOR_3;
         // size=2 -> limit=3, 결과 3개(초과) -> hasNext, 마지막 잘라냄
         given(followRepository.findLargeFollowingRowsByFollowerId(userId, 10_000L, null, 3))
                 .willReturn(List.of(
@@ -539,7 +553,7 @@ class FollowServiceTest {
     @Test
     @DisplayName("대형 팔로잉 ID 목록: size가 범위 밖이면 예외가 발생한다")
     void getLargeFollowingIds_invalidSize() {
-        UUID userId = UUID.randomUUID();
+        UUID userId = USER_ID;
 
         assertThatThrownBy(() -> followService.getLargeFollowingIds(userId, null, 1001, 10_000L))
                 .isInstanceOf(CustomException.class)
