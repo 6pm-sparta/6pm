@@ -41,6 +41,11 @@ public class ChatRoomMemberRepositoryImpl implements ChatRoomMemberRepository {
     }
 
     @Override
+    public List<UUID> findUserIdsByRoomId(UUID roomId) {
+        return jpaRepository.findUserIdsByRoomId(roomId);
+    }
+
+    @Override
     public void deleteByRoomIdAndUserId(UUID roomId, UUID userId) {
         jpaRepository.deleteByRoomIdAndUserId(roomId, userId);
     }

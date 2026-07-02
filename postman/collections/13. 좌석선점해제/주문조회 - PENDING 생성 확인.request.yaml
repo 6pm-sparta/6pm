@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/orders/{{orderId}}"
+method: GET
+headers:
+  Authorization: Bearer {{userA_token}}
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); const data = pm.response.json().data; pm.test("주문 상태는 PENDING", function () { pm.expect(data.status).to.eql("PENDING"); });
+    language: text/javascript
+order: 2000

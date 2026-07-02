@@ -13,6 +13,7 @@ public final class KafkaTopics {
     public static final String PAYMENT_COMPLETED = "order.payment.completed";
     public static final String PAYMENT_FAILED = "order.payment.failed";
     public static final String PAYMENT_CANCELLED = "order.payment.cancelled";
+    public static final String HOLD_RELEASED = "order.hold.released";
 
     private KafkaTopics() {
     }

@@ -54,7 +54,7 @@ class PgWebhookServiceTest {
     private RefundResultWriter refundResultWriter;
 
     private final OrderProperties orderProperties = new OrderProperties(
-            null, 0, null, null, null, null,
+            null, 0, null, null, null, null, null, null,
             new OrderProperties.PgWebhook("secret", "http://localhost", 0L, 600L));
 
     private PgWebhookService pgWebhookService;
@@ -239,5 +239,43 @@ class PgWebhookServiceTest {
 
         // then
         verify(refundResultWriter).applyRefundFailure(orderId, "한도 초과");
+    }
+
+    @Test
+    @DisplayName("FAILED 콜백의 failureReason에 TRANSIENT: prefix가 있으면 applyFailureWithRetry를 호출한다")
+    void receive_transientFailed_dispatchesFailureWithRetry() {
+        // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-9999", orderId, "FAILED", 50_000L, "TRANSIENT:PG 일시적 오류");
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-9999"))
+                .willReturn(Optional.of(requestedPaymentWithPgTransactionId("PG-9999", 50_000L)));
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then — Order 상태 유지, applyFailure 아닌 applyFailureWithRetry 호출
+        verify(paymentRequestWriter).applyFailureWithRetry(orderId, paymentId, "TRANSIENT:PG 일시적 오류");
+        verify(paymentRequestWriter, never()).applyFailure(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("FAILED 콜백의 failureReason에 TRANSIENT: prefix가 없으면 applyFailure를 호출한다")
+    void receive_permanentFailed_dispatchesFailure() {
+        // given
+        PgWebhookRequest request = new PgWebhookRequest("PG-8888", orderId, "FAILED", 50_000L, "잔액이 부족합니다.");
+        given(signatureVerifier.verify(request, "good-signature")).willReturn(true);
+        given(redisTemplate.opsForValue()).willReturn(valueOperations);
+        given(valueOperations.setIfAbsent(any(), any(), any())).willReturn(true);
+        given(paymentRepository.findByPgTransactionId("PG-8888"))
+                .willReturn(Optional.of(requestedPaymentWithPgTransactionId("PG-8888", 50_000L)));
+
+        // when
+        pgWebhookService.receive(request, "good-signature");
+
+        // then
+        verify(paymentRequestWriter).applyFailure(orderId, paymentId, "잔액이 부족합니다.");
+        verify(paymentRequestWriter, never()).applyFailureWithRetry(any(), any(), any());
     }
 }

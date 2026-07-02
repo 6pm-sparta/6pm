@@ -145,9 +145,38 @@ sequenceDiagram
 → 응답: 200 REFUND_REQUESTED
 → [비동기] 웹훅 환불 완료 수신
 → 주문 REFUNDED
-→ order.payment.cancelled 발행 (좌석 해제)
+→ order.payment.cancelled 발행 (좌석 해제: BOOKED → AVAILABLE)
 → notification.send 발행 (ORDER_CANCELED)
 ```
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant O as order-service
+    participant PG as MockPG
+    participant K as Kafka
+    participant T as ticketing-service
+    participant N as notification-service
+
+    C->>O: DELETE /api/v1/orders/{id}
+    O->>O: 취소 가능 시간 검증 (statusUpdatedAt + cancellableWindowHours)
+    alt 취소 가능 시간 초과
+        O-->>C: 409 CANCELLATION_WINDOW_EXPIRED
+    else 취소 가능
+        O->>O: CONFIRMED → REFUND_REQUESTED
+        O->>PG: 환불 요청 접수
+        O-->>C: 200 REFUND_REQUESTED
+
+        PG->>O: POST /api/v1/webhooks/payments (REFUNDED)
+        O->>O: REFUND_REQUESTED → REFUNDED
+        O->>K: order.payment.cancelled (좌석 해제: BOOKED → AVAILABLE)
+        O->>K: notification.send (ORDER_CANCELED)
+        K->>T: 좌석 해제 처리 (BOOKED → AVAILABLE)
+        K->>N: 취소 알림 발송
+    end
+```
+
+> CONFIRMED 취소 시 좌석 상태 전이는 BOOKED → AVAILABLE. 결제 전 취소(PENDING → CANCELLED) 및 타임아웃 자동 취소는 `order.hold.released` 토픽으로 분리되어 있어, 결제 이력이 있는 취소 건(PAID/CONFIRMED)과 토픽 레벨에서 명확히 구분된다.
 
 ---
 

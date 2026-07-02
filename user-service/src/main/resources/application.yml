@@ -1,63 +1,7 @@
-# user-service/src/main/resources/application.yml — 표준 와이어링 (인프라 담당 제공)
-server:
-  port: 8081
-
 spring:
   application:
     name: user-service
+  profiles:
+    active: dev
   config:
     import: "optional:configserver:http://localhost:8888"
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url: ${USER_DB_URL:jdbc:postgresql://localhost:5432/user_db}
-    username: ${USER_DB_USERNAME:root}
-    password: ${USER_DB_PASSWORD:password}
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: true
-    show-sql: true
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-      properties:
-        spring.json.add.type.headers: false
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${random.uuid}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, prometheus
-  metrics:
-    tags:
-      application: ${spring.application.name}
-  endpoint:
-    health:
-      show-details: always
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://localhost:9411/api/v2/spans
-
-logging:
-  file:
-    name: ./logs/user-service.log
-  structured:
-    format:
-      file: ecs
-  level:
-    root: INFO

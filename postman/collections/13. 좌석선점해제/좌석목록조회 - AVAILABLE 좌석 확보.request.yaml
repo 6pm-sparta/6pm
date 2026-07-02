@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/tickets/shows/{{showId}}/seats"
+method: GET
+auth:
+  type: bearer
+  credentials:
+    token: "{{userA_token}}"
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); const seats = pm.response.json().data; const available = seats.find(s => s.status === "AVAILABLE"); pm.test("AVAILABLE 좌석 존재", function () { pm.expect(available).to.not.be.undefined; }); if (available) { pm.collectionVariables.set("seatId", available.seatId); }
+    language: text/javascript
+order: 500

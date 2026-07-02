@@ -272,6 +272,26 @@ class SeatServiceTest {
         }
 
         @Test
+        @DisplayName("선점 해제 시 연결된 주문이 있으면 orderClient.cancel()이 호출된다")
+        void releaseHold_success_cancelsOrder() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            UUID orderId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+            seat.assignOrder(orderId);
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(1L);
+
+            // when
+            seatService.releaseHold(seatId, userId);
+
+            // then
+            verify(orderClient).cancel(orderId);
+        }
+
+        @Test
         @DisplayName("존재하지 않는 좌석이면 SEAT_NOT_FOUND 예외가 발생한다")
         void releaseHold_seatNotFound() {
             // given

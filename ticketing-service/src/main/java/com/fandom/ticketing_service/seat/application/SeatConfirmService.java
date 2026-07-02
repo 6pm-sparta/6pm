@@ -43,7 +43,9 @@ public class SeatConfirmService {
 
         UUID seatId = seat.getId();
         try {
-            redisTemplate.delete(SEAT_KEY.formatted(seat.getShowId(), seatId));
+            // BOOKED로 SET(TTL 없이 영구 유지) — DELETE하면 getSeats()가 기본값 "AVAILABLE"로 반환해
+            // 이미 팔린 좌석이 다시 선점 가능한 것처럼 보이고, hold()가 SETNX만으로 선점을 허용해버림
+            redisTemplate.opsForValue().set(SEAT_KEY.formatted(seat.getShowId(), seatId), "BOOKED");
             redisTemplate.delete(OWNER_KEY.formatted(seat.getShowId(), seatId));
             seatEventProducer.publishSeatBooked(new SeatBookedEvent(orderId, seatId));
         } catch (Exception e) {

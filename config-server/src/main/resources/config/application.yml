@@ -7,6 +7,14 @@ management:
     health:
       show-details: always
 
+# 로그에 traceId/spanId를 노출하기 위한 correlation 패턴.
+# tracing으로 전파된 traceId(traceparent)를 콘솔/파일 로그의 correlation 자리에 채운다.
+# 모든 서비스가 동일 포맷으로 남기도록 Config Server에서 중앙 관리한다.
+logging:
+  pattern:
+    correlation: "[%X{traceId:-},%X{spanId:-}] "
+  include-application-name: false
+
 eureka:
   client:
     service-url:

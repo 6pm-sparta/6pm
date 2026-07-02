@@ -22,6 +22,9 @@ public interface ChatRoomMemberRepository {
     // 방 참여자 목록
     List<ChatRoomMember> findAllByRoomId(UUID roomId);
 
+    // 방 참여자 userId만
+    List<UUID> findUserIdsByRoomId(UUID roomId);
+
     // 퇴장(언팔) - 하드 삭제
     void deleteByRoomIdAndUserId(UUID roomId, UUID userId);
 

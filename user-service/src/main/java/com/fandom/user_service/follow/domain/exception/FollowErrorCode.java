@@ -14,7 +14,8 @@ public enum FollowErrorCode implements ErrorCode {
     SELF_FOLLOW_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "자기 자신은 팔로우할 수 없습니다."),
     FOLLOWER_MUST_BE_MEMBER(HttpStatus.FORBIDDEN, "일반 회원만 팔로우할 수 있습니다."),
     FOLLOWER_MUST_BE_MEMBER_OR_CREATOR(HttpStatus.FORBIDDEN, "일반 회원 또는 크리에이터만 팔로우할 수 있습니다."),
-    FOLLOWEE_MUST_BE_CREATOR(HttpStatus.BAD_REQUEST, "크리에이터만 팔로우할 수 있습니다.");
+    FOLLOWEE_MUST_BE_CREATOR(HttpStatus.BAD_REQUEST, "크리에이터만 팔로우할 수 있습니다."),
+    INVALID_PAGE_SIZE(HttpStatus.BAD_REQUEST, "조회 size는 1 이상 1000 이하여야 합니다.");
 
     private final HttpStatus status;
     private final String message;

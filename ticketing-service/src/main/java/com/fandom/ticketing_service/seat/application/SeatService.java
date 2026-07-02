@@ -167,8 +167,14 @@ public class SeatService {
             default -> throw new CustomException(TicketingErrorCode.SEAT_NOT_HELD);
         }
 
+        UUID orderId = seat.getOrderId();
         seat.releaseOrder();
         log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
+
+        if (orderId != null) {
+            orderClient.cancel(orderId);
+            log.info("주문 취소 요청: orderId={}, showSeatId={}", orderId, showSeatId);
+        }
     }
 
     // inventory 키는 쇼/좌석 생성 시점에 초기화되는 곳이 없어서, hold 시점에 없으면 DB 기준으로 lazy 초기화한다.

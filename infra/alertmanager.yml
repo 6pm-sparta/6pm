@@ -1,28 +1,17 @@
 # =====================================================================
-# Alertmanager — Prometheus 알림을 AIOps 서비스 웹훅으로 전달
-# AIOps(:8086)가 받아서 Claude 분석 → incident_alert_history 적재 → Slack 발송
-# (Slack 발송은 AIOps 서비스가 직접 하므로 여기선 webhook 하나만 둔다.)
+# 6pm AIOps · Alertmanager 설정
+# 저장 위치: 레포의 ./infra/alertmanager.yml
+# 역할: Prometheus 가 보낸 알림을 묶어서 AIOps 웹훅으로 POST
 # =====================================================================
 route:
   receiver: aiops-webhook
-  group_by: ["alertname", "application"]
-  group_wait: 10s          # 같은 그룹 첫 알림 모으는 대기
-  group_interval: 30s
-  repeat_interval: 1h      # 미해소 시 재알림 주기
-  routes:
-    - matchers: [severity="critical"]
-      receiver: aiops-webhook
-      repeat_interval: 30m
+  group_by: ['alertname', 'job']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
 
 receivers:
   - name: aiops-webhook
     webhook_configs:
-      # 도커 네트워크 내부 주소. AIOps 서비스에 이 엔드포인트를 구현한다.
-      - url: "http://aiops-service:8086/api/v1/alerts/webhook"
-        send_resolved: true   # 해소(resolved) 시에도 전송 → MTTR 계산 가능
-
-inhibit_rules:
-  # 같은 서비스에서 critical 이 떠 있으면 동일 warning 은 억제
-  - source_matchers: [severity="critical"]
-    target_matchers: [severity="warning"]
-    equal: ["application"]
+      - url: 'http://host.docker.internal:8086/api/v1/alerts/webhook'
+        send_resolved: true

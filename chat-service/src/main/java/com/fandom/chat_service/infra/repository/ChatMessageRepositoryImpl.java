@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,5 +35,10 @@ public class ChatMessageRepositoryImpl implements ChatMessageRepository {
         return cursor == null
                 ? jpaRepository.findFanMessages(roomId, requesterId, page)
                 : jpaRepository.findFanMessagesAfter(roomId, requesterId, cursor, page);
+    }
+
+    @Override
+    public void softDeleteAllByRoomId(UUID roomId, UUID deletedBy) {
+        jpaRepository.softDeleteAllByRoomId(roomId, deletedBy, LocalDateTime.now());
     }
 }

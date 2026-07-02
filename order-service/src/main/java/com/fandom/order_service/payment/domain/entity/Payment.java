@@ -58,13 +58,22 @@ public class Payment extends BaseEntity {
     @Column(nullable = false)
     private Long refundAmount;
 
+    /** 환불 자동 재시도 횟수. */
+    @Column(nullable = false)
+    private Long refundRetryCount;
+
     /** PG사 응답 실패 사유. 성공 시 null. */
     @Column(length = 255)
     private String failureReason;
 
+    /** FAILED webhook 일시적 오류 시 true. PaymentRetryScheduler 폴링 기준. */
+    @Column(nullable = false)
+    private boolean retryable;
+
     @Builder
     private Payment(UUID orderId, Long amount, PaymentStatus paymentStatus, PaymentMethod paymentMethod,
-                    String pgTransactionId, String idempotencyKey, Long refundAmount, String failureReason) {
+                    String pgTransactionId, String idempotencyKey, Long refundAmount, Long refundRetryCount,
+                    String failureReason) {
         this.orderId = orderId;
         this.amount = amount;
         this.paymentStatus = paymentStatus;
@@ -72,7 +81,9 @@ public class Payment extends BaseEntity {
         this.pgTransactionId = pgTransactionId;
         this.idempotencyKey = idempotencyKey;
         this.refundAmount = refundAmount != null ? refundAmount : 0L;
+        this.refundRetryCount = refundRetryCount != null ? refundRetryCount : 0L;
         this.failureReason = failureReason;
+        this.retryable = false;
     }
 
     /**
@@ -115,6 +126,18 @@ public class Payment extends BaseEntity {
         this.failureReason = failureReason;
     }
 
+    /** REQUESTED → FAILED + retryable=true. Order 상태 유지, 재시도는 PaymentRetryScheduler가 처리. */
+    public void failWithRetry(String failureReason) {
+
+        if (this.paymentStatus != PaymentStatus.REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.paymentStatus = PaymentStatus.FAILED;
+        this.failureReason = failureReason;
+        this.retryable = true;
+    }
+
     /**
      * APPROVED → REFUNDED. PG 환불 성공 응답을 받은 직후 호출한다. 전액 환불만 지원한다(MVP, 부분 환불 없음).
      */
@@ -126,5 +149,15 @@ public class Payment extends BaseEntity {
 
         this.paymentStatus = PaymentStatus.REFUNDED;
         this.refundAmount = this.amount;
+    }
+
+    /** 재환불 시도마다 호출. */
+    public void increaseRefundRetryCount() {
+        this.refundRetryCount++;
+    }
+
+    /** 재시도 소진 여부. */
+    public boolean hasExhaustedRefundRetries(int maxRetries) {
+        return this.refundRetryCount >= maxRetries;
     }
 }
