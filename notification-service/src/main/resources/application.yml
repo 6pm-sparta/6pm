@@ -1,72 +1,7 @@
-server:
-  port: 8085
-
 spring:
   application:
     name: notification-service
+  profiles:
+    active: dev
   config:
     import: "optional:configserver:http://localhost:8888"
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url: ${NOTIFICATION_DB_URL}
-    username: ${NOTIFICATION_DB_USERNAME}
-    password: ${NOTIFICATION_DB_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: true
-        log_slow_query: 500
-    show-sql: true
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: notification-service
-fcm:
-  enabled: ${FCM_ENABLED:false}
-  credentials-path: ${FCM_CREDENTIALS_PATH:}
-
-logging:
-  file:
-    name: ./logs/notification-service.log
-  structured:
-    format:
-      file: ecs
-  level:
-    root: INFO
-    org.hibernate.SQL_SLOW: info
-
-notification:
-  reconciler:
-    batch-size: 100
-    cutoff-minutes: 5
-    interval-ms: 300000
-  dispatch:
-    max-attempt: 3
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${random.uuid}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, prometheus
-  endpoint:
-    health:
-      show-details: always
-  metrics:
-    tags:
-      application: ${spring.application.name}
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://localhost:9411/api/v2/spans

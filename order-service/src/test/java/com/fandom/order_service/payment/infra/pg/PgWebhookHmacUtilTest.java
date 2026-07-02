@@ -24,7 +24,7 @@ class PgWebhookHmacUtilTest {
     @BeforeEach
     void setUp() {
         OrderProperties.PgWebhook pgWebhook = new OrderProperties.PgWebhook(SECRET, "http://localhost", 0L, 0L);
-        OrderProperties properties = new OrderProperties(null, 0, null, null, null, null, null, pgWebhook);
+        OrderProperties properties = new OrderProperties(null, 0, null, null, null, null, null, null, pgWebhook);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         hmacUtil = new PgWebhookHmacUtil(properties, objectMapper);
         signer = new MockPgWebhookSigner(properties, objectMapper);

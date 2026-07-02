@@ -13,6 +13,9 @@ import com.fandom.user_service.profile.domain.repository.ProfileRepository;
 import com.fandom.user_service.follow.presentation.dto.response.FollowerResponse;
 import com.fandom.user_service.follow.presentation.dto.response.FollowingResponse;
 import com.fandom.user_service.follow.presentation.dto.response.PageResponse;
+import com.fandom.user_service.follow.presentation.dto.response.CursorPageResponse;
+import com.fandom.user_service.follow.domain.repository.projection.FollowCursorRow;
+import com.fandom.user_service.profile.domain.exception.ProfileErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -307,6 +310,112 @@ class FollowServiceTest {
         assertThat(response.content().get(0).nickname()).isEqualTo("creator");
         assertThat(response.content().get(0).followerCount()).isEqualTo(10);
         assertThat(response.totalElements()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("팔로워 수는 프로필 집계값으로 조회된다")
+    void countFollowers_returnsProfileFollowerCount() {
+        UUID authorId = UUID.randomUUID();
+        User creator = user(Role.CREATOR);
+        Profile creatorProfile = profile(creator, "creator", 42, 0);
+        given(profileRepository.findByUserId(authorId)).willReturn(Optional.of(creatorProfile));
+
+        long count = followService.countFollowers(authorId);
+
+        assertThat(count).isEqualTo(42);
+    }
+
+    @Test
+    @DisplayName("팔로워 수 조회 시 프로필이 없으면 예외가 발생한다")
+    void countFollowers_profileNotFound() {
+        UUID authorId = UUID.randomUUID();
+        given(profileRepository.findByUserId(authorId)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> followService.countFollowers(authorId))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(ProfileErrorCode.PROFILE_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("팔로워 ID 목록: 결과가 size 이하면 hasNext=false, nextCursor=null")
+    void getFollowerIds_lastPage() {
+        UUID authorId = UUID.randomUUID();
+        UUID follower1 = UUID.randomUUID();
+        UUID follower2 = UUID.randomUUID();
+        // size=3 요청 -> limit(size+1)=4로 조회, 결과 2개(size 이하) -> 마지막 페이지
+        given(followRepository.findFollowerRowsByFolloweeId(authorId, null, 4))
+                .willReturn(List.of(
+                        new FollowCursorRow(UUID.randomUUID(), follower1),
+                        new FollowCursorRow(UUID.randomUUID(), follower2)
+                ));
+
+        CursorPageResponse<UUID> response = followService.getFollowerIds(authorId, null, 3);
+
+        assertThat(response.content()).containsExactly(follower1, follower2);
+        assertThat(response.hasNext()).isFalse();
+        assertThat(response.nextCursor()).isNull();
+    }
+
+    @Test
+    @DisplayName("팔로워 ID 목록: 결과가 size 초과면 hasNext=true, 마지막 요소는 잘리고 nextCursor는 반환된 마지막의 followId")
+    void getFollowerIds_hasNext() {
+        UUID authorId = UUID.randomUUID();
+        UUID follow1 = UUID.randomUUID();
+        UUID follow2 = UUID.randomUUID();
+        UUID follow3 = UUID.randomUUID();
+        UUID follower1 = UUID.randomUUID();
+        UUID follower2 = UUID.randomUUID();
+        UUID follower3 = UUID.randomUUID();
+        // size=2 요청 -> limit=3으로 조회, 결과 3개(size 초과) -> hasNext, 마지막 1개 잘라냄
+        given(followRepository.findFollowerRowsByFolloweeId(authorId, null, 3))
+                .willReturn(List.of(
+                        new FollowCursorRow(follow1, follower1),
+                        new FollowCursorRow(follow2, follower2),
+                        new FollowCursorRow(follow3, follower3)
+                ));
+
+        CursorPageResponse<UUID> response = followService.getFollowerIds(authorId, null, 2);
+
+        assertThat(response.content()).containsExactly(follower1, follower2);
+        assertThat(response.hasNext()).isTrue();
+        assertThat(response.nextCursor()).isEqualTo(follow2);
+    }
+
+    @Test
+    @DisplayName("팔로워 ID 목록: 결과가 없으면 빈 목록, hasNext=false, nextCursor=null")
+    void getFollowerIds_empty() {
+        UUID authorId = UUID.randomUUID();
+        given(followRepository.findFollowerRowsByFolloweeId(authorId, null, 4))
+                .willReturn(List.of());
+
+        CursorPageResponse<UUID> response = followService.getFollowerIds(authorId, null, 3);
+
+        assertThat(response.content()).isEmpty();
+        assertThat(response.hasNext()).isFalse();
+        assertThat(response.nextCursor()).isNull();
+    }
+
+    @Test
+    @DisplayName("팔로워 ID 목록: size가 1 미만이면 예외가 발생한다")
+    void getFollowerIds_invalidSize_tooSmall() {
+        UUID authorId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> followService.getFollowerIds(authorId, null, 0))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(FollowErrorCode.INVALID_PAGE_SIZE);
+    }
+
+    @Test
+    @DisplayName("팔로워 ID 목록: size가 1000 초과면 예외가 발생한다")
+    void getFollowerIds_invalidSize_tooLarge() {
+        UUID authorId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> followService.getFollowerIds(authorId, null, 1001))
+                .isInstanceOf(CustomException.class)
+                .extracting("errorCode")
+                .isEqualTo(FollowErrorCode.INVALID_PAGE_SIZE);
     }
 
     private User user(Role role) {

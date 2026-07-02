@@ -2,7 +2,11 @@ package com.fandom.order_service.payment.domain.repository;
 
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
+import org.springframework.data.domain.Limit;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -36,4 +40,20 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
      * PG 콜백(webhook)이 들고 오는 pgTransactionId로 결제 시도를 찾는다.
      */
     Optional<Payment> findByPgTransactionId(String pgTransactionId);
+
+    /** retryable=true인 FAILED Payment를 가진 주문 ID 조회. 건별 처리는 Writer가 비관적 락으로 처리. */
+    @Query("""
+            select distinct p.orderId from Payment p
+            where p.paymentStatus = :status
+              and p.retryable = true
+            """)
+    List<UUID> findRetryableOrderIds(@Param("status") PaymentStatus status, Limit limit);
+
+    /** orderId 기준 전체 결제 시도 횟수. 재시도 횟수 초과 판별에 사용. */
+    long countByOrderId(UUID orderId);
+
+    /** PAID 전이 시 해당 주문의 retryable 플래그 일괄 해제. 폴링 대상 누적 방지. */
+    @Modifying
+    @Query("update Payment p set p.retryable = false where p.orderId = :orderId and p.retryable = true")
+    void clearRetryableFlagByOrderId(@Param("orderId") UUID orderId);
 }

@@ -49,7 +49,7 @@ class RefundRecoveryWriterTest {
     @BeforeEach
     void setUp() {
         OrderProperties.RefundRecovery refundRecovery = new OrderProperties.RefundRecovery(100, 10000L, MAX_RETRIES);
-        OrderProperties properties = new OrderProperties(null, 0, null, null, null, null, refundRecovery, null);
+        OrderProperties properties = new OrderProperties(null, 0, null, null, null, null, null, refundRecovery, null);
         writer = new RefundRecoveryWriter(orderRepository, paymentRepository, orderStatusHistoryRepository,
                 paymentGateway, outboxAppender, properties);
     }
