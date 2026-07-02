@@ -7,8 +7,8 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -23,7 +23,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class LikeSyncScheduler {
     private final LikeRepository likeRepository;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     @Transactional
     @Scheduled(fixedDelayString = "#{${scheduler.like-sync.fixed-delay} * 1000}")

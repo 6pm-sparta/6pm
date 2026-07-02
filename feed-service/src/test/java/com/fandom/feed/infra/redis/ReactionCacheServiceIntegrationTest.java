@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -38,7 +38,7 @@ public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSup
     private LikeRepository likeRepository;
 
     @Autowired
-    private RedisTemplate<String, String> redisTemplate;
+    private StringRedisTemplate redisTemplate;
 
     @Autowired
     private ReactionCacheService reactionCacheService;

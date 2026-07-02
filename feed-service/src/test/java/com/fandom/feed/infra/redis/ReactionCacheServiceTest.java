@@ -14,8 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.List;
@@ -35,7 +35,7 @@ class ReactionCacheServiceTest {
     private LikeRepository likeRepository;
 
     @Mock
-    private RedisTemplate<String, String> redisTemplate;
+    private StringRedisTemplate redisTemplate;
 
     @Mock
     private ValueOperations<String, String> valueOperations;

@@ -10,7 +10,7 @@ import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class ReactionCacheService {
     private final PostReader postReader;
     private final LikeRepository likeRepository;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     private static final int COMMENT_COUNT_IDX = 0;
     private static final int LIKE_COUNT_IDX = 1;
@@ -169,10 +169,7 @@ public class ReactionCacheService {
     public void removeLikeBatch(List<UUID> postIds, UUID userId) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
             postIds.forEach(postId ->
-                    connection.setCommands().sRem(
-                            (RedisKeyPrefix.LIKE + postId).getBytes(),
-                            userId.toString().getBytes()
-                    )
+                    connection.setCommands().sRem((RedisKeyPrefix.LIKE + postId).getBytes(), userId.toString().getBytes())
             );
             return null;
         });
@@ -181,9 +178,7 @@ public class ReactionCacheService {
     /** 게시글 ID 목록으로 좋아요 캐시를 삭제하는 메서드 */
     public void deleteLikeSetBatch(List<UUID> postIds) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
-            postIds.forEach(postId ->
-                    connection.keyCommands().del((RedisKeyPrefix.LIKE + postId).getBytes())
-            );
+            postIds.forEach(postId -> connection.keyCommands().del((RedisKeyPrefix.LIKE + postId).getBytes()));
             return null;
         });
     }

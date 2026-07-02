@@ -13,7 +13,7 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ public class PostDetailCacheService {
     private final UserClientRetryWrapper userClient;
     private final ImageUrlConverter imageUrlConverter;
     private final CacheManager cacheManager;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     /**
      * 게시글 ID로 케시글 상세 캐시를 조회하는 메서드<br>
@@ -59,10 +59,10 @@ public class PostDetailCacheService {
         Map<UUID, PostDetailCache> cachedMap = new HashMap<>();
         List<UUID> missIds = new ArrayList<>();
 
-        postIds.forEach(id -> {
-            PostDetailCache cached = (cache != null) ? cache.get(id, PostDetailCache.class) : null;
-            if (cached != null) cachedMap.put(id, cached);
-            else missIds.add(id);
+        postIds.forEach(postId -> {
+            PostDetailCache cached = (cache != null) ? cache.get(postId, PostDetailCache.class) : null;
+            if (cached != null) cachedMap.put(postId, cached);
+            else missIds.add(postId);
         });
 
         // 캐시 미스 배치 조회

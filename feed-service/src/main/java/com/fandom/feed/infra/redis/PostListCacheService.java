@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.StringRedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
@@ -19,7 +19,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class PostListCacheService {
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     @Value("${cache.ttl.post-list}")
     private long postListTtl;
