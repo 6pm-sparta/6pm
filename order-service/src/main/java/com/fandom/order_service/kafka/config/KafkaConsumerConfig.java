@@ -1,9 +1,11 @@
 package com.fandom.order_service.kafka.config;
 
+import com.fandom.order_service.kafka.KafkaTopics;
 import com.fandom.order_service.kafka.event.SeatBookFailedEvent;
 import com.fandom.order_service.kafka.event.SeatBookedEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -11,6 +13,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
@@ -21,9 +25,10 @@ import java.util.Map;
 
 /**
  * order-service가 수신하는 ticketing-service 이벤트용 consumer 설정.
+ *
  * ErrorHandlingDeserializer로 감싸 역직렬화 실패가 리스너 스레드를 죽이지 않게 하고,
- * DefaultErrorHandler가 짧게 재시도한 뒤 (FixedBackOff) 그래도 실패하면 로그만 남기고 다음 메시지로 넘어간다.
- * — 처리 못 하는 메시지 하나가 뒤따르는 메시지 처리를 영구히 막아서는 걸 방지한다.
+ * DefaultErrorHandler가 FixedBackOff(1초, 2회) 재시도 후 소진 시
+ * DeadLetterPublishingRecoverer가 {topic}.DLQ로 메시지를 이동한다.
  */
 @Slf4j
 @EnableKafka
@@ -37,12 +42,18 @@ public class KafkaConsumerConfig {
     private String groupId;
 
     @Bean
-    public DefaultErrorHandler errorHandler() {
-        return new DefaultErrorHandler(
-                (record, ex) -> log.error(
-                        "[Kafka] 메시지 처리 실패 - 스킵: topic={}, partition={}, offset={}, key={}, value={}",
-                        record.topic(), record.partition(), record.offset(), record.key(), record.value(), ex),
-                new FixedBackOff(1000L, 2L));
+    public DefaultErrorHandler errorHandler(KafkaTemplate<String, Object> dlqKafkaTemplate) {
+
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
+                dlqKafkaTemplate,
+                (record, ex) -> {
+                    String dlqTopic = record.topic() + ".DLQ";
+                    log.error("[Kafka DLQ] 재시도 소진 → DLQ 이동. topic={}, dlqTopic={}, offset={}, key={}",
+                            record.topic(), dlqTopic, record.offset(), record.key(), ex);
+                    return new TopicPartition(dlqTopic, -1);
+                });
+
+        return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2L));
     }
 
     @Bean

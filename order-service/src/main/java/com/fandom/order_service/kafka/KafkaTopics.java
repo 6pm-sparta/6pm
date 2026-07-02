@@ -18,6 +18,10 @@ public final class KafkaTopics {
     public static final String SEAT_BOOKED = "ticketing.seat.booked";
     public static final String SEAT_BOOK_FAILED = "ticketing.seat.book.failed";
 
+//    /** DLQ: Consumer 재시도 소진 시 이동 대상 */
+//    public static final String SEAT_BOOKED_DLQ = SEAT_BOOKED + ".DLQ";
+//    public static final String SEAT_BOOK_FAILED_DLQ = SEAT_BOOK_FAILED + ".DLQ";
+
     private KafkaTopics() {
     }
 }

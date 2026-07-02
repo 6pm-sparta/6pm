@@ -76,8 +76,8 @@ class OutboxRecordPublisherTest {
     }
 
     @Test
-    @DisplayName("발행 실패 시 PENDING으로 남아 다음 폴링이 재시도할 수 있다")
-    void publishOne_sendFails_staysPending() {
+    @DisplayName("발행 실패 시 retryCount가 오르고 MAX 미만이면 PENDING 유지")
+    void publishOne_sendFails_incrementsRetryCount_staysPending() {
         // given
         OrderOutbox record = pendingRecord();
         given(outboxRepository.findById(outboxId)).willReturn(Optional.of(record));
@@ -90,7 +90,27 @@ class OutboxRecordPublisherTest {
 
         // then
         assertThat(record.getStatus()).isEqualTo(OutboxStatus.PENDING);
+        assertThat(record.getRetryCount()).isEqualTo(1);
         assertThat(record.getPublishedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("retryCount가 MAX_RETRY_COUNT에 도달하면 FAILED로 전이한다")
+    void publishOne_retryExhausted_marksFailed() {
+        // given
+        OrderOutbox record = pendingRecord();
+        ReflectionTestUtils.setField(record, "retryCount", OutboxRecordPublisher.MAX_RETRY_COUNT - 1);
+        given(outboxRepository.findById(outboxId)).willReturn(Optional.of(record));
+        CompletableFuture<SendResult<String, Object>> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("broker down"));
+        given(kafkaTemplate.send(any(), any(), any())).willReturn(failed);
+
+        // when
+        recordPublisher.publishOne(outboxId);
+
+        // then
+        assertThat(record.getStatus()).isEqualTo(OutboxStatus.FAILED);
+        assertThat(record.getRetryCount()).isEqualTo(OutboxRecordPublisher.MAX_RETRY_COUNT);
     }
 
     @Test
@@ -99,7 +119,7 @@ class OutboxRecordPublisherTest {
         // given
         given(outboxRepository.findById(outboxId)).willReturn(Optional.empty());
 
-        // when & then (예외 없이 통과)
+        // when & then
         recordPublisher.publishOne(outboxId);
     }
 }
