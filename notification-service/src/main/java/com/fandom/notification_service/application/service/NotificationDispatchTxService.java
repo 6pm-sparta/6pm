@@ -176,11 +176,15 @@ public class NotificationDispatchTxService {
         if (deviceTokens.isEmpty()) {
             return;
         }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                deviceTokens.forEach(token -> pushDispatchPort.publishRetry(notificationId, token));
-            }
-        });
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    deviceTokens.forEach(token -> pushDispatchPort.publishRetry(notificationId, token));
+                }
+            });
+        } else {
+            deviceTokens.forEach(token -> pushDispatchPort.publishRetry(notificationId, token));
+        }
     }
 }
