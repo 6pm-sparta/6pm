@@ -2,11 +2,14 @@ package com.fandom.user_service.follow.infrastructure.repository;
 
 import com.fandom.user_service.follow.domain.entity.Follow;
 import com.fandom.user_service.follow.domain.repository.FollowRepository;
+import com.fandom.user_service.follow.domain.repository.projection.FollowCursorRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,5 +47,10 @@ public class FollowRepositoryImpl implements FollowRepository {
     @Override
     public Page<Follow> findByFollowerId(UUID followerId, Pageable pageable) {
         return followJpaRepository.findByFollowerId(followerId, pageable);
+    }
+
+    @Override
+    public List<FollowCursorRow> findFollowerRowsByFolloweeId(UUID followeeId, UUID cursor, int limit) {
+        return followJpaRepository.findFollowerRowsByFolloweeId(followeeId, cursor, PageRequest.of(0, limit));
     }
 }

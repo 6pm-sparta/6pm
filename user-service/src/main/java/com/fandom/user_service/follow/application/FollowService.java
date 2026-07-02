@@ -15,6 +15,8 @@ import com.fandom.user_service.profile.domain.repository.ProfileRepository;
 import com.fandom.user_service.follow.presentation.dto.response.FollowerResponse;
 import com.fandom.user_service.follow.presentation.dto.response.FollowingResponse;
 import com.fandom.user_service.follow.presentation.dto.response.PageResponse;
+import com.fandom.user_service.follow.presentation.dto.response.CursorPageResponse;
+import com.fandom.user_service.follow.domain.repository.projection.FollowCursorRow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -114,12 +116,49 @@ public class FollowService {
         return PageResponse.from(followings);
     }
 
+    /**
+     * 팔로워 수 조회. (Feed 팬아웃 여부 판단용)
+     * Profile의 집계값(followerCount)을 사용한다 — 실카운트보다 빠르고, 팬아웃 임계치 판단에는 집계값으로 충분하다.
+     */
+    public long countFollowers(UUID authorId) {
+        Profile profile = findProfileByUserId(authorId);
+        return profile.getFollowerCount();
+    }
+
+    /**
+     * 팔로워 userId 목록을 커서 페이징으로 조회. (Feed 팬아웃 대상 조회용)
+     * 프로필을 포함하지 않고 UUID만 반환한다. cursor가 null이면 처음부터.
+     * limit+1개를 조회해 hasNext를 판단하고, 다음 커서는 마지막 반환 요소의 followId로 설정한다.
+     */
+    public CursorPageResponse<UUID> getFollowerIds(UUID authorId, UUID cursor, int size) {
+        validatePageSize(size);
+        List<FollowCursorRow> rows = followRepository.findFollowerRowsByFolloweeId(authorId, cursor, size + 1);
+
+        boolean hasNext = rows.size() > size;
+        List<FollowCursorRow> pageRows = hasNext ? rows.subList(0, size) : rows;
+
+        List<UUID> followerIds = pageRows.stream()
+                .map(FollowCursorRow::targetUserId)
+                .toList();
+        UUID nextCursor = pageRows.isEmpty()
+                ? null
+                : pageRows.get(pageRows.size() - 1).followId();
+
+        return CursorPageResponse.of(followerIds, hasNext ? nextCursor : null, hasNext);
+    }
+
     private void validateFollowable(User follower, User followee) {
         if (follower.getId().equals(followee.getId())) {
             throw new CustomException(FollowErrorCode.SELF_FOLLOW_NOT_ALLOWED);
         }
         validateFollowerRole(follower);
         validateRole(followee, Role.CREATOR, FollowErrorCode.FOLLOWEE_MUST_BE_CREATOR);
+    }
+
+    private void validatePageSize(int size) {
+        if (size < 1 || size > 1000) {
+            throw new CustomException(FollowErrorCode.INVALID_PAGE_SIZE);
+        }
     }
 
     private void validateFollowerRole(User user) {

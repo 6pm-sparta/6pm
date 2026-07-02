@@ -18,8 +18,10 @@ import java.util.UUID;
  * 실제 PG 없이 로컬/테스트 환경에서 결제 흐름을 검증한다.
  * 시나리오는 랜덤이 아니라 idempotencyKey 규칙으로 결정된다.
  *
- * - FAIL_            : 결제 실패 웹훅(FAILED)
+ * - FAIL_            : 결제 영구 실패 웹훅(FAILED)
  * - TIMEOUT_         : 결제 웹훅 미발송
+ * - TRANSIENT_FAIL_  : 일시적 실패 웹훅(FAILED, failureReason="TRANSIENT:...").
+ *                      재시도는 새 idempotencyKey로 오므로 prefix 없어 정상 승인 처리됨.
  * - REFUND_FAIL_     : 승인 후 환불 실패 웹훅(REFUND_FAILED)
  * - REFUND_TIMEOUT_  : 승인 후 환불 웹훅 미발송
  * - 그 외             : 승인(APPROVED), 환불(REFUNDED)
@@ -31,6 +33,8 @@ public class MockPaymentGateway implements PaymentGateway {
 
     private static final String FAIL_PREFIX = "FAIL_";
     private static final String TIMEOUT_PREFIX = "TIMEOUT_";
+    private static final String TRANSIENT_FAIL_PREFIX = "TRANSIENT_FAIL_";
+    private static final String TRANSIENT_FAILURE_REASON = "TRANSIENT:PG 일시적 오류";
     private static final String REFUND_FAIL_MARKER = "REFUND_FAIL_";
     private static final String REFUND_TIMEOUT_MARKER = "REFUND_TIMEOUT_";
 
@@ -42,27 +46,32 @@ public class MockPaymentGateway implements PaymentGateway {
     public String requestApprovalAsync(UUID orderId, String idempotencyKey, Long amount, PaymentMethod paymentMethod) {
 
         String pgTransactionId = "PG-" + refundScenarioMarker(idempotencyKey) + UUID.randomUUID();
-        boolean willFail = idempotencyKey != null && idempotencyKey.startsWith(FAIL_PREFIX);
+        boolean willTransientFail = idempotencyKey != null && idempotencyKey.startsWith(TRANSIENT_FAIL_PREFIX);
+        boolean willFail = !willTransientFail && idempotencyKey != null && idempotencyKey.startsWith(FAIL_PREFIX);
 
         // PG는 결과와 무관하게 항상 자신의 거래 기록을 먼저 영속화한다(진짜 상태).
-        // webhook 발송 여부(TIMEOUT 시나리오)는 이 기록과 별개다 — "PG는 처리했지만
-        // 우리에게 통지만 못 받은" 상황을 재현하기 위함.
-        MockPgTransaction transaction = willFail
-                ? MockPgTransaction.failed(pgTransactionId, orderId, amount, "잔액이 부족합니다.")
+        // webhook 발송 여부(TIMEOUT 시나리오)는 이 기록과 별개다.
+        MockPgTransaction transaction = (willFail || willTransientFail)
+                ? MockPgTransaction.failed(pgTransactionId, orderId, amount,
+                willTransientFail ? TRANSIENT_FAILURE_REASON : "잔액이 부족합니다.")
                 : MockPgTransaction.approved(pgTransactionId, orderId, amount);
         mockPgTransactionRepository.save(transaction);
 
         if (idempotencyKey != null && idempotencyKey.startsWith(TIMEOUT_PREFIX)) {
-
-            // PG가 결과 웹훅을 보내지 않는 상황을 시뮬레이션한다. 거래 기록 자체는 위에서 이미 저장됨.
             log.warn("[MockPG] 비동기 타임아웃 시뮬레이션(webhook 미발송). orderId={}, pgTransactionId={}",
                     orderId, pgTransactionId);
             return pgTransactionId;
         }
 
-        PgWebhookRequest payload = willFail
-                ? new PgWebhookRequest(pgTransactionId, orderId, "FAILED", amount, "잔액이 부족합니다.")
-                : new PgWebhookRequest(pgTransactionId, orderId, "APPROVED", amount, null);
+        PgWebhookRequest payload;
+        if (willTransientFail) {
+            // "TRANSIENT:" prefix → PgWebhookService가 재시도 대상으로 마킹
+            payload = new PgWebhookRequest(pgTransactionId, orderId, "FAILED", amount, TRANSIENT_FAILURE_REASON);
+        } else if (willFail) {
+            payload = new PgWebhookRequest(pgTransactionId, orderId, "FAILED", amount, "잔액이 부족합니다.");
+        } else {
+            payload = new PgWebhookRequest(pgTransactionId, orderId, "APPROVED", amount, null);
+        }
 
         log.info("[MockPG] 비동기 결제 승인 요청 접수. orderId={}, pgTransactionId={}, paymentMethod={}",
                 orderId, pgTransactionId, paymentMethod);

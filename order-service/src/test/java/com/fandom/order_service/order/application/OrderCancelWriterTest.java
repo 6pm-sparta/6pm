@@ -58,7 +58,7 @@ class OrderCancelWriterTest {
     @BeforeEach
     void setUp() {
         OrderProperties orderProperties = new OrderProperties(
-                null, 10, null,
+                null, 10, null, null,
                 new OrderProperties.Cancellation(24),
                 new OrderProperties.Compensation(3, 1000L), null, null, null);
         orderCancelWriter = new OrderCancelWriter(
