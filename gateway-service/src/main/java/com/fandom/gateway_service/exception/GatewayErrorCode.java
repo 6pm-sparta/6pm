@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 public enum GatewayErrorCode implements ErrorCode {
 
     AUTH_STATE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인증 상태를 확인할 수 없습니다."),
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "서비스가 일시적으로 불가합니다. 잠시 후 다시 시도해 주세요."),
     GATEWAY_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "요청 처리 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.");
 
