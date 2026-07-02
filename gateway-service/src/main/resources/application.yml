@@ -6,6 +6,11 @@ spring:
     name: gateway-service
   config:
     import: "optional:configserver:http://localhost:8888"
+  # WebFlux(리액티브)는 스레드가 계속 바뀌어 tracing context가 기본적으로 전파되지 않는다.
+  # Micrometer Tracing이 Reactor 체인을 통해 context를 전파하도록 명시적으로 켠다.
+  # (없으면 Brave span이 리액티브 체인에서 유실되어 Zipkin에 아예 리포트되지 않을 수 있다.)
+  reactor:
+    context-propagation: auto
   data:
     redis:
       host: ${REDIS_GENERAL_HOST:localhost}
