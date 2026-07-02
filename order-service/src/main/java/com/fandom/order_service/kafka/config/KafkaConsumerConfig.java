@@ -47,12 +47,10 @@ public class KafkaConsumerConfig {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 dlqKafkaTemplate,
                 (record, ex) -> {
-                    String dlqTopic = KafkaTopics.SEAT_BOOKED.equals(record.topic())
-                            ? KafkaTopics.SEAT_BOOKED_DLQ
-                            : KafkaTopics.SEAT_BOOK_FAILED_DLQ;
+                    String dlqTopic = record.topic() + ".DLQ";
                     log.error("[Kafka DLQ] 재시도 소진 → DLQ 이동. topic={}, dlqTopic={}, offset={}, key={}",
                             record.topic(), dlqTopic, record.offset(), record.key(), ex);
-                    return new TopicPartition(dlqTopic, -1); // -1: 파티션 자동 배정
+                    return new TopicPartition(dlqTopic, -1);
                 });
 
         return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2L));
