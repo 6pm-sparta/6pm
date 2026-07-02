@@ -1,51 +1,7 @@
-# auth-service/src/main/resources/application.yml — 표준 와이어링 기반 (DB 미포함)
-# 포트 8087 / Gateway 경로 /api/auth/** (인프라 가이드 매핑표 기준)
-# auth-service는 자체 DB를 두지 않으며, refresh token은 추후 redis로 관리 예정
-server:
-  port: 8087
-
 spring:
   application:
     name: auth-service
+  profiles:
+    active: dev
   config:
     import: "optional:configserver:http://localhost:8888"
-  data:
-    redis:
-      host: ${REDIS_GENERAL_HOST:localhost}
-      port: ${REDIS_GENERAL_PORT:6379}
-      password: ${REDIS_GENERAL_PASSWORD:fandom_redis_pw}
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: auth-service
-  # auth-service는 자체 DB를 두지 않으므로 datasource / jpa 설정 없음
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${random.uuid}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, prometheus
-  endpoint:
-    health:
-      show-details: always
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://localhost:9411/api/v2/spans
-
-# JWT 설정 (Access Token). HS256 대칭키.
-# TODO: 운영 시 secret은 환경변수/Config Server로 분리 (평문 금지)
-jwt:
-  secret: ${JWT_SECRET:6pm-fandom-sns-temporary-dev-secret-key-must-be-at-least-32-bytes-long}
-  access-token-expiration: 1800000  # 30분 (ms)
-  refresh-token-expiration: 1209600000 # 14 days (ms)

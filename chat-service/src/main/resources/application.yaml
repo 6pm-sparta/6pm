@@ -1,70 +1,7 @@
-server:
-  port: 8088
-
 spring:
   application:
     name: chat-service
+  profiles:
+    active: dev
   config:
     import: "optional:configserver:http://localhost:8888"
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url: ${CHAT_DB_URL}
-    username: ${CHAT_DB_USERNAME}
-    password: ${CHAT_DB_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: update
-    properties:
-      hibernate:
-        format_sql: true
-        log_slow_query: 500
-    show-sql: true
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
-    consumer:
-      group-id: chat-service
-  data:
-    redis:
-      host: ${REDIS_GENERAL_HOST}
-      port: ${REDIS_GENERAL_PORT}
-      password: ${REDIS_GENERAL_PASSWORD}
-
-chat:
-  notification:
-    chunk-size: 500
-
-logging:
-  file:
-    name: ./logs/chat-service.log
-  structured:
-    format:
-      file: ecs
-  level:
-    root: INFO
-    org.hibernate.SQL_SLOW: info
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${random.uuid}
-
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health, info, prometheus
-  endpoint:
-    health:
-      show-details: always
-  metrics:
-    tags:
-      application: ${spring.application.name}
-  tracing:
-    sampling:
-      probability: 1.0
-  zipkin:
-    tracing:
-      endpoint: http://localhost:9411/api/v2/spans
