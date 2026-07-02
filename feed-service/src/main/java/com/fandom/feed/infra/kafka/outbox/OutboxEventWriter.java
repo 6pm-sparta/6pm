@@ -7,7 +7,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.function.Function;
 
 @Component
 @RequiredArgsConstructor
@@ -19,6 +22,19 @@ public class OutboxEventWriter {
         try {
             String json = objectMapper.writeValueAsString(payload);
             outboxEventRepository.save(OutboxEvent.of(aggregateId, eventType, json));
+        } catch (JsonProcessingException e) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public void writeAll(List<UUID> aggregateIds, OutboxEventType eventType, Function<UUID, Object> payloadFactory) {
+        try {
+            List<OutboxEvent> events = new ArrayList<>();
+            for (UUID aggregateId : aggregateIds) {
+                String json = objectMapper.writeValueAsString(payloadFactory.apply(aggregateId));
+                events.add(OutboxEvent.of(aggregateId, eventType, json));
+            }
+            outboxEventRepository.saveAll(events);
         } catch (JsonProcessingException e) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }

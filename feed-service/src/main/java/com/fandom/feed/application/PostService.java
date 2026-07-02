@@ -56,11 +56,7 @@ public class PostService {
 
         // 알람 발행에 게시글 생성 시 닉네임 사용
         String nickname = userClient.getUser(userId).getData().nickname();
-        outboxEventWriter.write(
-                postId,
-                OutboxEventType.POST_CREATED,
-                new Event.PostCreated(post.getId(), userId, nickname)
-        );
+        outboxEventWriter.write(postId, OutboxEventType.POST_CREATED, new Event.PostCreated(postId, userId, nickname));
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
     }
@@ -126,6 +122,8 @@ public class PostService {
 
         postListCacheService.removePost(postId, post.getAuthorId());
 
+        outboxEventWriter.write(postId, OutboxEventType.POST_DELETED, new Event.PostDeleted(postId, userId));
+
         return PostResponse.Delete.from(post);
     }
 
@@ -176,6 +174,8 @@ public class PostService {
         List<String> imageKeys = imageService.findAllKeysByPostIds(postIds);
         imageService.deleteAllByPostIds(postIds);
         imageService.publishS3DeleteEvent(imageKeys);
+
+        outboxEventWriter.writeAll(postIds, OutboxEventType.POST_DELETED, postId -> new Event.PostDeleted(postId, authorId));
 
         postListCacheService.removeAllByAuthorId(postIds, authorId);
         postDetailCacheService.deleteAll(postIds);
