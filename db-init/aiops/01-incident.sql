@@ -31,6 +31,5 @@ CREATE TABLE IF NOT EXISTS incident_alert_history (
 
 CREATE INDEX IF NOT EXISTS idx_incident_fired_at  ON incident_alert_history (fired_at DESC);
 CREATE INDEX IF NOT EXISTS idx_incident_severity  ON incident_alert_history (severity);
--- (#128) 진행 중(active) 사건을 fingerprint 로 빠르게 매칭 (firing↔resolved 짝짓기/중복 방지)
 CREATE INDEX IF NOT EXISTS idx_incident_fp_active ON incident_alert_history (fingerprint)
     WHERE resolved_at IS NULL;

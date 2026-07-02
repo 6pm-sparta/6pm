@@ -8,15 +8,14 @@ spring:
     import: "optional:configserver:http://localhost:8888"
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://localhost:5432/fandom_db?currentSchema=aiops_db
-    username: root
-    password: password
+    url: jdbc:postgresql://localhost:5437/aiops_db
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:password}
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        default_schema: aiops_db
         format_sql: true
     show-sql: true
 
@@ -76,7 +75,7 @@ management:
       show-details: always
   tracing:
     sampling:
-      probability: 1.0
+      probability: 0.1 # 부하테스트 용으로 (추후 1.0으로 수정 예정)
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans

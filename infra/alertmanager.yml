@@ -6,15 +6,12 @@
 route:
   receiver: aiops-webhook
   group_by: ['alertname', 'job']
-  group_wait: 10s         # 첫 알림 묶기 대기(데모용으로 짧게; 운영은 30s~)
-  group_interval: 10s     # 같은 그룹 추가 알림 간격
-  repeat_interval: 1h     # 미해소 시 재통지 간격
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
 
 receivers:
   - name: aiops-webhook
     webhook_configs:
-      # ⚠️ 경로 교체 필수: 당신 AIOps 컨트롤러의 실제 웹훅 엔드포인트로.
-      #    (예: /api/v1/aiops/alerts 또는 /webhook/alertmanager — 코드 확인 후 맞추기)
-      # ⚠️ 호스트(IntelliJ) 기동 시 host.docker.internal, 전부 docker면 aiops-service:8086
-      - url: 'http://host.docker.internal:8086/api/v1/aiops/alerts'
-        send_resolved: true   # ★ MTTR 계산 필수: 해소(resolved) 알림도 보내야 resolved_at 채워짐
+      - url: 'http://host.docker.internal:8086/api/v1/alerts/webhook'
+        send_resolved: true

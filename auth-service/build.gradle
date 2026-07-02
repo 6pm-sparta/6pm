@@ -34,8 +34,4 @@ dependencies {
 	testImplementation 'org.testcontainers:testcontainers'
 
 	// === auth-service는 DB를 두지 않으므로 data-jpa / postgresql 미포함 ===
-
-	// 추적
-	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
-	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
 }
