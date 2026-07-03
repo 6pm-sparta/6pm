@@ -3,6 +3,7 @@ package com.fandom.user_service.follow.presentation.controller;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.user_service.follow.application.FollowService;
 import com.fandom.user_service.follow.presentation.dto.response.CursorPageResponse;
+import com.fandom.user_service.follow.presentation.dto.response.InternalFollowingResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,6 +44,38 @@ public class InternalFollowController {
             @RequestParam int size
     ) {
         CursorPageResponse<UUID> response = followService.getFollowerIds(authorId, cursor, size);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 팔로잉 ID 목록 조회. (타임라인 구성용, 커서 페이징)
+     * 각 대상의 대형 크리에이터 여부(isLarge = followerCount > minFollowerCount)를 함께 반환한다.
+     */
+    @GetMapping("/{userId}/followings")
+    public ResponseEntity<ApiResponse<CursorPageResponse<InternalFollowingResponse>>> getFollowingIds(
+            @PathVariable UUID userId,
+            @RequestParam(required = false) UUID cursor,
+            @RequestParam int size,
+            @RequestParam long minFollowerCount
+    ) {
+        CursorPageResponse<InternalFollowingResponse> response =
+                followService.getFollowingIds(userId, cursor, size, minFollowerCount);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    /**
+     * 팔로잉 중 대형 크리에이터만 조회. (대형 대상은 pull 전략 등 별도 처리가 필요해 분리 제공)
+     * authorId(UUID) 목록만 반환한다.
+     */
+    @GetMapping("/{userId}/followings/large")
+    public ResponseEntity<ApiResponse<CursorPageResponse<UUID>>> getLargeFollowingIds(
+            @PathVariable UUID userId,
+            @RequestParam(required = false) UUID cursor,
+            @RequestParam int size,
+            @RequestParam long minFollowerCount
+    ) {
+        CursorPageResponse<UUID> response =
+                followService.getLargeFollowingIds(userId, cursor, size, minFollowerCount);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
