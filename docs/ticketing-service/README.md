@@ -83,20 +83,27 @@ flowchart TD
     C[purchase-token 발급]
     E[좌석 목록 조회]
     F{좌석 Hold 요청 - 토큰 검증}
-    G[주문 생성 - PENDING]
+    G0[HELD - 선점만, 주문 없음]
+    G1{체크아웃 요청}
+    G[주문 생성 - PENDING → CONFIRMED]
     H[결제 요청]
     I[PAID → CONFIRMED + 좌석 BOOKED]
     J[FAILED + 좌석 해제]
 
     A --> B --> C --> E
     E --> F
-    F -->|토큰 있음 + 선점 성공| G --> H
+    F -->|토큰 있음 + 선점 성공| G0
     F -->|토큰 없음 403 / 선점 실패 409| E
+    G0 --> G1
+    G1 -->|본인 소유 + HELD| G --> H
+    G1 -->|CONFIRMED| G
     H -->|결제 성공| I
     H -->|결제 실패| J
 ```
 
 > **변경 (2026-06-23):** 토큰 검증 주체를 Gateway → `SeatService.hold()`로 변경. 좌석 목록 조회는 토큰 없이도 가능하며, 검증은 Hold 시점에 이루어진다. 자세한 배경은 [260623 대기열 토큰.md](./260623%20대기열%20토큰.md), 변경 이력은 [ticketing-system-change-log.md](./ticketing-system-change-log.md) 참고.
+>
+> **변경 (2026-07-03):** 주문 생성을 `hold()`에서 분리해 별도 체크아웃 API(`POST .../seats/{seatId}/checkout`)로 이전. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출(order-service Feign)이 들어있던 걸 가벼운 Redis 전용 연산으로 줄이기 위함. 자세한 배경은 [SA-260703.md §11](../SA-260703.md) 참고.
 
 ---
 
@@ -132,12 +139,14 @@ sequenceDiagram
 
 ---
 
-### 구간 2 — 좌석 선점 + 주문 생성
+### 구간 2 — 좌석 선점(hold) + 체크아웃(주문 생성)
 
 **좌석 Hold 시 구매 토큰 검증 (2026-06-23 추가):**
-`SeatService.hold()` 진입 시 `purchase-token:{showId}:{userId}` 존재 여부를 가장 먼저 확인한다. 없으면 `PURCHASE_TOKEN_NOT_FOUND`(403)로 즉시 거부하고, 있으면 기존 좌석 선점 Lua 스크립트(`HOLD_SCRIPT`) → 주문 생성 흐름으로 진행한다. 토큰은 Hold 성공 여부와 무관하게 TTL(600초)로만 만료되며 별도 삭제 로직은 없다.
+`SeatService.hold()` 진입 시 `purchase-token:{showId}:{userId}` 존재 여부를 가장 먼저 확인한다. 없으면 `PURCHASE_TOKEN_NOT_FOUND`(403)로 즉시 거부하고, 있으면 좌석 선점 Lua 스크립트(`HOLD_SCRIPT`)만 실행하고 끝난다(**2026-07-03부터 주문 생성 없음**). 토큰은 Hold 성공 여부와 무관하게 TTL(600초)로만 만료되며 별도 삭제 로직은 없다.
 
-(이하 주문 생성은 order-service에서)
+**체크아웃(주문 생성, 2026-07-03 신설):** `POST .../seats/{seatId}/checkout`이 별도 API로 분리됐다. `SeatService.checkout()`이 owner 상태가 `HELD`인지 확인 후 `CHECKOUT_CLAIM_SCRIPT`로 `PENDING` 전이 → `orderClient.create()` 호출(기존 hold()가 하던 것과 동일) → 성공 시 `CONFIRMED` 전이 + `HoldResponse(orderId)` 반환. 이미 `CONFIRMED`(재요청)면 주문 생성 없이 기존 orderId로 멱등 응답. 주문 생성 실패 시 이 좌석의 선점만 롤백(seatKey/ownerKey 삭제, 재고/구매카운트 복구).
+
+(이하 결제/확정은 order-service에서)
 
 ### 구간 3 — 결제 및 예매 확정 (order-service에서)
 
@@ -153,9 +162,9 @@ sequenceDiagram
 | TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우) |
 | 사용자 직접 취소 | `DELETE /api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | `SeatService.releaseHold()` — owner 본인 확인 후 Redis seat/owner 키 삭제, 재고 복구, DB `orderId` 해제 |
 
-**hold ↔ release 동시 호출 레이스 방지:** `hold()`가 주문 생성(`orderClient.create`, 외부 네트워크 호출)을 하는 동안 owner 키 상태를 `PENDING`으로 두고, 주문 생성이 끝나야 `CONFIRMED`로 바꾼다. `releaseHold()`는 `PENDING`인 동안은 무조건 `SEAT_HOLD_PROCESSING`(409)으로 거부한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
+**hold ↔ release ↔ checkout 동시 호출 레이스 방지 (2026-07-03 갱신):** owner 키 상태가 `HELD`(선점만, 주문 없음) → `PENDING`(체크아웃 진행 중, `orderClient.create` 외부 네트워크 호출) → `CONFIRMED`(주문 생성 완료) 3단계로 전이한다. `releaseHold()`는 `PENDING`인 동안(체크아웃이 주문 생성을 기다리는 중)만 `SEAT_HOLD_PROCESSING`(409)으로 거부하고, `HELD`나 `CONFIRMED` 상태에서는 해제를 허용한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
 
-> **주문 취소 연동 (완료, 2026-07-01):** `releaseHold()`는 `OrderClient.cancel(orderId)`로 order-service 주문도 함께 취소한다. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
+> **주문 취소 연동:** `releaseHold()`는 `OrderClient.cancel(orderId, requesterId)`로 order-service 주문도 함께 취소한다. order-service의 `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 2026-07-03 이전엔 실제로 존재하지 않아 항상 404였음(정합성 버그) — 2026-07-03에 수정 완료. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
 
 ---
 
@@ -169,7 +178,8 @@ sequenceDiagram
 | GET | `/api/v1/tickets/shows/{showId}/queue/status` | 현재 순번 조회 |
 | GET | `/api/v1/tickets/shows/{showId}/queue/stream` | SSE 연결 — 순번 실시간 수신 |
 | GET | `/api/v1/tickets/shows/{showId}/seats` | 회차별 좌석 목록 + 상태 조회 |
-| POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 + 주문 생성 트리거 |
+| POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점만(주문 없음, HELD 상태). 응답 바디 없음 |
+| POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/checkout` | 체크아웃 — 주문 생성(2026-07-03 신설). HELD 상태에서만 가능, 이미 CONFIRMED면 멱등 응답 |
 | DELETE | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 해제 (본인 선점만 가능) |
 
 ---

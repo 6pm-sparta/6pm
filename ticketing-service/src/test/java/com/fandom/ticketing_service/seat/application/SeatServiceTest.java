@@ -114,25 +114,22 @@ class SeatServiceTest {
     class Hold {
 
         @Test
-        @DisplayName("선점 성공 시 주문이 생성되고 orderId가 반환된다")
+        @DisplayName("선점 성공 시 주문생성 호출 없이 끝난다")
         void hold_success() {
             // given
             UUID seatId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
-            UUID orderId = UUID.randomUUID();
             ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
             given(redisTemplate.hasKey(anyString())).willReturn(true);
             given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
-            given(orderClient.create(any(CreateOrderRequest.class))).willReturn(ApiResponse.created(new CreateOrderResponse(orderId)));
 
-            // when
-            HoldResponse result = seatService.hold(seatId, userId);
+            // when & then
+            seatService.hold(seatId, userId);
 
-            // then
-            assertThat(result.orderId()).isEqualTo(orderId);
+            verifyNoInteractions(orderClient);
         }
 
         @Test
@@ -222,9 +219,113 @@ class SeatServiceTest {
                     .isEqualTo(TicketingErrorCode.PURCHASE_LIMIT_EXCEEDED);
         }
 
+    }
+
+    @Nested
+    @DisplayName("체크아웃(주문 생성)")
+    class Checkout {
+
         @Test
-        @DisplayName("주문 생성 실패 시 Redis 선점이 롤백되고 ORDER_CREATE_FAILED 예외가 발생한다")
-        void hold_orderCreateFailed_rollbacksRedis() {
+        @DisplayName("HELD 상태에서 체크아웃하면 주문이 생성되고 orderId가 반환된다")
+        void checkout_success() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            UUID orderId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(1L);
+            given(orderClient.create(any(CreateOrderRequest.class))).willReturn(ApiResponse.created(new CreateOrderResponse(orderId)));
+
+            // when
+            HoldResponse result = seatService.checkout(seatId, userId);
+
+            // then
+            assertThat(result.orderId()).isEqualTo(orderId);
+            assertThat(seat.getOrderId()).isEqualTo(orderId);
+        }
+
+        @Test
+        @DisplayName("이미 CONFIRMED 상태면 주문생성 없이 기존 orderId로 멱등 응답한다")
+        void checkout_alreadyConfirmed_idempotent() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            UUID orderId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+            seat.assignOrder(orderId);
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(2L);
+
+            // when
+            HoldResponse result = seatService.checkout(seatId, userId);
+
+            // then
+            assertThat(result.orderId()).isEqualTo(orderId);
+            verifyNoInteractions(orderClient);
+        }
+
+        @Test
+        @DisplayName("본인 선점이 아니면 SEAT_HOLD_FORBIDDEN 예외가 발생한다")
+        void checkout_forbidden() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-2L);
+
+            // when & then
+            assertThatThrownBy(() -> seatService.checkout(seatId, UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_HOLD_FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("이미 체크아웃 처리 중이면 SEAT_HOLD_PROCESSING 예외가 발생한다")
+        void checkout_processing() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-3L);
+
+            // when & then
+            assertThatThrownBy(() -> seatService.checkout(seatId, UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_HOLD_PROCESSING);
+        }
+
+        @Test
+        @DisplayName("선점되어 있지 않으면 SEAT_NOT_HELD 예외가 발생한다")
+        void checkout_notHeld() {
+            // given
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(-1L);
+
+            // when & then
+            assertThatThrownBy(() -> seatService.checkout(seatId, UUID.randomUUID()))
+                    .isInstanceOf(CustomException.class)
+                    .extracting("errorCode")
+                    .isEqualTo(TicketingErrorCode.SEAT_NOT_HELD);
+        }
+
+        @Test
+        @DisplayName("주문 생성 실패 시 이 좌석의 선점만 롤백되고 ORDER_CREATE_FAILED 예외가 발생한다")
+        void checkout_orderCreateFailed_rollbacksRedis() {
             // given
             UUID seatId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
@@ -232,12 +333,12 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(purchaseTokenService.exists(any(UUID.class), any())).willReturn(true);
-            given(redisTemplate.execute(any(RedisScript.class), anyList(), any(), any(), any())).willReturn(1L);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(1L);
             given(orderClient.create(any())).willThrow(new RuntimeException("order-service 연결 실패"));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
 
             // when & then
-            assertThatThrownBy(() -> seatService.hold(seatId, userId))
+            assertThatThrownBy(() -> seatService.checkout(seatId, userId))
                     .isInstanceOf(CustomException.class)
                     .extracting("errorCode")
                     .isEqualTo(TicketingErrorCode.ORDER_CREATE_FAILED);
@@ -288,7 +389,7 @@ class SeatServiceTest {
             seatService.releaseHold(seatId, userId);
 
             // then
-            verify(orderClient).cancel(orderId);
+            verify(orderClient).cancel(orderId, userId);
         }
 
         @Test

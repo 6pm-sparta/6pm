@@ -32,8 +32,12 @@ public class SeatService {
     private static final String PURCHASE_COUNT_KEY = "purchase-count:%s:%s";
     private static final int MAX_PER_USER = 4;
 
-    // owner 값은 "{userId}:{status}" 형태. 주문 생성(orderClient.create) 도중엔 PENDING으로 두어
-    // releaseHold가 끼어들어 DB에는 orderId가 박히는데 Redis는 이미 풀려버리는 레이스를 막는다.
+    // owner 값은 "{userId}:{status}" 형태.
+    // HELD: 선점만 됨, 주문 없음 (hold() 직후)
+    // PENDING: 체크아웃 진입, 주문 생성(orderClient.create) 진행 중 — releaseHold가 끼어들어
+    //          DB에는 orderId가 박히는데 Redis는 이미 풀려버리는 레이스를 막는다.
+    // CONFIRMED: 주문 생성 완료
+    private static final String OWNER_STATUS_HELD = "HELD";
     private static final String OWNER_STATUS_PENDING = "PENDING";
     private static final String OWNER_STATUS_CONFIRMED = "CONFIRMED";
 
@@ -59,7 +63,22 @@ public class SeatService {
             return 1
             """, Long.class);
 
-    // Lua: (ownerKey, seatKey, inventoryKey, countKey) ARGV: userId → 1:성공, -1:선점 없음/만료됨, -2:본인 선점 아님, -3:주문 생성 처리 중
+    // Lua: (ownerKey) ARGV: userId → HELD 상태의 소유권을 PENDING으로 원자적 전이(체크아웃 진입 클레임)
+    // 1:클레임 성공, 2:이미 CONFIRMED(멱등), -1:선점 없음/만료됨, -2:본인 선점 아님, -3:이미 체크아웃 처리 중
+    private static final RedisScript<Long> CHECKOUT_CLAIM_SCRIPT = RedisScript.of("""
+            local owner = redis.call('GET', KEYS[1])
+            if not owner then return -1 end
+            local sep = string.find(owner, ':')
+            local ownerId = string.sub(owner, 1, sep - 1)
+            local status = string.sub(owner, sep + 1)
+            if ownerId ~= ARGV[1] then return -2 end
+            if status == 'CONFIRMED' then return 2 end
+            if status == 'PENDING' then return -3 end
+            redis.call('SET', KEYS[1], ARGV[1] .. ':PENDING', 'KEEPTTL')
+            return 1
+            """, Long.class);
+
+    // Lua: (ownerKey, seatKey, inventoryKey, countKey) ARGV: userId → 1:성공, -1:선점 없음/만료됨, -2:본인 선점 아님, -3:체크아웃 처리 중
     private static final RedisScript<Long> RELEASE_SCRIPT = RedisScript.of("""
             local owner = redis.call('GET', KEYS[1])
             if not owner then return -1 end
@@ -97,8 +116,7 @@ public class SeatService {
                 .toList();
     }
 
-    @Transactional
-    public HoldResponse hold(UUID showSeatId, UUID userId) {
+    public void hold(UUID showSeatId, UUID userId) {
         ShowSeat seat = showSeatRepository.findById(showSeatId)
                 .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
 
@@ -115,7 +133,7 @@ public class SeatService {
 
         Long result = redisTemplate.execute(HOLD_SCRIPT,
                 List.of(seatKey, inventoryKey, countKey, ownerKey),
-                String.valueOf(MAX_PER_USER), userId.toString(), OWNER_STATUS_PENDING);
+                String.valueOf(MAX_PER_USER), userId.toString(), OWNER_STATUS_HELD);
 
         switch ((result != null ? result.intValue() : 0)) {
             case 1 -> { /* 선점 성공 */ }
@@ -124,10 +142,39 @@ public class SeatService {
             case -2 -> throw new CustomException(TicketingErrorCode.PURCHASE_LIMIT_EXCEEDED);
             default -> throw new CustomException(TicketingErrorCode.SEAT_ALREADY_HELD);
         }
+    }
+
+    // 좌석 선점(HELD) 상태에서 주문을 생성해 CONFIRMED로 전이한다. 이미 CONFIRMED면 기존 주문으로 멱등 응답.
+    @Transactional
+    public HoldResponse checkout(UUID showSeatId, UUID userId) {
+        ShowSeat seat = showSeatRepository.findById(showSeatId)
+                .orElseThrow(() -> new CustomException(TicketingErrorCode.SEAT_NOT_FOUND));
+
+        if (!purchaseTokenService.exists(seat.getShowId(), userId)) {
+            throw new CustomException(TicketingErrorCode.PURCHASE_TOKEN_NOT_FOUND);
+        }
+
+        String seatKey = SEAT_KEY.formatted(seat.getShowId(), showSeatId);
+        String ownerKey = OWNER_KEY.formatted(seat.getShowId(), showSeatId);
+        String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
+        String countKey = PURCHASE_COUNT_KEY.formatted(userId, seat.getShowId());
+
+        Long claim = redisTemplate.execute(CHECKOUT_CLAIM_SCRIPT, List.of(ownerKey), userId.toString());
+
+        switch (claim != null ? claim.intValue() : -1) {
+            case 1 -> { /* PENDING 전이 성공, 주문 생성 진행 */ }
+            case 2 -> {
+                // 이미 CONFIRMED — 재요청은 기존 주문으로 멱등 응답
+                return new HoldResponse(seat.getOrderId());
+            }
+            case -2 -> throw new CustomException(TicketingErrorCode.SEAT_HOLD_FORBIDDEN);
+            case -3 -> throw new CustomException(TicketingErrorCode.SEAT_HOLD_PROCESSING);
+            default -> throw new CustomException(TicketingErrorCode.SEAT_NOT_HELD);
+        }
 
         try {
             // holdId는 order-service의 1차 멱등성 방어(Redis 클레임) 키. 이 호출 단위로만 유효하면 되므로
-            // 매 hold() 시도마다 새로 발급한다. (Feign 재시도가 없고, 위 SETNX로 동시 중복 호출 자체가
+            // 매 checkout() 시도마다 새로 발급한다. (위 CHECKOUT_CLAIM_SCRIPT로 동시 중복 호출 자체가
             // 막히므로 같은 좌석에 holdId가 두 번 쓰일 일이 없다 — 정합성은 order-service의 seatId UNIQUE로도 보장)
             var request = new CreateOrderRequest(UUID.randomUUID(), showSeatId, userId, (long) seat.getPrice());
             var order = orderClient.create(request).getData();
@@ -136,7 +183,7 @@ public class SeatService {
             redisTemplate.execute(CONFIRM_OWNER_SCRIPT, List.of(ownerKey), userId.toString(), OWNER_STATUS_CONFIRMED);
             return new HoldResponse(order.orderId());
         } catch (Exception e) {
-            // 주문 생성 실패 시 선점 해제
+            // 주문 생성 실패 시 이 좌석의 선점만 롤백
             redisTemplate.delete(seatKey);
             redisTemplate.delete(ownerKey);
             redisTemplate.opsForValue().increment(inventoryKey);
