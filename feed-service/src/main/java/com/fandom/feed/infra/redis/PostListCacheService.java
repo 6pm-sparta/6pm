@@ -103,9 +103,10 @@ public class PostListCacheService {
         List<String> keys = allKeys(authorId);
 
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
             keys.forEach(key -> {
-                connection.zSetCommands().zAdd(key.getBytes(), score, member.getBytes());
-                connection.zSetCommands().zRemRange(key.getBytes(), 0, -(FeedPolicy.MAX_CACHE_SIZE + 1));
+                stringConn.zAdd(key, score, member);
+                stringConn.zRemRange(key, 0, -(FeedPolicy.MAX_CACHE_SIZE + 1));
             });
             return null;
         });
@@ -119,12 +120,13 @@ public class PostListCacheService {
         String key = resolveKey(authorId);
 
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
             postIds.forEach(postId -> {
                 long score = UuidV7TimestampExtractor.extract(postId);
-                connection.zSetCommands().zAdd(key.getBytes(), score, postId.toString().getBytes());
+                stringConn.zAdd(key, score, postId.toString());
             });
-            connection.zSetCommands().zAdd(key.getBytes(), -1, FeedPolicy.WARMED_MARKER.getBytes());
-            connection.keyCommands().expire(key.getBytes(), postListTtl);
+            stringConn.zAdd(key, -1, FeedPolicy.WARMED_MARKER);
+            stringConn.expire(key, postListTtl);
             return null;
         });
     }
@@ -135,7 +137,8 @@ public class PostListCacheService {
         List<String> keys = allKeys(authorId);
 
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            keys.forEach(key -> connection.zSetCommands().zRem(key.getBytes(), member.getBytes()));
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
+            keys.forEach(key -> stringConn.zRem(key, member));
             return null;
         });
     }
@@ -143,12 +146,9 @@ public class PostListCacheService {
     /** 게시글 목록 캐시에서 작성자 ID의 모든 게시글 ID를 삭제하는 메서드 */
     public void removeAllByAuthorId(List<UUID> postIds, UUID authorId) {
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
-            // feed:posts:all는 하나씩 제거
-            postIds.forEach(postId ->
-                    connection.zSetCommands().zRem(RedisKeyPrefix.POST_LIST_ALL.getBytes(), postId.toString().getBytes())
-            );
-            // feed:posts:{authorId}는 한번에 삭제
-            connection.keyCommands().del((RedisKeyPrefix.POST_LIST + authorId).getBytes());
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
+            postIds.forEach(postId -> stringConn.zRem(RedisKeyPrefix.POST_LIST_ALL, postId.toString()));
+            stringConn.del((RedisKeyPrefix.POST_LIST + authorId));
             return null;
         });
     }
