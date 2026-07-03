@@ -5,11 +5,16 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 
+import java.util.AbstractMap;
 import java.util.Map;
 
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class LogContext {
+    public static Map.Entry<String, Object> entry(String key, Object value) {
+        return new AbstractMap.SimpleEntry<>(key, value);
+    }
+
     @SafeVarargs
     public static void with(Runnable task, Map.Entry<String, Object>... entries) {
         try {
