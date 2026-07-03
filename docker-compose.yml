@@ -158,7 +158,7 @@ services:
     container_name: 6pm-redis-general
     ports:
       - "6379:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_GENERAL_PASSWORD}
 
   redis-ticketing:
     image: redis:7-alpine
@@ -166,7 +166,7 @@ services:
     container_name: 6pm-redis-ticketing
     ports:
       - "6380:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_TICKETING_PASSWORD}
 
   kafka:
     image: apache/kafka:3.7.0
