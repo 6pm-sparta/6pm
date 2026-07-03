@@ -1,3 +1,9 @@
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:1.0.0"
+    }
+}
+
 dependencies {
     implementation project(':common')
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -18,4 +24,7 @@ dependencies {
     // implementation 'org.redisson:redisson-spring-boot-starter:3.35.0'                  // 분산락/대기열 (ticketing)
     implementation 'org.springframework.kafka:spring-kafka'                            // 이벤트 (ticketing/order/notification/feed)
     // implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'          // 서비스 간 동기 호출
+
+    implementation 'org.springframework.ai:spring-ai-starter-model-ollama'          // 임베딩(nomic) + LLM(qwen)
+    implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector' // pgvector VectorStore
 }
