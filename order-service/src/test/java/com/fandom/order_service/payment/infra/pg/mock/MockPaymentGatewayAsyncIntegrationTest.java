@@ -1,5 +1,6 @@
 package com.fandom.order_service.payment.infra.pg.mock;
 
+import com.fandom.order_service.config.ChaosProperties;
 import com.fandom.order_service.config.OrderProperties;
 import com.fandom.order_service.payment.domain.entity.PaymentMethod;
 import com.fandom.order_service.payment.infra.pg.PgWebhookHmacUtil;
@@ -73,8 +74,10 @@ class MockPaymentGatewayAsyncIntegrationTest {
         hmacUtil = new PgWebhookHmacUtil(properties, objectMapper);
         MockPgWebhookSigner signer = new MockPgWebhookSigner(properties, objectMapper);
         MockPgWebhookCallbackSender sender = new MockPgWebhookCallbackSender(scheduler, RestClient.create(), signer, properties);
+        // 이 테스트의 관심사는 webhook 실제 전송 여부이지 chaos 판정이 아니므로 항상 꺼진 정책을 실제 객체로 사용한다.
+        MockPgChaosPolicy chaosPolicy = new MockPgChaosPolicy(new ChaosProperties(false, 3, 2, 10, 1000, 3000));
         // 이 테스트의 관심사는 webhook 실제 전송 여부이지 거래 영속화가 아니므로 mock으로 대체한다.
-        mockPaymentGateway = new MockPaymentGateway(sender, Mockito.mock(MockPgTransactionRepository.class));
+        mockPaymentGateway = new MockPaymentGateway(sender, Mockito.mock(MockPgTransactionRepository.class), chaosPolicy);
     }
 
     @AfterEach
