@@ -10,6 +10,7 @@ public final class RedisKeyPrefix {
     public static final String POST_DETAIL = "feed:post:detail";
 
     public static final String COMMENT_COUNT = "feed:comment:count:";
-    public static final String LIKE_SET = "feed:like:set:";
+    public static final String LIKE = "feed:like:";
     public static final String TIMELINE = "feed:timeline:";
+    public static final String LARGE_FOLLOWING = "feed:follow:large:";
 }

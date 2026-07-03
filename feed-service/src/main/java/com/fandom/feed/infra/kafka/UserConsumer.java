@@ -30,7 +30,7 @@ public class UserConsumer {
         if (processedEventRepository.existsByEventKey(eventKey)) return;
 
         UUID uuid = UUID.fromString(userId);
-        commentService.anonymizeByAuthorId(uuid);
+        commentService.anonymizeAllByAuthorId(uuid);
         likeService.deleteAllByUserId(uuid);
 
         processedEventRepository.save(ProcessedEvent.builder().eventKey(eventKey).build());
@@ -42,7 +42,7 @@ public class UserConsumer {
         if (processedEventRepository.existsByEventKey(eventKey)) return;
 
         UUID uuid = UUID.fromString(userId);
-        commentService.anonymizeByAuthorId(uuid);
+        commentService.anonymizeAllByAuthorId(uuid);
         likeService.deleteAllByUserId(uuid);
         postService.deleteAllByAuthorId(uuid);
 

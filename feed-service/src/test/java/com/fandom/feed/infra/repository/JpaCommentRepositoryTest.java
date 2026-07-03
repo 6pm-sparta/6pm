@@ -217,7 +217,7 @@ class JpaCommentRepositoryTest {
         jpaCommentRepository.saveAll(comments);
 
         // when
-        jpaCommentRepository.anonymizeByAuthorId(authorId);
+        jpaCommentRepository.anonymizeAllByAuthorId(authorId);
         jpaCommentRepository.flush();
 
         // then

@@ -7,7 +7,7 @@ import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventType;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventWriter;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
@@ -42,7 +42,7 @@ public class PostService {
     private final ReactionCacheService reactionCacheService;
     private final ImageUrlConverter imageUrlConverter;
     private final OutboxEventWriter outboxEventWriter;
-    private final UserClient userClient;
+    private final UserClientRetryWrapper userClient;
 
     @Transactional
     public PostResponse.Create createPost(String content, List<String> imageKeys, UUID userId) {
@@ -55,7 +55,7 @@ public class PostService {
         postListCacheService.addPost(postId, post.getAuthorId());
 
         // 알람 발행에 게시글 생성 시 닉네임 사용
-        String nickname = userClient.getUser(userId).getData().nickname();
+        String nickname = userClient.getUser(userId).nickname();
         outboxEventWriter.write(postId, OutboxEventType.POST_CREATED, new Event.PostCreated(postId, userId, nickname));
 
         return PostResponse.Create.of(post, imageUrlConverter.toImageUrls(imageKeys));
@@ -127,39 +127,32 @@ public class PostService {
         return PostResponse.Delete.from(post);
     }
 
-    /**
-     * DB에서 게시글 목록을 가져오는 메서드
-     */
+    /** DB에서 게시글 목록을 가져오는 메서드 */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDB(UUID cursor, UUID authorId, String keyword, UUID userId) {
         List<Post> posts = postRepository.findByCursor(cursor, authorId, keyword);
 
-        boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
+        boolean hasNext = posts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasNext ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
-        UUID nextCursor = hasMore ? page.getLast().getId() : null;
-        return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
+        UUID nextCursor = hasNext ? page.getLast().getId() : null;
+        return postAssembler.buildDBResponse(page, nextCursor, hasNext, userId, false);
     }
 
-    /**
-     * DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드
-     */
+    /** DB에서 게시글 100개를 가져와 캐시에 저장한 후, 첫 페이지를 반환하는 메서드 */
     private CursorPageResponse<PostResponse.Summary> getPostsFromDBAndWarm(UUID authorId, UUID userId) {
-        List<Post> posts = postRepository.findByCursorForWarm(authorId);
+        List<Post> posts = postRepository.findByAuthorIdForWarm(authorId);
+        List<UUID> postIds = posts.stream().map(Post::getId).toList();
 
-        posts.forEach(post -> postListCacheService.addPostForWarm(post.getId(), authorId));
+        postListCacheService.addPostsForWarm(postIds, authorId);
 
-        postListCacheService.expireCache(authorId);
+        boolean hasNext = posts.size() > FeedPolicy.PAGE_SIZE;
+        List<Post> page = hasNext ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
 
-        boolean hasMore = posts.size() > FeedPolicy.PAGE_SIZE;
-        List<Post> page = hasMore ? posts.subList(0, FeedPolicy.PAGE_SIZE) : posts;
-
-        UUID nextCursor = hasMore ? page.getLast().getId() : null;
-        return postAssembler.buildDBResponse(page, nextCursor, hasMore, userId, false);
+        UUID nextCursor = hasNext ? page.getLast().getId() : null;
+        return postAssembler.buildDBResponse(page, nextCursor, hasNext, userId, false);
     }
 
-    /**
-     * 작성자 ID로 모든 게시글을 삭제하는 메서드
-     */
+    /** 작성자 ID로 모든 게시글을 삭제하는 메서드 */
     @Transactional
     public void deleteAllByAuthorId(UUID authorId) {
         List<UUID> postIds = postRepository.findAllIdsByAuthorId(authorId);

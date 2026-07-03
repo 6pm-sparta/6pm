@@ -15,24 +15,20 @@ import java.util.UUID;
 public class FanoutService {
     private final TimelineCacheService timelineCacheService;
 
-    /**
-     * 팔로워 청크로 타임라인 캐시 추가를 요청하는 메서드
-     */
+    /** 팔로워 청크로 타임라인 캐시 추가를 요청하는 메서드 */
     public void insertChunk(UUID postId, UUID cursor, List<UUID> followerChunk) {
         long score = UuidV7TimestampExtractor.extract(postId);
         try {
-            timelineCacheService.addPosts(followerChunk, postId, score);
+            timelineCacheService.addPost(followerChunk, postId, score);
         } catch (Exception e) {
             log.error("팬아웃 청크 실패 - postId={}, cursor={}, chunkSize={}", postId, cursor, followerChunk.size(), e);
         }
     }
 
-    /**
-     * 팔로워 청크로 타임라인 캐시 제거를 요청하는 메서드
-     */
+    /** 팔로워 청크로 타임라인 캐시 제거를 요청하는 메서드 */
     public void removeChunk(UUID postId, UUID cursor, List<UUID> followerChunk) {
         try {
-            timelineCacheService.removePosts(followerChunk, postId);
+            timelineCacheService.removePost(followerChunk, postId);
         } catch (Exception e) {
             log.error("팬아웃 제거 청크 실패 - postId={}, cursor={}, chunkSize={}", postId, cursor, followerChunk.size(), e);
         }

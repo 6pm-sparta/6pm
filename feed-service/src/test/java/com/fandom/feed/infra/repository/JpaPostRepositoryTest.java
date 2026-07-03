@@ -98,12 +98,12 @@ class JpaPostRepositoryTest {
 
     @Nested
     @DisplayName("워밍업용 100개 조회")
-    class FindByCursorForWarm {
+    class FindByAuthorIdForWarm {
         @Test
         @DisplayName("authorId 없음 - 전체 게시글 대상")
         void findTopForWarmWithoutAuthorId() {
             // when
-            List<Post> results = jpaPostRepository.findByCursorForWarm(null, PageRequest.of(0, 100));
+            List<Post> results = jpaPostRepository.findByAuthorIdForWarm(null, PageRequest.of(0, 100));
 
             // then
             assertThat(results).hasSize(3);
@@ -119,7 +119,7 @@ class JpaPostRepositoryTest {
             jpaPostRepository.save(post);
 
             // when
-            List<Post> results = jpaPostRepository.findByCursorForWarm(authorId, PageRequest.of(0, 100));
+            List<Post> results = jpaPostRepository.findByAuthorIdForWarm(authorId, PageRequest.of(0, 100));
 
             // then
             assertThat(results).hasSize(1);
@@ -224,6 +224,116 @@ class JpaPostRepositoryTest {
             assertThat(others).allSatisfy(post ->
                     assertThat(post.getDeletedAt()).isNull()
             );
+        }
+    }
+
+    @Nested
+    @DisplayName("커서 + 작성자 목록 기반 조회")
+    class FindByCursorAndAuthorIdIn {
+        private final Pageable pageable = PageRequest.of(0, 10);
+
+        private UUID authorId1;
+        private UUID authorId2;
+        private List<Post> savedByAuthors;
+
+        @BeforeEach
+        void setUp() throws InterruptedException {
+            authorId1 = UUID.randomUUID();
+            authorId2 = UUID.randomUUID();
+
+            Post post1 = Post.builder().content("크리에이터1 게시글").authorId(authorId1).build();
+            jpaPostRepository.save(post1);
+            Thread.sleep(10);
+
+            Post post2 = Post.builder().content("크리에이터2 게시글").authorId(authorId2).build();
+            jpaPostRepository.save(post2);
+            Thread.sleep(10);
+
+            Post post3 = Post.builder().content("다른 크리에이터 게시글").authorId(UUID.randomUUID()).build();
+            jpaPostRepository.save(post3);
+
+            savedByAuthors = List.of(post1, post2);
+        }
+
+        @Test
+        @DisplayName("authorIds에 포함된 작성자 게시글만 최신순으로 조회")
+        void findByCursorAndAuthorIdIn() {
+            // when
+            List<Post> results = jpaPostRepository.findByCursorAndAuthorIdIn(null, List.of(authorId1, authorId2), pageable);
+
+            // then
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0).getId()).isGreaterThan(results.get(1).getId());
+            assertThat(results).extracting(Post::getAuthorId).containsExactlyInAnyOrder(authorId1, authorId2);
+        }
+
+        @Test
+        @DisplayName("cursor 있음 - cursor 이전 게시글만 조회")
+        void findByCursorAndAuthorIdInWithCursor() {
+            // given
+            UUID cursor = savedByAuthors.get(1).getId();
+
+            // when
+            List<Post> results = jpaPostRepository.findByCursorAndAuthorIdIn(cursor, List.of(authorId1, authorId2), pageable);
+
+            // then
+            assertThat(results).hasSize(1);
+            assertThat(results.getFirst().getId()).isLessThan(cursor);
+        }
+    }
+
+    @Nested
+    @DisplayName("커서 + 작성자 목록 기반 ID 조회")
+    class FindIdsByCursorAndAuthorIdIn {
+        private final Pageable pageable = PageRequest.of(0, 10);
+
+        @Test
+        @DisplayName("authorIds에 포함된 작성자의 게시글 ID만 조회")
+        void findIdsByCursorAndAuthorIdIn() {
+            // given
+            UUID authorId = UUID.randomUUID();
+            Post post = Post.builder().content("게시글").authorId(authorId).build();
+            jpaPostRepository.save(post);
+
+            // when
+            List<UUID> results = jpaPostRepository.findIdsByCursorAndAuthorIdIn(null, List.of(authorId), pageable);
+
+            // then
+            assertThat(results).containsExactly(post.getId());
+        }
+    }
+
+    @Nested
+    @DisplayName("워밍업용 작성자 목록 게시글 조회")
+    class FindByAuthorIdInForWarm {
+        private final Pageable pageable = PageRequest.of(0, 100);
+
+        @Test
+        @DisplayName("authorIds에 포함된 작성자의 게시글만 최신순으로 조회")
+        void findByAuthorIdInForWarm() {
+            // given
+            UUID authorId1 = UUID.randomUUID();
+            UUID authorId2 = UUID.randomUUID();
+            Post post1 = Post.builder().content("작가1 게시글").authorId(authorId1).build();
+            Post post2 = Post.builder().content("작가2 게시글").authorId(authorId2).build();
+            Post post3 = Post.builder().content("다른 작가 게시글").authorId(UUID.randomUUID()).build();
+            jpaPostRepository.saveAll(List.of(post1, post2, post3));
+
+            // when
+            List<Post> results = jpaPostRepository.findByAuthorIdInForWarm(List.of(authorId1, authorId2), pageable);
+
+            // then
+            assertThat(results).hasSize(2).extracting(Post::getAuthorId).containsExactlyInAnyOrder(authorId1, authorId2);
+        }
+
+        @Test
+        @DisplayName("authorIds가 비어있으면 빈 목록 반환")
+        void findByAuthorIdInForWarmWithEmptyList() {
+            // when
+            List<Post> results = jpaPostRepository.findByAuthorIdInForWarm(List.of(), pageable);
+
+            // then
+            assertThat(results).isEmpty();
         }
     }
 }
