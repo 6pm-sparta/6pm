@@ -2,7 +2,7 @@ package com.fandom.feed.infra.repository;
 
 import com.fandom.feed.domain.entity.Like;
 import com.fandom.feed.domain.repository.LikeRepository;
-import com.fandom.feed.domain.util.IdGenerator;
+import com.fandom.feed.global.util.IdGenerator;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.global.constant.ReactionSort;
 import org.springframework.data.domain.PageRequest;

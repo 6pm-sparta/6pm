@@ -66,12 +66,14 @@ class S3ServiceIntegrationTest {
         String uploadUrl = result.getFirst().uploadUrl();
 
         // when
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(uploadUrl))
-                .PUT(HttpRequest.BodyPublishers.ofString("fake-image-content"))
-                .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(uploadUrl))
+                    .PUT(HttpRequest.BodyPublishers.ofString("fake-image-content"))
+                    .build();
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
 
         // then
         assertThat(response.statusCode()).isEqualTo(200);

@@ -1,6 +1,6 @@
 package com.fandom.feed.infra.util;
 
-import com.fandom.feed.domain.util.IdGenerator;
+import com.fandom.feed.global.util.IdGenerator;
 import com.fasterxml.uuid.Generators;
 import org.springframework.stereotype.Component;
 

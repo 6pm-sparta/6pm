@@ -3,8 +3,8 @@ package com.fandom.feed.infra.s3;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.infra.s3.dto.PresignedUrlInfo;
 import com.fandom.feed.infra.s3.exception.S3ErrorCode;
+import com.fandom.feed.infra.util.LogContext;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
@@ -25,7 +25,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
+import static java.util.Map.entry;
+
 @Service
 @RequiredArgsConstructor
 public class S3Service {
@@ -40,6 +41,8 @@ public class S3Service {
 
     @Value("${cloud.aws.s3.presigned-url-expiry}")
     private long presignedUrlExpiry;
+
+    private static final int LIMIT = 4;
 
     /**
      * S3 Presigned URL을 생성하는 메서드
@@ -60,7 +63,7 @@ public class S3Service {
 
     @Recover
     public List<PresignedUrlInfo> recoverGeneratePresignedUrls(Exception e, List<String> imageNames) {
-        log.error("[S3] Presigned URL 발급 최종 실패 - imageNames: {}, error: {}", imageNames, e.getMessage(), e);
+        LogContext.error(e, "[S3] Presigned URL 발급 최종 실패", entry("imageNames", imageNames));
         throw new CustomException(S3ErrorCode.PRESIGNED_URL_GENERATION_FAILED);
     }
 
@@ -84,11 +87,19 @@ public class S3Service {
                 .build();
 
         s3Client.deleteObjects(request);
+
+        LogContext.info("[S3] 이미지 삭제 완료",
+                entry("imageKeys", preview(imageKeys)),
+                entry("imageKeySize", imageKeys.size())
+        );
     }
 
     @Recover
     public void recoverDeleteAll(Exception e, List<String> imageKeys) {
-        log.error("[S3] 이미지 삭제 최종 실패 - imageKeys: {}, error: {}", imageKeys, e.getMessage(), e);
+        LogContext.error(e, "[S3] 이미지 삭제 최종 실패",
+                entry("imageKeys", preview(imageKeys)),
+                entry("imageKeySize", imageKeys.size())
+        );
     }
 
     /**
@@ -109,5 +120,12 @@ public class S3Service {
                 .putObjectRequest(r -> r.bucket(bucket).key(imageKey))
                 .build();
         return s3Presigner.presignPutObject(presignRequest).url().toString();
+    }
+
+    /**
+     * 로그에 전달할 이미지 목록을 생성하는 메서드
+     */
+    private List<String> preview(List<String> imageKeys) {
+        return (imageKeys.size() <= LIMIT) ? imageKeys : imageKeys.subList(0, LIMIT);
     }
 }

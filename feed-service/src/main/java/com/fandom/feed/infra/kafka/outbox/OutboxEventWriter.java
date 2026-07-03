@@ -2,6 +2,7 @@ package com.fandom.feed.infra.kafka.outbox;
 
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;
+import com.fandom.feed.infra.util.LogContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
+
+import static java.util.Map.entry;
 
 @Component
 @RequiredArgsConstructor
@@ -23,6 +26,10 @@ public class OutboxEventWriter {
             String json = objectMapper.writeValueAsString(payload);
             outboxEventRepository.save(OutboxEvent.of(aggregateId, eventType, json));
         } catch (JsonProcessingException e) {
+            LogContext.error(e, "[OutboxEvent] 직렬화 실패", entry("aggregateId", aggregateId), entry("eventType", eventType));
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        } catch (Exception e) {
+            LogContext.error(e, "[OutboxEvent] 저장 실패", entry("aggregateId", aggregateId), entry("eventType", eventType));
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
@@ -36,6 +43,10 @@ public class OutboxEventWriter {
             }
             outboxEventRepository.saveAll(events);
         } catch (JsonProcessingException e) {
+            LogContext.error(e, "[OutboxEvent] 일괄 직렬화 실패", entry("aggregateIds", aggregateIds), entry("eventType", eventType));
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        } catch (Exception e) {
+            LogContext.error(e, "[OutboxEvent] 일괄 저장 실패", entry("aggregateIds", aggregateIds), entry("eventType", eventType));
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
     }

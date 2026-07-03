@@ -1,15 +1,16 @@
 package com.fandom.feed.application;
 
-import com.fandom.feed.domain.util.UuidV7TimestampExtractor;
+import com.fandom.feed.infra.util.LogContext;
+import com.fandom.feed.infra.util.UuidV7TimestampExtractor;
 import com.fandom.feed.infra.redis.TimelineCacheService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
+import static java.util.Map.entry;
+
 @Service
 @RequiredArgsConstructor
 public class FanoutService {
@@ -21,7 +22,11 @@ public class FanoutService {
         try {
             timelineCacheService.addPost(followerChunk, postId, score);
         } catch (Exception e) {
-            log.error("팬아웃 청크 실패 - postId={}, cursor={}, chunkSize={}", postId, cursor, followerChunk.size(), e);
+            LogContext.error(e, "피드 팬아웃 청크 실패",
+                    entry("postId", postId),
+                    entry("cursor", cursor),
+                    entry("chunkSize", followerChunk.size())
+            );
         }
     }
 
@@ -30,7 +35,11 @@ public class FanoutService {
         try {
             timelineCacheService.removePost(followerChunk, postId);
         } catch (Exception e) {
-            log.error("팬아웃 제거 청크 실패 - postId={}, cursor={}, chunkSize={}", postId, cursor, followerChunk.size(), e);
+            LogContext.error(e, "피드 팬아웃 제거 청크 실패",
+                    entry("postId", postId),
+                    entry("cursor", cursor),
+                    entry("chunkSize", followerChunk.size())
+            );
         }
     }
 }

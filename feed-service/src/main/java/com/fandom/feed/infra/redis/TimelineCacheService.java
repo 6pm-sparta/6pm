@@ -1,6 +1,6 @@
 package com.fandom.feed.infra.redis;
 
-import com.fandom.feed.domain.util.UuidV7TimestampExtractor;
+import com.fandom.feed.infra.util.UuidV7TimestampExtractor;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import lombok.RequiredArgsConstructor;
