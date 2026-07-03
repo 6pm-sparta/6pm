@@ -172,7 +172,7 @@ public class SeatService {
         log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
 
         if (orderId != null) {
-            orderClient.cancel(orderId);
+            orderClient.cancel(orderId, userId);
             log.info("주문 취소 요청: orderId={}, showSeatId={}", orderId, showSeatId);
         }
     }
