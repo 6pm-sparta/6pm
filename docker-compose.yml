@@ -419,6 +419,33 @@ services:
     depends_on:
       - prometheus
       - loki
+  
+  # ---------------------------------------------------------------
+  # 5. ai
+  # ---------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai", "all"]
+    container_name: 6pm-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+  ollama-init:
+    image: ollama/ollama:latest
+    profiles: ["ai", "all"]
+    container_name: 6pm-ollama-init
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh","-c"]
+    # 임베딩 + LLM 모델 - 용량 작으면 1.5b로 변경
+    command: >
+      "until ollama list >/dev/null 2>&1; do sleep 1; done;
+       ollama pull nomic-embed-text &&
+       ollama pull qwen2.5:3b"
+    restart: "no"
 
 volumes:
   postgres_user_data:
@@ -431,3 +458,4 @@ volumes:
   postgres_cs_data:
   kafka_data:
   loki_data:
+  ollama_data:
