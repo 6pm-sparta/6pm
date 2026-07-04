@@ -3,9 +3,12 @@ package com.fandom.cs_service.infra.repository;
 import com.fandom.cs_service.domain.entity.CsDocument;
 import com.fandom.cs_service.domain.repository.CsDocumentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -19,7 +22,12 @@ public class CsDocumentRepositoryImpl implements CsDocumentRepository {
     }
 
     @Override
-    public List<CsDocument> findAll() {
-        return jpaRepository.findAll();
+    public Optional<CsDocument> findById(UUID id) {
+        return jpaRepository.findById(id);
+    }
+
+    @Override
+    public Page<CsDocument> findAll(Pageable pageable) {
+        return jpaRepository.findAll(pageable);
     }
 }
