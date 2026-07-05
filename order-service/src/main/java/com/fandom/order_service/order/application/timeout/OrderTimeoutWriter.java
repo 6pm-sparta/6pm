@@ -23,7 +23,7 @@ import java.util.UUID;
  * PAYMENT_REQUESTED가 PENDING에 흡수되면서, expired_at이 지났더라도 결제 요청이
  * 진행중(payments.REQUESTED)인 주문은 취소하지 않는다. 그대로 취소하면 직후 PG 승인 webhook이
  * 도착했을 때 "취소됐는데 결제는 승인됨" 정합성 버그가 생긴다. 이런 zombie 케이스(웹훅 유실)는
- * 이 스케줄러의 책임 밖이며, 별도 정리 로직이 필요하다(#297 작업 항목).
+ * 이 스케줄러의 책임 밖이며, 별도 정리 로직이 필요하다.
  */
 @Slf4j
 @Component
