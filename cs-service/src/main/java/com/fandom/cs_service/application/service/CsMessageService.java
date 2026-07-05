@@ -21,15 +21,18 @@ public class CsMessageService {
 
     private static final int MAX_SIZE = 100;
     private static final int DEFAULT_SIZE = 20;
+    private static final int HISTORY_MESSAGES = 6; // 최근 3턴(질문+답변)
 
     private final CsMessageRepository messageRepository;
     private final CsAnswerPort answerPort;
 
     public String inquire(UUID userId, String question) {
+        List<CsMessage> history = messageRepository.findMessages(userId, null, HISTORY_MESSAGES).reversed();
+
         messageRepository.save(CsMessage.builder()
                 .userId(userId).senderRole(SenderRole.USER).content(question).build());
 
-        String answer = answerPort.generateAnswer(question); // 답변 호출
+        String answer = answerPort.generateAnswer(question, history);
 
         messageRepository.save(CsMessage.builder()
                 .userId(userId).senderRole(SenderRole.AI).content(answer).build());
