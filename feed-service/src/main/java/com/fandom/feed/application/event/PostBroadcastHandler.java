@@ -15,27 +15,24 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PostBroadcastHandler {
     private final FanoutService fanoutService;
-    private final UserClientRetryWrapper userClientRetryWrapper;
+    private final UserClientRetryWrapper userClient;
     private final NotificationPublisher notificationPublisher;
 
     @Value("${broadcast.fanout-threshold}")
     private long fanoutThreshold;
 
-    @Value("${broadcast.chunk-size}")
-    private int chunkSize;
-
     public void handlePostCreated(UUID postId, UUID authorId, String nickname) {
-        long followerCount = userClientRetryWrapper.countFollowers(authorId);
+        long followerCount = userClient.countFollowers(authorId);
 
         if (followerCount == 0) return;
 
         boolean shouldFanout = followerCount <= fanoutThreshold;
 
         UUID cursor = null;
-        boolean hasMore = true;
+        boolean hasNext = true;
 
-        while (hasMore) {
-            CursorPageResponse<UUID> page = userClientRetryWrapper.getFollowerIds(authorId, cursor, chunkSize);
+        while (hasNext) {
+            CursorPageResponse<UUID> page = userClient.getFollowerIds(authorId, cursor);
 
             List<UUID> chunk = page.content();
             if (!chunk.isEmpty()) {
@@ -44,26 +41,26 @@ public class PostBroadcastHandler {
             }
 
             cursor = page.nextCursor();
-            hasMore = page.hasMore();
+            hasNext = page.hasNext();
         }
     }
 
     public void handlePostDeleted(UUID postId, UUID authorId) {
-        long followerCount = userClientRetryWrapper.countFollowers(authorId);
+        long followerCount = userClient.countFollowers(authorId);
 
         if (followerCount == 0 || followerCount > fanoutThreshold) return;
 
         UUID cursor = null;
-        boolean hasMore = true;
+        boolean hasNext = true;
 
-        while (hasMore) {
-            CursorPageResponse<UUID> page = userClientRetryWrapper.getFollowerIds(authorId, cursor, chunkSize);
+        while (hasNext) {
+            CursorPageResponse<UUID> page = userClient.getFollowerIds(authorId, cursor);
 
             List<UUID> chunk = page.content();
             if (!chunk.isEmpty()) fanoutService.removeChunk(postId, cursor, chunk);
 
             cursor = page.nextCursor();
-            hasMore = page.hasMore();
+            hasNext = page.hasNext();
         }
     }
 }

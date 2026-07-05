@@ -5,6 +5,7 @@ import com.fandom.common.auth.config.CommonAuthAutoConfiguration;
 import com.fandom.common.auth.filter.IdCardVerificationFilter;
 import com.fandom.common.config.CommonAutoConfiguration;
 import com.fandom.feed.application.PostService;
+import com.fandom.feed.application.TimelineService;
 import com.fandom.feed.global.aspect.AuthorizationAspect;
 import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.infra.s3.S3Service;
@@ -47,6 +48,9 @@ class PostControllerTest {
 
     @MockitoBean
     private PostService postService;
+
+    @MockitoBean
+    private TimelineService timelineService;
 
     @MockitoBean
     private S3Service s3Service;

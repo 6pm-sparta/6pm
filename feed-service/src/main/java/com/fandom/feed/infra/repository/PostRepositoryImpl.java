@@ -23,9 +23,9 @@ public class PostRepositoryImpl extends BaseRepositoryImpl<Post, UUID, JpaPostRe
     }
 
     @Override
-    public List<Post> findByCursorForWarm(UUID authorId) {
+    public List<Post> findByAuthorIdForWarm(UUID authorId) {
         Pageable pageable = PageRequest.of(0, FeedPolicy.MAX_CACHE_SIZE);
-        return jpaRepository.findByCursorForWarm(authorId, pageable);
+        return jpaRepository.findByAuthorIdForWarm(authorId, pageable);
     }
 
     @Override
@@ -46,5 +46,23 @@ public class PostRepositoryImpl extends BaseRepositoryImpl<Post, UUID, JpaPostRe
     @Override
     public List<UUID> findAllIdsByAuthorId(UUID authorId) {
         return jpaRepository.findAllIdsByAuthorId(authorId);
+    }
+
+    @Override
+    public List<Post> findByCursorAndAuthorIdIn(UUID cursor, List<UUID> authorIds) {
+        Pageable pageable = PageRequest.of(0, FeedPolicy.PAGE_SIZE + 1);
+        return jpaRepository.findByCursorAndAuthorIdIn(cursor, authorIds, pageable);
+    }
+
+    @Override
+    public List<UUID> findIdsByCursorAndAuthorIdIn(UUID cursor, List<UUID> authorIds) {
+        Pageable pageable = PageRequest.of(0, FeedPolicy.PAGE_SIZE + 1);
+        return jpaRepository.findIdsByCursorAndAuthorIdIn(cursor, authorIds, pageable);
+    }
+
+    @Override
+    public List<Post> findByAuthorIdInForWarm(List<UUID> authorIds) {
+        Pageable pageable = PageRequest.of(0, FeedPolicy.MAX_CACHE_SIZE);
+        return jpaRepository.findByAuthorIdInForWarm(authorIds, pageable);
     }
 }
