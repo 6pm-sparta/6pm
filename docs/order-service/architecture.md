@@ -33,6 +33,7 @@ orders 1 ─── N order_status_histories
 | updated_at | TIMESTAMP | NN | |
 | status_updated_at | TIMESTAMP | NN | 마지막 상태 변경 시각. SAGA 보상 디버깅 시 사용. |
 | expired_at | TIMESTAMP | N | 주문 타임아웃 기준 시각 (P1 스케줄러 기준값) |
+| latest_payment_id | UUID | N | 현재 유효한 결제 시도를 가리키는 포인터. Payment 새로 생성될 때마다 같은 트랜잭션에서 갱신(Stripe `PaymentIntent.latest_charge` 패턴). 결제 재시도(#268) 도입으로 추가. |
 
 ### payments
 
@@ -48,6 +49,7 @@ orders 1 ─── N order_status_histories
 | refund_amount | BIGINT | NN | 환불 금액 (기본값 0) |
 | refund_retry_count | BIGINT | NN | 환불 자동 재시도 횟수 (기본값 0). 복구 배치(#96)가 재환불 시도마다 증가시킨다. |
 | failure_reason | VARCHAR(255) | N | PG 응답 실패 사유 |
+| retryable | BOOLEAN | NN | 결제 자동 재시도(#268) 대상 여부. Webhook `failureReason`이 `TRANSIENT:` 접두사면 true — `PaymentRetryScheduler`가 폴링 기준으로 사용. 기본값 false, 재시도 성공/횟수초과 시 클리어. |
 | created_at | TIMESTAMP | NN | |
 | updated_at | TIMESTAMP | NN | |
 
@@ -164,6 +166,19 @@ stateDiagram-v2
 **`order.payment.cancelled` vs `order.hold.released` 분리 결정**
 PENDING 취소·타임아웃 취소는 `order.hold.released`로, PAID/CONFIRMED 이후 취소·환불은 `order.payment.cancelled`로 분리했다. 결제 완료 이력이 있는 취소 건과 결제 전 단순 선점 해제를 토픽 단계에서 구분해, 추후 환불/정산 배치에서 Payment 테이블 조인 없이 토픽만으로 1차 분류할 수 있게 하기 위함.
 
+**Consumer/Outbox DLQ 정책**
+
+Consumer 쪽(ticketing 이벤트 수신)과 Outbox 쪽(자체 발행) 실패는 서로 다른 방식으로 처리한다 — 실패 지점이 다르기 때문이다.
+
+| 구분 | 대상 | 재시도 | 소진 시 처리 |
+|------|------|--------|--------------|
+| Consumer | `ticketing.seat.booked`, `ticketing.seat.book.failed` 수신 | `FixedBackOff(1000ms, 2회)` | `DeadLetterPublishingRecoverer`가 `{원본토픽}.DLQ`로 이동(토픽명 동적 조합) |
+| Outbox | 자체 발행(`OutboxRecordPublisher`) | 스케줄러 폴링마다 재시도(횟수 제한 없이 PENDING 유지, `retryCount`만 증가) | `retryCount >= MAX_RETRY_COUNT(5)`에서 `OutboxStatus.FAILED`로 전이 — 별도 DLQ 토픽으로 보내지 않고 폴링 대상에서만 제외(수동 처리 대상) |
+
+- **Consumer용 `dlqKafkaTemplate` 별도 분리**: `DeadLetterPublishingRecoverer`가 임의 토픽(`{topic}.DLQ`)에 쓸 때 `enable.idempotence` 제약 없이 동작해야 해서, 메인 `kafkaTemplate`(idempotence=true, `@Primary`)과 분리했다.
+- **Outbox는 왜 `.DLQ` 토픽을 안 쓰는가**: Outbox 실패는 "우리 쪽 발행 자체"가 안 된 것이라 다른 컨슈머가 소비할 메시지가 없다. DLQ 토픽으로 보내봐야 소비할 주체가 없으므로, DB 상태(`FAILED`)로 남겨 운영자가 직접 확인하는 편이 더 명확하다.
+- **알려진 정리 항목**: `KafkaTopics.SEAT_BOOKED_DLQ`/`SEAT_BOOK_FAILED_DLQ` 상수가 주석 처리된 채 미사용 상태로 남아있다(recoverer는 `record.topic() + ".DLQ"`로 직접 조합). 상수를 recoverer가 참조하도록 통일하거나 상수를 제거해야 함 — 급하지 않은 정리 대상.
+
 ---
 
 ## 5. 동시성 제어 전략
@@ -181,6 +196,7 @@ PENDING 취소·타임아웃 취소는 `order.hold.released`로, PAID/CONFIRMED 
 | 주문 취소 (COMPENSATING/REFUND_REQUESTED/FAILED) | 409 INVALID_ORDER_STATUS |
 | CONFIRMED 취소 (취소 가능 시간 초과) | 409 CANCELLATION_WINDOW_EXPIRED |
 | 주문 타임아웃 자동 취소와 유저 직접 취소 경합 | 비관적 락 + 건당 트랜잭션. 락 획득 못한 쪽은 재검증 시 상태 불일치를 확인하고 스킵(스케줄러)/409(유저 요청) 처리 |
+| 결제 자동 재시도 스케줄러 동시 실행(#268) | 비관적 락(`findByIdForUpdate`) + 건당 트랜잭션. `latest_payment_id` 포인터로 "현재 유효한 시도"를 O(1) 판별해 정렬 모호성 없이 처리 |
 
 ### 주문 생성 부분 UNIQUE 인덱스
 
@@ -218,11 +234,12 @@ CREATE UNIQUE INDEX uq_orders_seat_active
 
 | 항목 | 현황 | 내용 |
 |------|------|------|
-| PAYMENT_REQUESTED zombie 처리 | 미구현 | 결제 타임아웃 스케줄러는 PENDING만 처리(#224). PAYMENT_REQUESTED 좀비 상태는 PG 거래 조회로 실제 승인 여부 확인이 필요해 별도 검토 대상 |
+| PAYMENT_REQUESTED zombie 처리 | 미구현 | 결제 타임아웃 스케줄러는 PENDING만 처리(#224). PAYMENT_REQUESTED 좀비 상태는 PG 거래 조회로 실제 승인 여부 확인이 필요해 별도 검토 대상. 결제 재시도(#268) 도입 후 재요청 실패 시 생기는 orphan Payment(REQUESTED)도 동일 갈래 — adr/009 "남은 갭" 참고 |
 | holdId Redis TTL | 미확정 | Ticketing 좌석 선점 TTL과 동일하게 맞추기로 원칙 확정. 구체 값은 Ticketing 팀 확인 필요 |
 | COMPENSATING/REFUND_REQUESTED 좌석 해제 시점 | 전제 | Ticketing이 book.failed 발행 시 좌석을 즉시 해제한다는 전제. 틀리면 두 상태를 인덱스에 추가해야 함 |
 | CONFIRMED 취소 가능 시간 기준 | 미정 | 공연 시작 시각 기준 vs 확정 시각 기준. Ticketing 공연 일정 정보 참조 방식도 함께 결정 필요 |
 | CONFIRMED 취소 시 Kafka 이벤트 | 미정 | order.payment.cancelled를 그대로 쓸지, 확정 취소 전용 처리가 필요한지 Ticketing 팀 확인 필요. PENDING/타임아웃 쪽은 order.hold.released로 이미 분리 확정 |
 | 결제 전 취소 알림 발송 | 미정 | PENDING 취소 시 notification.send 발행 여부. 현재 미구현 |
 | FAILED/REFUND_REQUESTED stuck 복구 배치 | ✅ 구현 완료 | PG 거래조회 결과 기반 분기 + 재시도 3회 + MANUAL_REVIEW_REQUIRED 전환. adr/008 참고 |
-| 결제 재시도 (P1) | 미구현 | 설계 고민 정리 중. adr/009 참고 |
+| 결제 재시도 (P1) | ✅ 구현 완료 | `latest_payment_id` 포인터 + `PAYMENT_REQUESTED` 유지 방식으로 구현(#268). adr/009 참고 |
+| Kafka Consumer/Outbox DLQ (P1) | ✅ 구현 완료 | Consumer는 `{topic}.DLQ` 동적 토픽 이동, Outbox는 `FAILED` 상태 전이로 처리(#270). adr/010 참고 |

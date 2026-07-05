@@ -1,7 +1,7 @@
-# ADR 009 — 결제 재시도 설계 고민 (P1)
+# ADR 009 — 결제 재시도 설계 (P1)
 
-**날짜**: 2026-07  
-**상태**: 미구현 (P1 설계 고민 문서)
+**날짜**: 2026-07
+**상태**: 구현 완료
 
 ---
 
@@ -11,7 +11,28 @@
 
 ---
 
-## 현재 구조
+## 실제 구현 요약
+
+아래 "결제 재시도 도입 시 핵심 설계 이슈"에서 검토한 옵션 중 실제로 채택된 것을 먼저 정리한다.
+
+| 이슈 | 채택안 | 비고 |
+|------|--------|------|
+| 1. 현재 유효한 결제 시도 조회 | **옵션 B (포인터)** | `orders.latest_payment_id` 컬럼 추가. Payment 생성 시 같은 트랜잭션에서 갱신 |
+| 2. 재시도 허용 상태 전이 | **방향 B (PAYMENT_REQUESTED 유지)** | Webhook `FAILED` + `TRANSIENT:` 접두사 → 주문 상태 유지, `Payment.retryable=true` 마킹. 상태 자체에 별도 의미를 얹지 않고 Payment 레벨 플래그로 구분 |
+| 3. 멱등성 키 | 매 재시도마다 신규 발급 | `"retry-" + orderId + "-" + UUID` |
+| 4. 재시도 대상 조건 | `failureReason`의 `TRANSIENT:` 접두사 | Mock PG가 시뮬레이션. 판단 시점은 웹훅 수신 시(`PgWebhookService`) — Payment에 `retryable` 플래그로 미리 마킹해두고, 스케줄러는 플래그만 보고 폴링 |
+
+**설계 시점과 달라진 점**: 최초 설계 문서는 "재시도 가능 여부를 재시도 시점에 판단"하는 뉘앙스였으나, 실제로는 **웹훅 수신 시점에 `retryable` 여부를 미리 확정**해 Payment에 저장하는 방식으로 구현했다. 스케줄러 폴링 쿼리가 `retryable=true` 조건으로 바로 후보를 찾을 수 있어 더 단순하다.
+
+**흐름**: `PaymentRetryScheduler`(폴링, 락 없이 후보 ID만 조회) → `PaymentRetryWriter.prepareRetry`(비관적 락 + 건당 트랜잭션, 새 Payment INSERT + 포인터 갱신) → `PaymentRetryWriter.requestApproval`(트랜잭션 밖, PG 재호출). 이후 흐름은 최초 결제 요청과 동일하게 웹훅으로 수렴한다. 상세 시퀀스는 [flows.md #8](../flows.md#8-결제-자동-재시도) 참고.
+
+**설정값** (`OrderProperties.PaymentRetry`): `maxAttempts`(재시도 최대 횟수, 초과 시 주문 FAILED), `batchSize`(폴링 1회당 처리 건수), `pollIntervalMs`(폴링 주기).
+
+**남은 갭**: PG 재요청 자체가 실패하면 새로 만든 Payment가 `REQUESTED`에서 orphan 상태로 남는데, 이를 정리하는 스케줄러가 없다(`OrderTimeoutScheduler`는 `PENDING` 주문만 처리). 아래 "구현 전 확인이 필요한 것들" 중 마지막 항목과 이어지는, 여전히 미해결인 문제다.
+
+---
+
+## 현재 구조 (설계 당시)
 
 `payments` 테이블은 결제 시도마다 새 레코드를 INSERT하는 1:N 구조다(실패 이력 추적 목적). 그런데 현재 시점(결제 재시도 미구현)에서는 주문당 APPROVED Payment가 항상 하나다. 결제 실패 시 주문이 즉시 `FAILED`로 끝나기 때문에, 같은 주문에 두 번째 결제 시도가 이루어지는 경로 자체가 없다.
 
@@ -56,15 +77,6 @@ DB `idempotency_key` UNIQUE 제약이 걸려 있어서, 새 키를 쓰면 자동
 무한 재시도는 막아야 한다. "일시적 오류"(PG 타임아웃, 5xx)는 재시도 대상, "영구적 실패"(카드 한도 초과, 도난 카드 등)는 재시도해도 의미 없다.
 
 PG 응답의 `failure_reason`으로 구분하거나, PG사가 제공하는 재시도 가능 여부 플래그를 활용해야 한다. Mock PG에서는 `FAIL_` 마커가 붙은 경우를 "영구 실패"로, 그 외 타임아웃은 "일시적 오류"로 취급하는 방식으로 시뮬레이션 가능.
-
----
-
-## 구현 전 확인이 필요한 것들
-
-- `latest_payment_id` 포인터 컬럼을 `orders` 테이블에 추가하는 시점(스키마 마이그레이션)
-- `PAYMENT_REQUESTED`에서 재시도를 허용할 때 다른 서비스(Ticketing, Notification)의 이벤트 흐름에 영향이 없는지
-- 재시도 횟수 카운터를 `payments` 어느 레코드에 둘지 — 포인터 패턴을 도입하면 포인터가 가리키는 "현재 시도" 레코드에 두면 된다
-- Mock PG의 결정론적 마커 방식과 재시도 흐름의 상호작용 — 같은 `idempotencyKey`에 다른 접두사가 붙은 새 시도를 재시도로 처리할 수 있는가
 
 ---
 
