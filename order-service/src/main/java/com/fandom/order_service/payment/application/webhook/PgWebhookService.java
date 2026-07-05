@@ -90,7 +90,7 @@ public class PgWebhookService {
             case STATUS_REFUND_FAILED -> {
                 String reason = request.failureReason() != null ? request.failureReason() : "PG 환불 거절";
                 // FAILED 전이 + 로그로 남기고 수동 처리 대상으로 남김.
-                refundResultWriter.applyRefundFailure(request.orderId(), reason);
+                refundResultWriter.applyRefundFailure(request.orderId(), payment.getId(), reason);
             }
             default -> log.warn("[PG Webhook] 알 수 없는 status — 무시. status={}, pgTransactionId={}",
                     request.status(), request.pgTransactionId());
