@@ -8,7 +8,9 @@ package com.fandom.order_service.payment.domain.entity;
  * - APPROVED: PG사 결제 승인 완료
  * - FAILED: 결제 실패
  * - CANCELLED: 결제 취소
+ * - REFUND_REQUESTED: PG사 환불 API 호출 완료, 환불 처리 대기 중
  * - REFUNDED: 환불 완료
+ * - REFUND_FAILED: PG사 환불 거절/오류
  */
 public enum PaymentStatus {
     PENDING,
@@ -16,5 +18,7 @@ public enum PaymentStatus {
     APPROVED,
     FAILED,
     CANCELLED,
-    REFUNDED
+    REFUND_REQUESTED,
+    REFUNDED,
+    REFUND_FAILED
 }
