@@ -19,7 +19,7 @@ import java.util.UUID;
  * (self-invocation은 Spring AOP 프록시를 거치지 않아 @Transactional 경계가 생기지 않음).
  *
  * 비관적 락(findByIdForUpdate)으로 조회하는 이유: 유저 직접 취소(OrderCancelWriter)와 이 컨슈머가
- * 동시에 같은 주문을 건드릴 수 있다 — 예를 들어 유저가 PAID 상태에서 취소 요청을 보낸 거의 같은
+ * 동시에 같은 주문을 건드릴 수 있다 — 예를 들어 유저가 CONFIRMING 상태에서 취소 요청을 보낸 거의 같은
  * 시점에 좌석 확정 이벤트가 도착하는 경우. 락으로 한쪽만 먼저 통과시키고, 나중에 들어온 쪽은
  * 이미 바뀐 상태를 보고 분기(ALREADY_CONFIRMED/SKIPPED_INVALID_STATE)된다.
  */
