@@ -41,13 +41,13 @@ public class OrderConfirmationWriter {
             return OrderConfirmationResult.alreadyConfirmed(order.getId());
         }
 
-        if (order.getStatus() != OrderStatus.PAID) {
+        if (order.getStatus() != OrderStatus.CONFIRMING) {
             return OrderConfirmationResult.skippedInvalidState(order.getId());
         }
 
         OrderStatus before = order.getStatus();
         order.markConfirmed();
-        saveHistory(order.getId(), before, order.getStatus(), "좌석 예매 확정");
+        saveHistory(order.getId(), before, order.getStatus(), "[USER] 좌석 예매 확정");
         outboxAppender.appendOrderCompletedNotification(order.getId(), order.getUserId());
 
         return OrderConfirmationResult.confirmed(order.getId(), order.getUserId());
