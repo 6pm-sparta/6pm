@@ -17,7 +17,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -32,11 +34,16 @@ class MockPaymentGatewayTest {
     @Mock
     private MockPgTransactionRepository mockPgTransactionRepository;
 
+    @Mock
+    private MockPgChaosPolicy chaosPolicy;
+
     private MockPaymentGateway mockPaymentGateway;
 
     @BeforeEach
     void setUp() {
-        mockPaymentGateway = new MockPaymentGateway(callbackSender, mockPgTransactionRepository);
+        // 이 테스트 스위트는 마커 기반 결정론적 로직 검증이 목적이라, chaos 정책은 항상 개입 안 함(NORMAL)으로 고정한다.
+        lenient().when(chaosPolicy.decide(anyBoolean())).thenReturn(MockPgChaosPolicy.Outcome.NORMAL);
+        mockPaymentGateway = new MockPaymentGateway(callbackSender, mockPgTransactionRepository, chaosPolicy);
     }
 
     @Test

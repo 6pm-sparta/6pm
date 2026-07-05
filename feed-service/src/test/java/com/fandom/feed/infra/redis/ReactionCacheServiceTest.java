@@ -14,8 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
 import java.util.List;
@@ -35,7 +35,7 @@ class ReactionCacheServiceTest {
     private LikeRepository likeRepository;
 
     @Mock
-    private RedisTemplate<String, String> redisTemplate;
+    private StringRedisTemplate redisTemplate;
 
     @Mock
     private ValueOperations<String, String> valueOperations;
@@ -142,7 +142,7 @@ class ReactionCacheServiceTest {
             // Given
             UUID postId = UUID.randomUUID();
             when(valueOperations.get(RedisKeyPrefix.COMMENT_COUNT + postId)).thenReturn("5"); // 로드 여부 확인용
-            when(setOperations.size(RedisKeyPrefix.LIKE_SET + postId)).thenReturn(3L);
+            when(setOperations.size(RedisKeyPrefix.LIKE + postId)).thenReturn(3L);
 
             // When
             ReactionInfoCache info = reactionCacheService.getReactionInfo(postId, null);
@@ -170,7 +170,7 @@ class ReactionCacheServiceTest {
 
             // Then
             assertThat(info.likeCount()).isEqualTo(1L);
-            verify(setOperations).add(eq(RedisKeyPrefix.LIKE_SET + postId), any(String[].class));
+            verify(setOperations).add(eq(RedisKeyPrefix.LIKE + postId), any(String[].class));
         }
     }
 }

@@ -3,17 +3,17 @@ package com.fandom.feed.infra.redis;
 import com.fandom.feed.application.ImageService;
 import com.fandom.feed.application.PostReader;
 import com.fandom.feed.domain.entity.Post;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.dto.PostDetailCache;
 import com.fandom.feed.infra.s3.util.ImageUrlConverter;
-import com.fandom.feed.infra.client.UserClient;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -30,10 +30,10 @@ import java.util.stream.Collectors;
 public class PostDetailCacheService {
     private final PostReader postReader;
     private final ImageService imageService;
-    private final UserClient userClient;
+    private final UserClientRetryWrapper userClient;
     private final ImageUrlConverter imageUrlConverter;
     private final CacheManager cacheManager;
-    private final RedisTemplate<String, String> redisTemplate;
+    private final StringRedisTemplate redisTemplate;
 
     /**
      * 게시글 ID로 케시글 상세 캐시를 조회하는 메서드<br>
@@ -43,7 +43,7 @@ public class PostDetailCacheService {
     public PostDetailCache getPostDetail(UUID postId) {
         Post post = postReader.findById(postId);
         List<String> imageKeys = imageService.findAllByPostId(postId);
-        UserResponse author = userClient.getUser(post.getAuthorId()).getData();
+        UserResponse author = userClient.getUser(post.getAuthorId());
 
         return PostDetailCache.of(post, imageUrlConverter.toImageUrls(imageKeys), author);
     }
@@ -59,10 +59,10 @@ public class PostDetailCacheService {
         Map<UUID, PostDetailCache> cachedMap = new HashMap<>();
         List<UUID> missIds = new ArrayList<>();
 
-        postIds.forEach(id -> {
-            PostDetailCache cached = (cache != null) ? cache.get(id, PostDetailCache.class) : null;
-            if (cached != null) cachedMap.put(id, cached);
-            else missIds.add(id);
+        postIds.forEach(postId -> {
+            PostDetailCache cached = (cache != null) ? cache.get(postId, PostDetailCache.class) : null;
+            if (cached != null) cachedMap.put(postId, cached);
+            else missIds.add(postId);
         });
 
         // 캐시 미스 배치 조회
@@ -73,7 +73,7 @@ public class PostDetailCacheService {
             Map<UUID, List<String>> imageUrlsMap = imageService.findAllByPostIds(missIds);
 
             Set<UUID> authorIds = postMap.values().stream().map(Post::getAuthorId).collect(Collectors.toSet());
-            Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds).getData()
+            Map<UUID, UserResponse> authorMap = userClient.getUsers(authorIds)
                     .stream().collect(Collectors.toMap(UserResponse::userId, Function.identity()));
 
             // 캐시에 저장하면서 cachedMap에 추가
@@ -92,14 +92,10 @@ public class PostDetailCacheService {
         return postIds.stream().map(cachedMap::get).toList();
     }
 
-    /**
-     * 게시글 ID 목록으로 게시글 상세 케시를 삭제하는 메서드
-     */
+    /** 게시글 ID 목록으로 게시글 상세 케시를 삭제하는 메서드 */
     public void deleteAll(List<UUID> postIds) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
-            postIds.forEach(postId ->
-                    connection.keyCommands().del((RedisKeyPrefix.POST_DETAIL + postId).getBytes())
-            );
+            postIds.forEach(postId -> connection.keyCommands().del((RedisKeyPrefix.POST_DETAIL + postId).getBytes()));
             return null;
         });
     }

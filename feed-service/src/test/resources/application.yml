@@ -28,6 +28,25 @@ management:
   tracing:
     enabled: false
 
+resilience4j:
+  retry:
+    instances:
+      userClient:
+        max-attempts: 3
+        wait-duration: 200ms
+        retry-exceptions:
+          - feign.RetryableException
+          - java.io.IOException
+        ignore-exceptions:
+          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
+          - feign.FeignException.NotFound  # 404 예외는 재시도 없음
+  circuitbreaker:
+    instances:
+      userClient:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+
 cloud:
   aws:
     credentials:
@@ -43,12 +62,18 @@ cloud:
         post: posts
       presigned-url-expiry: 600  # 10분
 
+broadcast:
+  fanout-threshold: 10000
+  chunk-size: 500
+
 cache:
   ttl:
     default: 600  # 10분
     post-detail: 3600  # 60분
     post-list: 300  # 5분
     comment-count: 300  # 5분
+    timeline: 86400  # 24시간
+    large-following: 600  # 10분
 
 scheduler:
   like-sync:

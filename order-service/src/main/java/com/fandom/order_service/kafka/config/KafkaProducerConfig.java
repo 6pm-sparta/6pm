@@ -5,6 +5,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.serializer.JsonSerializer;
@@ -14,6 +15,10 @@ import java.util.Map;
 
 /**
  * order-service가 발행하는 이벤트용 공통 producer 설정.
+ *
+ * kafkaTemplate(Primary): 비즈니스 이벤트 발행용. idempotence=true, max.block.ms=5s.
+ * dlqKafkaTemplate: DLQ 전용. idempotence 비활성화 — DeadLetterPublishingRecoverer가
+ *   임의 토픽에 쓸 때 idempotence 제약 없이 동작해야 하기 때문.
  *
  * enable.idempotence: kafka-clients 3.0+부터 기본값이 true라 명시하지 않아도 켜져 있지만,
  * 의도를 분명히 하기 위해 명시한다. 켜지면 retries는 사실상 무제한(delivery.timeout.ms 안에서)이
@@ -31,6 +36,7 @@ public class KafkaProducerConfig {
     @Value("${spring.kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    @Primary
     @Bean
     public KafkaTemplate<String, Object> kafkaTemplate() {
 
@@ -40,6 +46,20 @@ public class KafkaProducerConfig {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
         props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 5_000);
+
+        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(props));
+    }
+
+    @Bean
+    public KafkaTemplate<String, Object> dlqKafkaTemplate() {
+
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, false);
         props.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, 5_000);
 
         return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(props));

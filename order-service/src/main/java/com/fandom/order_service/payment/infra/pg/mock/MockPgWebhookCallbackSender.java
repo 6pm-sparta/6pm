@@ -28,13 +28,20 @@ public class MockPgWebhookCallbackSender {
     private final OrderProperties orderProperties;
 
     public void sendDelayed(PgWebhookRequest payload) {
+        sendDelayed(payload, 0L);
+    }
 
-        Instant fireAt = Instant.now().plusMillis(orderProperties.pgWebhook().callbackDelayMillis());
+    /**
+     * extraDelayMillis: 기본 지연(callbackDelayMillis) 위에 추가로 얹는 지연(ms).
+     */
+    public void sendDelayed(PgWebhookRequest payload, long extraDelayMillis) {
+
+        Instant fireAt = Instant.now().plusMillis(orderProperties.pgWebhook().callbackDelayMillis() + extraDelayMillis);
 
         scheduler.schedule(() -> this.send(payload), fireAt);
 
-        log.info("[MockPG] webhook 콜백 예약. pgTransactionId={}, status={}, fireAt={}",
-                payload.pgTransactionId(), payload.status(), fireAt);
+        log.info("[MockPG] webhook 콜백 예약. pgTransactionId={}, status={}, fireAt={}, extraDelayMillis={}",
+                payload.pgTransactionId(), payload.status(), fireAt, extraDelayMillis);
     }
 
     private void send(PgWebhookRequest payload) {

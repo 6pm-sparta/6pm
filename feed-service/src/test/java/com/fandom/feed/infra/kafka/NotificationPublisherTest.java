@@ -27,10 +27,10 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class NotificationPublisherTest {
     @Mock
-    KafkaTemplate<String, NotificationSendPayload> kafkaTemplate;
+    private KafkaTemplate<String, NotificationSendPayload> kafkaTemplate;
 
     @InjectMocks
-    NotificationPublisher notificationPublisher;
+    private NotificationPublisher notificationPublisher;
 
     @Test
     @DisplayName("정상 동작 - 닉네임을 포함한 알람 payload를 올바른 토픽과 키로 발행")
@@ -70,7 +70,7 @@ class NotificationPublisherTest {
         CompletableFuture<SendResult<String, NotificationSendPayload>> future = new CompletableFuture<>();
         given(kafkaTemplate.send(any(String.class), any(String.class), any())).willReturn(future);
 
-        // when
+        // when & then
         assertDoesNotThrow(() -> {
             notificationPublisher.publishChunk(postId, "닉네임", cursor, followerChunk);
             future.completeExceptionally(new RuntimeException("Kafka 발행 실패"));

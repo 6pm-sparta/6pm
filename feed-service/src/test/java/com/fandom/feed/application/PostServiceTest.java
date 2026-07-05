@@ -1,14 +1,13 @@
 package com.fandom.feed.application;
 
 import com.fandom.common.auth.UserIdCard;
-import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.event.Event;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.exception.PostErrorCode;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.infra.client.UserClient;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventType;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventWriter;
@@ -75,10 +74,10 @@ class PostServiceTest {
     private PostListCacheService postListCacheService;
 
     @Mock
-    UserClient userClient;
+    private UserClientRetryWrapper userClient;
 
     @Mock
-    OutboxEventWriter outboxEventWriter;
+    private OutboxEventWriter outboxEventWriter;
 
     @InjectMocks
     private PostService postService;
@@ -93,8 +92,7 @@ class PostServiceTest {
                 ReflectionTestUtils.invokeMethod(p, "assignId");
                 return p;
             });
-            when(userClient.getUser(any(UUID.class)))
-                    .thenReturn(ApiResponse.success(new UserResponse(UUID.randomUUID(), "닉네임")));
+            when(userClient.getUser(any(UUID.class))).thenReturn(new UserResponse(UUID.randomUUID(), "닉네임"));
         }
 
         @Test
@@ -202,15 +200,14 @@ class PostServiceTest {
         void getPostsCacheNotReady() {
             // given
             when(postListCacheService.isCacheReady(null)).thenReturn(false);
-            when(postRepository.findByCursorForWarm(null)).thenReturn(List.of());
+            when(postRepository.findByAuthorIdForWarm(null)).thenReturn(List.of());
 
             // when
             postService.getPosts(null, null, null, null);
 
             // then
-            verify(postRepository).findByCursorForWarm(null);
+            verify(postRepository).findByAuthorIdForWarm(null);
             verify(postListCacheService, never()).addPost(any(), isNull());
-            verify(postListCacheService).expireCache(null);
             verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
         }
 
@@ -254,8 +251,8 @@ class PostServiceTest {
     @DisplayName("DB에서 게시글 목록 조회")
     class GetPostsFromDB {
         @Test
-        @DisplayName("PAGE_SIZE 이하 - hasMore = false, nextCursor = null")
-        void noHasMoreWhenUnderPageSize() {
+        @DisplayName("PAGE_SIZE 이하 - hasNext = false, nextCursor = null")
+        void noHasNextWhenUnderPageSize() {
             // given
             Post post = mockPost();
             when(postRepository.findByCursor(any(), any(), any())).thenReturn(List.of(post));
@@ -268,8 +265,8 @@ class PostServiceTest {
         }
 
         @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
-        void hasMoreWhenExceedsPageSize() {
+        @DisplayName("PAGE_SIZE 초과 - hasNext = true, nextCursor = 마지막 postId")
+        void hasNextWhenExceedsPageSize() {
             // given
             List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> mockPost()).toList();
             UUID expectedCursor = posts.get(FeedPolicy.PAGE_SIZE - 1).getId();
@@ -292,14 +289,13 @@ class PostServiceTest {
 
         when(post.getId()).thenReturn(postId);
         when(postListCacheService.isCacheReady(null)).thenReturn(false);
-        when(postRepository.findByCursorForWarm(null)).thenReturn(List.of(post));
+        when(postRepository.findByAuthorIdForWarm(null)).thenReturn(List.of(post));
 
         // when
         postService.getPosts(null, null, null, null);
 
         // then
-        verify(postListCacheService).addPostForWarm(postId, null);
-        verify(postListCacheService).expireCache(null);
+        verify(postListCacheService).addPostsForWarm(List.of(postId), null);
         verify(postAssembler).buildDBResponse(any(), any(), anyBoolean(), any(), anyBoolean());
     }
 
@@ -409,6 +405,7 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(imageKeys);
             verify(postListCacheService).removePost(postId, userId);
+            verify(outboxEventWriter).write(eq(postId), eq(OutboxEventType.POST_DELETED), any(Event.PostDeleted.class));
         }
 
         @Test
@@ -430,6 +427,7 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
             verify(postListCacheService).removePost(postId, userId);
+            verify(outboxEventWriter).write(eq(postId), eq(OutboxEventType.POST_DELETED), any(Event.PostDeleted.class));
         }
 
         @Test
@@ -453,6 +451,7 @@ class PostServiceTest {
             verify(imageService).deleteAllByPostId(postId);
             verify(imageService).publishS3DeleteEvent(List.of());
             verify(postListCacheService).removePost(postId, authorId);
+            verify(outboxEventWriter).write(eq(postId), eq(OutboxEventType.POST_DELETED), any(Event.PostDeleted.class));
         }
     }
 
@@ -488,6 +487,7 @@ class PostServiceTest {
             then(imageService).should().publishS3DeleteEvent(imageKeys);
             then(postListCacheService).should().removeAllByAuthorId(postIds, authorId);
             then(postDetailCacheService).should().deleteAll(postIds);
+            verify(outboxEventWriter).writeAll(eq(postIds), eq(OutboxEventType.POST_DELETED), any());
         }
 
         @Test
@@ -506,6 +506,7 @@ class PostServiceTest {
             then(imageService).shouldHaveNoInteractions();
             then(postListCacheService).shouldHaveNoInteractions();
             then(postDetailCacheService).shouldHaveNoInteractions();
+            verify(outboxEventWriter, never()).writeAll(any(), any(), any());
         }
     }
 

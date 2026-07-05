@@ -20,6 +20,7 @@ import java.util.UUID;
  * 발행은 OutboxPublisher가 폴링으로 수행하며, at-least-once라 중복은 consumer 멱등성으로 흡수한다.
  *
  * id/createdAt은 BaseEntity가 관리한다(id는 UUIDv7 — 생성 시각 순이라 폴링이 created 순으로 읽기 좋다).
+ * retryCount: 발행 실패 누적 횟수. OutboxRecordPublisher.MAX_RETRY_COUNT 초과 시 FAILED로 전이.
  */
 @Entity
 @Getter
@@ -46,16 +47,29 @@ public class OrderOutbox extends BaseEntity {
 
     private LocalDateTime publishedAt;
 
+    @Column(nullable = false)
+    private int retryCount;
+
     @Builder
     private OrderOutbox(UUID aggregateId, String topic, String payload) {
         this.aggregateId = aggregateId;
         this.topic = topic;
         this.payload = payload;
         this.status = OutboxStatus.PENDING;
+        this.retryCount = 0;
     }
 
     public void markPublished() {
         this.status = OutboxStatus.PUBLISHED;
         this.publishedAt = LocalDateTime.now();
+    }
+
+    public void incrementRetryCount() {
+        this.retryCount++;
+    }
+
+    /** 재시도 소진 시 FAILED로 전이. 폴링 대상에서 제외된다. */
+    public void markFailed() {
+        this.status = OutboxStatus.FAILED;
     }
 }

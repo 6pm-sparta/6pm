@@ -24,5 +24,9 @@ dependencies {
     implementation 'io.micrometer:micrometer-tracing-bridge-brave'
     implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
 
+    // 장애대응(Circuit Breaker) - Spring Cloud Gateway(리액티브)용 Resilience4j.
+    // reactor 버전을 써야 WebFlux의 CircuitBreaker GatewayFilter가 동작한다(서블릿용 아님).
+    implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j'
+
     implementation 'io.micrometer:micrometer-registry-prometheus'
 }

@@ -20,14 +20,13 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
-
 @ExtendWith(MockitoExtension.class)
 class FanoutServiceTest {
     @Mock
-    TimelineCacheService timelineCacheService;
+    private TimelineCacheService timelineCacheService;
 
     @InjectMocks
-    FanoutService fanoutService;
+    private FanoutService fanoutService;
 
     @Nested
     @DisplayName("팔로워 청크로 타임라인 추가 요청")
@@ -45,7 +44,7 @@ class FanoutServiceTest {
             fanoutService.insertChunk(postId, cursor, followerChunk);
 
             // then
-            verify(timelineCacheService).addPosts(followerChunk, postId, expectedScore);
+            verify(timelineCacheService).addPost(followerChunk, postId, expectedScore);
         }
 
         @Test
@@ -56,10 +55,43 @@ class FanoutServiceTest {
             UUID cursor = UUID.randomUUID();
             List<UUID> followerChunk = List.of(UUID.randomUUID());
 
-            doThrow(new RuntimeException("Redis 연결 실패")).when(timelineCacheService).addPosts(any(), any(), anyLong());
+            doThrow(new RuntimeException("Redis 연결 실패")).when(timelineCacheService).addPost(any(), any(), anyLong());
 
             // when & then
             assertDoesNotThrow(() -> fanoutService.insertChunk(postId, cursor, followerChunk));
+        }
+    }
+
+    @Nested
+    @DisplayName("팔로워 청크로 타임라인 제거 요청")
+    class RemoveChunk {
+        @Test
+        @DisplayName("성공 - 타임라인 캐시 제거 요청")
+        void removeChunk() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID cursor = UUID.randomUUID();
+            List<UUID> followerChunk = List.of(UUID.randomUUID(), UUID.randomUUID());
+
+            // when
+            fanoutService.removeChunk(postId, cursor, followerChunk);
+
+            // then
+            verify(timelineCacheService).removePost(followerChunk, postId);
+        }
+
+        @Test
+        @DisplayName("실패 - 예외를 호출자에게 전파하지 않음")
+        void removeChunkSwallowsException() {
+            // given
+            UUID postId = UUID.randomUUID();
+            UUID cursor = UUID.randomUUID();
+            List<UUID> followerChunk = List.of(UUID.randomUUID());
+
+            doThrow(new RuntimeException("Redis 연결 실패")).when(timelineCacheService).removePost(any(), any());
+
+            // when & then
+            assertDoesNotThrow(() -> fanoutService.removeChunk(postId, cursor, followerChunk));
         }
     }
 }

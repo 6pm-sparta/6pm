@@ -1,10 +1,8 @@
 package com.fandom.feed.application;
 
-import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.global.constant.FeedPolicy;
-import com.fandom.feed.infra.client.UserClient;
-import com.fandom.feed.infra.client.dto.UserResponse;
+import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.redis.PostDetailCacheService;
 import com.fandom.feed.infra.redis.ReactionCacheService;
 import com.fandom.feed.infra.redis.dto.PostDetailCache;
@@ -42,7 +40,7 @@ class PostAssemblerTest {
     private ReactionCacheService reactionCacheService;
 
     @Mock
-    private UserClient userClient;
+    private UserClientRetryWrapper userClient;
 
     @InjectMocks
     private PostAssembler postAssembler;
@@ -51,8 +49,8 @@ class PostAssemblerTest {
     @DisplayName("캐시에서 가져온 postId 목록으로 응답 구성")
     class BuildCacheResponse {
         @Test
-        @DisplayName("PAGE_SIZE 이하 - hasMore = false, nextCursor = null")
-        void noHasMoreWhenUnderPageSize() {
+        @DisplayName("PAGE_SIZE 이하 - hasNext = false, nextCursor = null")
+        void noHasNextWhenUnderPageSize() {
             // given
             UUID postId = UUID.randomUUID();
 
@@ -64,14 +62,14 @@ class PostAssemblerTest {
             CursorPageResponse<PostResponse.Summary> result = postAssembler.buildCacheResponse(List.of(postId), null);
 
             // then
-            assertThat(result.hasMore()).isFalse();
+            assertThat(result.hasNext()).isFalse();
             assertThat(result.nextCursor()).isNull();
             assertThat(result.content()).hasSize(1);
         }
 
         @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor = 마지막 postId")
-        void hasMoreWhenExceedsPageSize() {
+        @DisplayName("PAGE_SIZE 초과 - hasNext = true, nextCursor = 마지막 postId")
+        void hasNextWhenExceedsPageSize() {
             // given
             List<UUID> postIds = IntStream.range(0, FeedPolicy.PAGE_SIZE + 1).mapToObj(i -> UUID.randomUUID()).toList();
 
@@ -85,7 +83,7 @@ class PostAssemblerTest {
             CursorPageResponse<PostResponse.Summary> result = postAssembler.buildCacheResponse(postIds, null);
 
             // then
-            assertThat(result.hasMore()).isTrue();
+            assertThat(result.hasNext()).isTrue();
             assertThat(result.nextCursor()).isEqualTo(postIds.get(FeedPolicy.PAGE_SIZE - 1));
             assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
@@ -100,11 +98,9 @@ class PostAssemblerTest {
             // given
             List<Post> posts = List.of(mockPost(), mockPost(), mockPost());
             List<UUID> postIds = posts.stream().map(Post::getId).toList();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
 
             when(imageService.findAllByPostIds(postIds)).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
+            when(userClient.getUsers(any())).thenReturn(List.of());
             when(reactionCacheService.getReactionInfoBatch(postIds, null, false))
                     .thenReturn(List.of(
                             mock(ReactionInfoCache.class),
@@ -122,16 +118,14 @@ class PostAssemblerTest {
         }
 
         @Test
-        @DisplayName("PAGE_SIZE 초과 - hasMore = true, nextCursor 설정")
+        @DisplayName("PAGE_SIZE 초과 - hasNext = true, nextCursor 설정")
         void buildDBResponseWhenExceedsPageSize() {
             // given
             List<Post> posts = IntStream.range(0, FeedPolicy.PAGE_SIZE).mapToObj(i -> mockPost()).toList();
-            ApiResponse<List<UserResponse>> apiResponse = mock();
             UUID nextCursor = UUID.randomUUID();
 
             when(imageService.findAllByPostIds(any())).thenReturn(Map.of());
-            when(userClient.getUsers(any())).thenReturn(apiResponse);
-            when(apiResponse.getData()).thenReturn(List.of());
+            when(userClient.getUsers(any())).thenReturn(List.of());
             when(reactionCacheService.getReactionInfoBatch(any(), any(), anyBoolean()))
                     .thenReturn(IntStream.range(0, FeedPolicy.PAGE_SIZE)
                             .mapToObj(i -> mock(ReactionInfoCache.class)).toList());
@@ -142,7 +136,7 @@ class PostAssemblerTest {
             );
 
             // then
-            assertThat(result.hasMore()).isTrue();
+            assertThat(result.hasNext()).isTrue();
             assertThat(result.nextCursor()).isNotNull();
             assertThat(result.content()).hasSize(FeedPolicy.PAGE_SIZE);
         }
