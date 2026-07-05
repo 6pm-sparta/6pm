@@ -30,6 +30,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+/**
+ * issue #292 — PaymentRetryWriter의 가드가 order.status == PAYMENT_REQUESTED에서
+ * order.status == PENDING으로 바뀌었다(결제 재시도 동안 orders.status는 PENDING 유지).
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PaymentRetryWriter 단위 테스트")
 class PaymentRetryWriterTest {
@@ -54,10 +58,9 @@ class PaymentRetryWriterTest {
         orderId = UUID.randomUUID();
     }
 
-    private Order paymentRequestedOrder() {
+    private Order pendingOrder() {
         Order order = Order.createPending(UUID.randomUUID(), UUID.randomUUID(), 50_000L,
                 LocalDateTime.now().plusMinutes(10));
-        order.markPaymentRequested();
         ReflectionTestUtils.setField(order, "id", orderId);
         return order;
     }
@@ -79,10 +82,10 @@ class PaymentRetryWriterTest {
     }
 
     @Test
-    @DisplayName("재시도 조건이 충족되면 새 Payment를 INSERT하고 RETRYING을 반환한다")
+    @DisplayName("재시도 조건이 충족되면 새 Payment를 INSERT하고 RETRYING을 반환한다(order.status는 PENDING 유지)")
     void prepareRetry_eligible_createsNewPaymentAndReturnsRetrying() {
         // given
-        Order order = paymentRequestedOrder();
+        Order order = pendingOrder();
         Payment failedPayment = retryableFailedPayment();
 
         ReflectionTestUtils.setField(order, "latestPaymentId", latestPaymentId);
@@ -104,6 +107,7 @@ class PaymentRetryWriterTest {
         assertThat(result.retryPayment()).isNotNull();
         assertThat(result.retryPayment().getPaymentStatus()).isEqualTo(PaymentStatus.REQUESTED);
         assertThat(result.retryPayment().getIdempotencyKey()).startsWith("retry-");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING); // issue #292 — 재시도 동안 orders.status는 그대로
         // latest_payment_id 포인터 갱신 확인
         assertThat(order.getLatestPaymentId()).isEqualTo(result.retryPayment().getId());
         verify(orderStatusHistoryRepository).save(any());
@@ -113,7 +117,7 @@ class PaymentRetryWriterTest {
     @DisplayName("재시도 횟수가 maxAttempts에 도달하면 Order를 FAILED로 전이하고 EXHAUSTED를 반환한다")
     void prepareRetry_exceededMaxAttempts_failsOrderAndReturnsExhausted() {
         // given
-        Order order = paymentRequestedOrder();
+        Order order = pendingOrder();
         Payment failedPayment = retryableFailedPayment();
 
         ReflectionTestUtils.setField(order, "latestPaymentId", latestPaymentId);
@@ -136,7 +140,7 @@ class PaymentRetryWriterTest {
     @DisplayName("latestPayment가 REQUESTED(PG 호출 미완료 orphan) 상태이면 SKIPPED를 반환한다")
     void prepareRetry_latestPaymentStillRequested_returnsSkipped() {
         // given
-        Order order = paymentRequestedOrder();
+        Order order = pendingOrder();
         UUID requestedPaymentId = UUID.randomUUID();
 
         Payment requestedPayment = Payment.builder()
@@ -161,13 +165,11 @@ class PaymentRetryWriterTest {
     }
 
     @Test
-    @DisplayName("PAYMENT_REQUESTED가 아닌 주문이면 SKIPPED를 반환한다")
-    void prepareRetry_notPaymentRequested_returnsSkipped() {
+    @DisplayName("issue #292 — PENDING이 아닌 주문(예: CONFIRMING)이면 SKIPPED를 반환한다")
+    void prepareRetry_notPending_returnsSkipped() {
         // given
-        Order order = Order.createPending(UUID.randomUUID(), UUID.randomUUID(), 50_000L,
-                LocalDateTime.now().plusMinutes(10));
-        // PENDING 상태 그대로 (PAYMENT_REQUESTED 아님)
-        ReflectionTestUtils.setField(order, "id", orderId);
+        Order order = pendingOrder();
+        order.markConfirming(); // PENDING이 아니게 만듦
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
@@ -183,7 +185,7 @@ class PaymentRetryWriterTest {
     @DisplayName("retryable Payment가 없으면 SKIPPED를 반환한다")
     void prepareRetry_noRetryablePayment_returnsSkipped() {
         // given
-        Order order = paymentRequestedOrder();
+        Order order = pendingOrder();
         Payment permanentFailed = Payment.builder()
                 .orderId(orderId)
                 .amount(50_000L)

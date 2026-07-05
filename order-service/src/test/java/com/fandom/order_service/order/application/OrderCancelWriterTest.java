@@ -34,6 +34,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+/**
+ * issue #292 — REFUND_REQUESTED→CANCEL_REQUESTED, PAID→CONFIRMING 리네이밍 반영.
+ * PENDING 취소 분기에 진행중 결제(REQUESTED) 존재 시 차단하는 신규 가드 테스트 추가,
+ * COMPENSATING/REFUNDED 관련 테스트는 해당 상태 삭제로 제거.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("OrderCancelWriter 단위 테스트")
 class OrderCancelWriterTest {
@@ -87,11 +92,12 @@ class OrderCancelWriterTest {
     }
 
     @Test
-    @DisplayName("PENDING 주문은 CANCELLED로 전이되고 PG 호출 없이 즉시 끝난다")
-    void decide_pending_cancelsImmediately() {
+    @DisplayName("진행중 결제가 없는 PENDING 주문은 CANCELLED로 전이되고 PG 호출 없이 즉시 끝난다")
+    void decide_pendingNoInFlightPayment_cancelsImmediately() {
         // given
         Order order = orderWithId();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.existsByOrderIdAndPaymentStatus(orderId, PaymentStatus.REQUESTED)).willReturn(false);
 
         // when
         OrderCancelDecision decision = orderCancelWriter.decide(orderId, userId);
@@ -102,6 +108,24 @@ class OrderCancelWriterTest {
         verify(orderStatusHistoryRepository).save(any());
         verify(paymentRepository, never()).findByOrderIdAndPaymentStatus(any(), any());
         verify(outboxAppender).appendHoldReleased(order.getId());
+    }
+
+    @Test
+    @DisplayName("issue #292 — PENDING이어도 진행중(REQUESTED) 결제가 있으면 취소가 거부된다(웹훅 결과 대기)")
+    void decide_pendingWithInFlightPayment_throwsInvalidOrderStatus() {
+        // given
+        Order order = orderWithId();
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.existsByOrderIdAndPaymentStatus(orderId, PaymentStatus.REQUESTED)).willReturn(true);
+
+        // when & then
+        assertThatThrownBy(() -> orderCancelWriter.decide(orderId, userId))
+                .isInstanceOf(CustomException.class)
+                .extracting(e -> ((CustomException) e).getErrorCode())
+                .isEqualTo(OrderErrorCode.INVALID_ORDER_STATUS);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING); // 변경 없음
+        verify(orderStatusHistoryRepository, never()).save(any());
     }
 
     @Test
@@ -122,32 +146,11 @@ class OrderCancelWriterTest {
     }
 
     @Test
-    @DisplayName("이미 REFUNDED인 주문도 변경 없이 멱등 응답으로 처리된다")
-    void decide_alreadyRefunded_returnsIdempotent() {
+    @DisplayName("CONFIRMING 주문은 CANCEL_REQUESTED로 전이하고 환불 대상 결제를 함께 반환한다(payment도 REFUND_REQUESTED로 전이)")
+    void decide_confirming_returnsRefundNeeded() {
         // given
         Order order = orderWithId();
-        order.markPaymentRequested();
-        order.markPaid();
-        order.markRefundRequested();
-        order.markRefunded();
-        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-
-        // when
-        OrderCancelDecision decision = orderCancelWriter.decide(orderId, userId);
-
-        // then
-        assertThat(decision.type()).isEqualTo(OrderCancelDecision.Type.IDEMPOTENT);
-        assertThat(decision.status()).isEqualTo(OrderStatus.REFUNDED);
-        verify(orderStatusHistoryRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("PAID 주문은 REFUND_REQUESTED로 전이하고 환불 대상 결제를 함께 반환한다")
-    void decide_paid_returnsRefundNeeded() {
-        // given
-        Order order = orderWithId();
-        order.markPaymentRequested();
-        order.markPaid();
+        order.markConfirming();
         Payment payment = approvedPaymentFor(orderId);
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
         given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
@@ -158,18 +161,17 @@ class OrderCancelWriterTest {
 
         // then
         assertThat(decision.type()).isEqualTo(OrderCancelDecision.Type.REFUND_NEEDED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(decision.paymentToRefund()).isEqualTo(payment);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED); // issue #292 신규
         verify(orderStatusHistoryRepository).save(any());
     }
 
     @Test
-    @DisplayName("CONFIRMED 주문이 취소 가능 시간 내면 REFUND_REQUESTED로 전이된다")
+    @DisplayName("CONFIRMED 주문이 취소 가능 시간 내면 CANCEL_REQUESTED로 전이된다")
     void decide_confirmedWithinWindow_returnsRefundNeeded() {
         // given
         Order order = orderWithId();
-        order.markPaymentRequested();
-        order.markPaid();
         ReflectionTestUtils.setField(order, "status", OrderStatus.CONFIRMED);
         ReflectionTestUtils.setField(order, "statusUpdatedAt", LocalDateTime.now().minusHours(1)); // 1시간 전 확정, 윈도우 24h
         Payment payment = approvedPaymentFor(orderId);
@@ -182,7 +184,8 @@ class OrderCancelWriterTest {
 
         // then
         assertThat(decision.type()).isEqualTo(OrderCancelDecision.Type.REFUND_NEEDED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED);
     }
 
     @Test
@@ -190,8 +193,6 @@ class OrderCancelWriterTest {
     void decide_confirmedWindowExpired_throws() {
         // given
         Order order = orderWithId();
-        order.markPaymentRequested();
-        order.markPaid();
         ReflectionTestUtils.setField(order, "status", OrderStatus.CONFIRMED);
         ReflectionTestUtils.setField(order, "statusUpdatedAt", LocalDateTime.now().minusHours(25)); // 윈도우(24h) 초과
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
@@ -208,11 +209,11 @@ class OrderCancelWriterTest {
     }
 
     @Test
-    @DisplayName("취소 불가 상태(PAYMENT_REQUESTED)면 INVALID_ORDER_STATUS 예외가 발생한다")
-    void decide_paymentRequested_throwsInvalidOrderStatus() {
+    @DisplayName("취소 불가 상태(CANCEL_REQUESTED)면 INVALID_ORDER_STATUS 예외가 발생한다")
+    void decide_cancelRequested_throwsInvalidOrderStatus() {
         // given
         Order order = orderWithId();
-        order.markPaymentRequested();
+        ReflectionTestUtils.setField(order, "status", OrderStatus.CANCEL_REQUESTED);
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when & then
@@ -223,11 +224,11 @@ class OrderCancelWriterTest {
     }
 
     @Test
-    @DisplayName("취소 불가 상태(COMPENSATING)면 INVALID_ORDER_STATUS 예외가 발생한다")
-    void decide_compensating_throwsInvalidOrderStatus() {
+    @DisplayName("취소 불가 상태(FAILED)면 INVALID_ORDER_STATUS 예외가 발생한다")
+    void decide_failed_throwsInvalidOrderStatus() {
         // given
         Order order = orderWithId();
-        ReflectionTestUtils.setField(order, "status", OrderStatus.COMPENSATING);
+        ReflectionTestUtils.setField(order, "status", OrderStatus.FAILED);
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when & then
@@ -266,12 +267,11 @@ class OrderCancelWriterTest {
     }
 
     @Test
-    @DisplayName("PAID 취소인데 승인된 결제가 없으면 PAYMENT_NOT_FOUND 예외가 발생한다 (데이터 불일치 방어)")
-    void decide_paidWithoutApprovedPayment_throws() {
+    @DisplayName("CONFIRMING 취소인데 승인된 결제가 없으면 PAYMENT_NOT_FOUND 예외가 발생한다 (데이터 불일치 방어)")
+    void decide_confirmingWithoutApprovedPayment_throws() {
         // given
         Order order = orderWithId();
-        order.markPaymentRequested();
-        order.markPaid();
+        order.markConfirming();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
         given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
                 .willReturn(Optional.empty());
