@@ -3,6 +3,7 @@ package com.fandom.ticketing_service.seat.application;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.infrastructure.client.OrderClient;
+import com.fandom.ticketing_service.order.infrastructure.client.OrderClientRetryWrapper;
 import com.fandom.ticketing_service.queue.application.PurchaseTokenService;
 import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
@@ -97,6 +98,7 @@ public class SeatService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ShowSeatRepository showSeatRepository;
     private final OrderClient orderClient;
+    private final OrderClientRetryWrapper orderClientRetryWrapper;
     private final PurchaseTokenService purchaseTokenService;
 
     public List<ShowSeatResponse> getSeats(UUID showId) {
@@ -219,7 +221,7 @@ public class SeatService {
         log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
 
         if (orderId != null) {
-            orderClient.cancel(orderId, userId);
+            orderClientRetryWrapper.cancel(orderId, userId);
             log.info("주문 취소 요청: orderId={}, showSeatId={}", orderId, showSeatId);
         }
     }

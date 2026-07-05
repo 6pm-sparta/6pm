@@ -4,6 +4,7 @@ import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.infrastructure.client.OrderClient;
+import com.fandom.ticketing_service.order.infrastructure.client.OrderClientRetryWrapper;
 import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderResponse;
 import com.fandom.ticketing_service.queue.application.PurchaseTokenService;
@@ -48,6 +49,9 @@ class SeatServiceTest {
 
     @Mock
     private OrderClient orderClient;
+
+    @Mock
+    private OrderClientRetryWrapper orderClientRetryWrapper;
 
     @Mock
     private PurchaseTokenService purchaseTokenService;
@@ -373,7 +377,7 @@ class SeatServiceTest {
         }
 
         @Test
-        @DisplayName("선점 해제 시 연결된 주문이 있으면 orderClient.cancel()이 호출된다")
+        @DisplayName("선점 해제 시 연결된 주문이 있으면 orderClientRetryWrapper.cancel()이 호출된다")
         void releaseHold_success_cancelsOrder() {
             // given
             UUID seatId = UUID.randomUUID();
@@ -389,7 +393,7 @@ class SeatServiceTest {
             seatService.releaseHold(seatId, userId);
 
             // then
-            verify(orderClient).cancel(orderId, userId);
+            verify(orderClientRetryWrapper).cancel(orderId, userId);
         }
 
         @Test
