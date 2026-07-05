@@ -199,7 +199,7 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 | 좌석 hold 방치(TTL) 자동 해제 | Redis Keyspace Notification(`__keyevent@__:expired`) 구독(`SeatHoldExpirationListener`) → `releaseExpiredHold()` |
 | 주문 생성 중복(order-service 측 2차 방어) | `holdId` 기반 Redis 멱등성 + `seat_id` 진행중 상태 부분 UNIQUE 인덱스. 상세는 [order-service/redis-keys.md](../order-service/redis-keys.md) 참고 |
 | 좌석 목록 조회 N+1 | `RedisTemplate.multiGet()`으로 좌석별 상태를 한 번에 조회(`getSeats()`) |
-| 대기열 스케줄러 다중 인스턴스 중복 처리 | **미구현** — `QueueScheduler`에 분산 락이 없다. ticketing이 2대 이상 뜨면 같은 배치를 중복 처리할 수 있음(§6) |
+| 대기열 스케줄러 다중 인스턴스 중복 처리 | Redisson `RLock`(`processQueue()` 전체 감싸는 방식)으로 인스턴스당 한 번만 실행되도록 처리 |
 
 ### hold/checkout 실패 시 롤백
 
@@ -216,7 +216,7 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 | 항목 | 현황 | 내용 |
 |------|------|------|
 | `holdId` 전용 테이블 분리 여부 | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 쓸지 |
-| 대기열 스케줄러 분산 락 | 미구현 | `QueueScheduler`가 멀티 인스턴스로 뜨면 같은 배치를 중복 처리할 수 있음. ShedLock 등 적용 필요 |
+| 대기열 스케줄러 분산 락 | 완료(2026-07-05) | Redisson `RLock`으로 `processQueue()`를 감싸 인스턴스당 한 번만 실행되도록 수정 |
 | Kafka 발행 신뢰성(Outbox 미적용) | 미검토 | §4 참고. DB 커밋 후 Kafka 발행 실패 시 이벤트 유실 가능 |
 | `GET /purchase-limit` 엔드포인트 설계 | 미확정 | 코드(`SeatController.java:64`)엔 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있음 |
 | `purchase-count` 감소 누락 | 알려진 버그 | TTL 만료(`releaseExpiredHold`)·결제실패/취소(`releaseSeat`) 경로에서 `purchase-count`를 감소시키지 않는다. 정상 유저가 구매 한도에 잘못 걸릴 수 있음(`hold()`/`checkout()` 실패 롤백 경로만 감소시킴) |
