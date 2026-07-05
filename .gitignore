@@ -67,7 +67,9 @@ postman/environments/
 backup/
 
 # Terraform
-**/.terraform/*
-*.tfstate
+.terraform/
+*.tfstate*
+terraform.tfvars
 *.tfstate.*
+.terraform.lock.hcl
 crash.log
