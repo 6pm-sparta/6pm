@@ -244,16 +244,24 @@ public class SeatService {
         return new PurchaseLimitResponse(MAX_PER_USER, purchased, remaining);
     }
 
-    // seatKey가 DEL이 아닌 TTL 만료로 사라졌을 때만 호출됨(SeatHoldExpirationListener) → 결제 미완료 상태로 방치된 선점만 해제 대상
+    // seatKey가 DEL이 아닌 TTL 만료로 사라졌을 때만 호출됨(SeatHoldExpirationListener).
+    // hold만 하고 체크아웃 없이 방치된 경우(orderId == null)도 포함해서 항상 재고/구매한도를 복구한다.
     @Transactional
     public void releaseExpiredHold(UUID showId, UUID showSeatId) {
+        String ownerKey = OWNER_KEY.formatted(showId, showSeatId);
+        String owner = redisTemplate.opsForValue().get(ownerKey);
+
         showSeatRepository.findById(showSeatId).ifPresentOrElse(seat -> {
-            if (seat.getOrderId() == null) {
-                return;
+            if (seat.getOrderId() != null) {
+                seat.releaseOrder();
             }
 
-            seat.releaseOrder();
             redisTemplate.opsForValue().increment(INVENTORY_KEY.formatted(showId));
+            if (owner != null) {
+                String userId = owner.substring(0, owner.indexOf(':'));
+                redisTemplate.opsForValue().decrement(PURCHASE_COUNT_KEY.formatted(userId, showId));
+                redisTemplate.delete(ownerKey);
+            }
             log.info("좌석 선점 만료, 자동 해제: showId={}, seatId={}", showId, showSeatId);
         }, () -> log.warn("만료된 선점 좌석을 찾을 수 없음: showId={}, seatId={}", showId, showSeatId));
     }

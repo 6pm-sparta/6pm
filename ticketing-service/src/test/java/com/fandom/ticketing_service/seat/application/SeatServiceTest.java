@@ -458,6 +458,93 @@ class SeatServiceTest {
     }
 
     @Nested
+    @DisplayName("좌석 선점 TTL 만료 해제 (releaseExpiredHold)")
+    class ReleaseExpiredHold {
+
+        @Test
+        @DisplayName("체크아웃 전(orderId==null) 방치된 hold도 재고와 purchase-count가 복구된다")
+        void releaseExpiredHold_neverCheckedOut_restoresInventoryAndPurchaseCount() {
+            // given
+            UUID showId = UUID.randomUUID();
+            UUID seatId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(showId).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn(userId + ":HELD");
+
+            // when
+            seatService.releaseExpiredHold(showId, seatId);
+
+            // then
+            verify(valueOperations).increment("inventory:%s".formatted(showId));
+            verify(valueOperations).decrement("purchase-count:%s:%s".formatted(userId, showId));
+            verify(redisTemplate).delete(anyString());
+        }
+
+        @Test
+        @DisplayName("체크아웃까지 진행된(orderId!=null) hold가 만료되면 DB orderId도 해제된다")
+        void releaseExpiredHold_checkedOut_releasesOrder() {
+            // given
+            UUID showId = UUID.randomUUID();
+            UUID seatId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(showId).seatName("A-1").grade("VIP").price(100000).build();
+            seat.assignOrder(UUID.randomUUID());
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn(userId + ":PENDING");
+
+            // when
+            seatService.releaseExpiredHold(showId, seatId);
+
+            // then
+            assertThat(seat.getOrderId()).isNull();
+            verify(valueOperations).increment("inventory:%s".formatted(showId));
+            verify(valueOperations).decrement("purchase-count:%s:%s".formatted(userId, showId));
+        }
+
+        @Test
+        @DisplayName("owner 키가 이미 없으면 purchase-count는 건드리지 않는다")
+        void releaseExpiredHold_noOwner_doesNotTouchPurchaseCount() {
+            // given
+            UUID showId = UUID.randomUUID();
+            UUID seatId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(showId).seatName("A-1").grade("VIP").price(100000).build();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn(null);
+
+            // when
+            seatService.releaseExpiredHold(showId, seatId);
+
+            // then
+            verify(valueOperations).increment("inventory:%s".formatted(showId));
+            verify(valueOperations, never()).decrement(anyString());
+        }
+
+        @Test
+        @DisplayName("만료된 좌석을 찾을 수 없으면 아무 작업도 하지 않는다")
+        void releaseExpiredHold_seatNotFound_noOp() {
+            // given
+            UUID showId = UUID.randomUUID();
+            UUID seatId = UUID.randomUUID();
+
+            given(showSeatRepository.findById(seatId)).willReturn(Optional.empty());
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+
+            // when
+            seatService.releaseExpiredHold(showId, seatId);
+
+            // then
+            verify(valueOperations, never()).increment(anyString());
+        }
+    }
+
+    @Nested
     @DisplayName("구매 한도 조회")
     class GetPurchaseLimit {
 
