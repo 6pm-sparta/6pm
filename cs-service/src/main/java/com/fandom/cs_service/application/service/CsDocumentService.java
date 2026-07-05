@@ -39,6 +39,13 @@ public class CsDocumentService {
         return documentRepository.findAll(pageable);
     }
 
+    // 상세
+    @Transactional(readOnly = true)
+    public CsDocument get(UUID documentId) {
+        return documentRepository.findById(documentId)
+                .orElseThrow(() -> new CustomException(CsErrorCode.CS_DOCUMENT_NOT_FOUND));
+    }
+
     // 수정
     public CsDocument update(UUID documentId, String title, String content) {
         CsDocument document = documentRepository.findById(documentId)

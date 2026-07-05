@@ -3,6 +3,7 @@ package com.fandom.cs_service.presentation.controller;
 import com.fandom.cs_service.application.service.CsDocumentService;
 import com.fandom.cs_service.domain.exception.CsErrorCode;
 import com.fandom.cs_service.presentation.dto.request.DocumentCreateRequest;
+import com.fandom.cs_service.presentation.dto.response.DocumentDetailResponse;
 import com.fandom.cs_service.presentation.dto.response.DocumentResponse;
 import com.fandom.cs_service.presentation.dto.response.PageResponse;
 import com.fandom.common.auth.UserIdCard;
@@ -55,6 +56,15 @@ public class CsDocumentController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         return ApiResponse.success(
                 PageResponse.from(documentService.list(pageable).map(DocumentResponse::from)));
+    }
+
+    @GetMapping("/{documentId}")
+    public ApiResponse<DocumentDetailResponse> get(
+            @PathVariable UUID documentId,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        requireMaster(idCard);
+        return ApiResponse.success(DocumentDetailResponse.from(documentService.get(documentId)));
     }
 
     @PutMapping("/{documentId}")
