@@ -15,6 +15,16 @@
 | Kafka 토픽 목록이 필요하다 | → [4. Kafka 토픽](#4-kafka-토픽) |
 | 미확정 항목을 확인하고 싶다 | → [9. 미확정 항목](#9-미확정-항목) |
 
+**문서 목록 (order-service 문서 구조와 동일하게 분리, 2026-07-03)**
+
+| 문서 | 내용 |
+|------|------|
+| [architecture.md](./architecture.md) | ERD, 좌석 상태 모델(HELD/PENDING/CONFIRMED), Kafka 이벤트, 동시성 제어 전략, 미확정 항목 |
+| [flows.md](./flows.md) | 전체 시나리오별 흐름 (대기열, hold, checkout, 확정/해제, SAGA 보상) |
+| [redis-keys.md](./redis-keys.md) | ticketing-service Redis 키 설계 (Lua 스크립트, TTL, 알려진 버그) |
+
+이 README는 요약/네비게이션 용도로 유지하고, 상세 설계는 위 세 문서를 최신 상태로 관리한다.
+
 ---
 
 ## 1. 기술 스택
