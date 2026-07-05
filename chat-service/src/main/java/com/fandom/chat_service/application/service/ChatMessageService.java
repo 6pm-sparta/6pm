@@ -33,6 +33,7 @@ public class ChatMessageService {
     private final ChatRoomMemberRepository memberRepository;
     private final ChatMessageRepository messageRepository;
     private final MessageDeliveryService messageDeliveryService;
+    private final MessagePolicy messagePolicy;
 
     // 메시지 전송
     @Transactional
@@ -41,6 +42,9 @@ public class ChatMessageService {
         // 멤버십 검증 + 닉네임
         ChatRoomMember member = memberRepository.findByRoomIdAndUserId(roomId, senderId)
                 .orElseThrow(() -> new CustomException(ChatErrorCode.CHAT_ACCESS_DENIED));
+
+        // 전송 정책 검증
+        messagePolicy.check(room, senderId, content);
 
         SenderRole role = room.getCreatorId().equals(senderId) ? SenderRole.CREATOR : SenderRole.MEMBER;
 
