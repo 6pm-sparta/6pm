@@ -38,6 +38,7 @@ out/
 
 # 환경변수 파일
 .env
+.env.*
 setup-env.ps1
 
 # Docker Local Data Volumes
