@@ -5,12 +5,12 @@ import com.fandom.common.exception.CustomException;
 import com.fandom.feed.infra.client.dto.FollowingResponse;
 import com.fandom.feed.infra.client.dto.UserResponse;
 import com.fandom.feed.infra.client.exception.UserErrorCode;
+import com.fandom.feed.infra.util.LogContext;
 import com.fandom.feed.presentation.dto.response.CursorPageResponse;
 import feign.FeignException;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +18,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-@Slf4j
+import static java.util.Map.entry;
+
 @Component
 @RequiredArgsConstructor
 public class UserClientRetryWrapper {
@@ -37,12 +38,12 @@ public class UserClientRetryWrapper {
     }
 
     private UserResponse getUserFallback(UUID userId, FeignException.NotFound e) {
-        log.warn("[UserClient] 조회 대상 사용자 없음 - userId: {}", userId);
+        LogContext.warn("[UserClient] 조회 대상 사용자 없음", entry("userId", userId));
         throw new CustomException(UserErrorCode.USER_NOT_FOUND);
     }
 
     private UserResponse getUserFallback(UUID userId, Exception e) {
-        log.error("[UserClient] 조회 예외 발생 - userId: {}, 원인: {}", userId, e.getMessage());
+        LogContext.error(e, "[UserClient] 조회 예외 발생", entry("userId", userId));
         throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
     }
 
@@ -53,7 +54,7 @@ public class UserClientRetryWrapper {
     }
 
     private List<UserResponse> getUsersFallback(Set<UUID> userIds, Exception e) {
-        log.error("[UserClient] 목록 조회 실패로 인한 폴백 실행 - userIds: {}, 원인: {}", userIds, e.getMessage());
+        LogContext.error(e, "[UserClient] 목록 조회 실패로 인한 폴백 실행", entry("userIds", userIds));
         return userIds.stream().map(id -> new UserResponse(id, "-")).toList();
     }
 
@@ -64,7 +65,7 @@ public class UserClientRetryWrapper {
     }
 
     private long countFollowersFallback(UUID authorId, Exception e) {
-        log.error("[UserClient] 팔로워 수 조회 실패 - authorId: {}, 원인: {}", authorId, e.getMessage());
+        LogContext.error(e, "[UserClient] 팔로워 수 조회 실패", entry("userId", authorId));
         throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
     }
 
@@ -75,7 +76,7 @@ public class UserClientRetryWrapper {
     }
 
     private CursorPageResponse<UUID> getFollowerIdsFallback(UUID authorId, UUID cursor, Exception e) {
-        log.error("[UserClient] 팔로워 목록 조회 실패 - authorId: {}, cursor: {}, 원인: {}", authorId, cursor, e.getMessage());
+        LogContext.error(e, "[UserClient] 팔로워 목록 조회 실패", entry("userId", authorId), entry("cursor", cursor));
         throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
     }
 
@@ -86,7 +87,7 @@ public class UserClientRetryWrapper {
     }
 
     private CursorPageResponse<FollowingResponse> getFollowingIdsFallback(UUID userId, UUID cursor, Exception e) {
-        log.error("[UserClient] 팔로잉 목록 조회 실패 - userId: {}, cursor: {}, 원인: {}", userId, cursor, e.getMessage());
+        LogContext.error(e, "[UserClient] 팔로잉 목록 조회 실패", entry("userId", userId), entry("cursor", cursor));
         throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
     }
 
@@ -97,7 +98,7 @@ public class UserClientRetryWrapper {
     }
 
     private CursorPageResponse<UUID> getLargeFollowingIdsFallback(UUID userId, UUID cursor, Exception e) {
-        log.error("[UserClient] 대형 크리에이터 팔로잉 목록 조회 실패 - userId: {}, cursor: {}, 원인: {}", userId, cursor, e.getMessage());
+        LogContext.error(e, "[UserClient] 대형 크리에이터 팔로잉 목록 조회 실패", entry("userId", userId), entry("cursor", cursor));
         throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
     }
 }

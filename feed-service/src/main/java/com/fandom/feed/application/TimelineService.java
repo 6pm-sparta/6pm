@@ -2,7 +2,7 @@ package com.fandom.feed.application;
 
 import com.fandom.feed.domain.entity.Post;
 import com.fandom.feed.domain.repository.PostRepository;
-import com.fandom.feed.domain.util.UuidV7TimestampExtractor;
+import com.fandom.feed.infra.util.UuidV7TimestampExtractor;
 import com.fandom.feed.global.constant.FeedPolicy;
 import com.fandom.feed.infra.client.UserClientRetryWrapper;
 import com.fandom.feed.infra.client.dto.FollowingResponse;

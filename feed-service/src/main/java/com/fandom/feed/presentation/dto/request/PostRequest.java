@@ -1,5 +1,6 @@
 package com.fandom.feed.presentation.dto.request;
 
+import com.fandom.feed.presentation.dto.request.validation.ValidImageLimit;
 import com.fandom.feed.presentation.dto.request.validation.ValidImageKey;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Size;
@@ -10,7 +11,7 @@ public record PostRequest(
         @Size(max = 1000, message = "내용은 1,000자 이내로 작성해주세요.")
         String content,
 
-        @Size(max = 4, message = "이미지는 최대 4개까지 가능합니다.")
+        @ValidImageLimit
         List<@ValidImageKey String> imageKeys
 ) {
     public PostRequest {

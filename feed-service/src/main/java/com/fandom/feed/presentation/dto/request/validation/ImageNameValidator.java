@@ -4,7 +4,7 @@ import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
 public class ImageNameValidator implements ConstraintValidator<ValidImageName, String> {
-    private static final String REGEX = ".*\\.(jpg|jpeg|png|gif|webp)$";
+    private static final String REGEX = "^.+\\.(jpg|jpeg|png|gif|webp)$";
 
     @Override
     public boolean isValid(String value, ConstraintValidatorContext context) {

@@ -1,4 +1,4 @@
-package com.fandom.feed.domain.util;
+package com.fandom.feed.infra.util;
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;

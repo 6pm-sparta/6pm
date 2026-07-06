@@ -24,6 +24,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,16 +63,18 @@ class S3ServiceIntegrationTest {
     @DisplayName("Presigned URL 발급 후 실제 업로드 성공")
     void generatePresignedUrlsAndUpload() throws Exception {
         // given
-        List<PresignedUrlInfo> result = s3Service.generatePresignedUrls(List.of("image1.jpg"));
+        List<PresignedUrlInfo> result = s3Service.generatePresignedUrls(List.of("image1.jpg"), UUID.randomUUID());
         String uploadUrl = result.getFirst().uploadUrl();
 
         // when
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(uploadUrl))
-                .PUT(HttpRequest.BodyPublishers.ofString("fake-image-content"))
-                .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(uploadUrl))
+                    .PUT(HttpRequest.BodyPublishers.ofString("fake-image-content"))
+                    .build();
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        }
 
         // then
         assertThat(response.statusCode()).isEqualTo(200);

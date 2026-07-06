@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -67,6 +68,7 @@ class OutboxPublisherSchedulerTest {
         // given
         String invalidJson = "invalid";
         OutboxEvent event = OutboxEvent.of(UUID.randomUUID(), OutboxEventType.POST_CREATED, invalidJson);
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
 
         given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING)).willReturn(List.of(event));
         given(objectMapper.readValue(invalidJson, Event.PostCreated.class)).willThrow(new JsonProcessingException("파싱 실패") {});
@@ -90,6 +92,7 @@ class OutboxPublisherSchedulerTest {
         String json = "{\"postId\":\"...\"}";
 
         OutboxEvent event = OutboxEvent.of(postId, OutboxEventType.POST_CREATED, json);
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
         Event.PostCreated payload = new Event.PostCreated(postId, authorId, "닉네임");
 
         given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING)).willReturn(List.of(event));
@@ -113,6 +116,7 @@ class OutboxPublisherSchedulerTest {
         // given
         String invalidJson = "invalid";
         OutboxEvent event = OutboxEvent.of(UUID.randomUUID(), OutboxEventType.POST_CREATED, invalidJson);
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
 
         given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING)).willReturn(List.of(event));
         given(objectMapper.readValue(invalidJson, Event.PostCreated.class)).willThrow(new JsonProcessingException("파싱 실패") {});
