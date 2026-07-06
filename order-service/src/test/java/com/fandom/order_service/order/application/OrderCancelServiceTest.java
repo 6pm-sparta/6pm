@@ -88,18 +88,18 @@ class OrderCancelServiceTest {
         // given
         LocalDateTime now = LocalDateTime.now();
         given(orderCancelWriter.decide(orderId, userId))
-                .willReturn(OrderCancelDecision.idempotent(orderId, OrderStatus.REFUNDED, now));
+                .willReturn(OrderCancelDecision.idempotent(orderId, OrderStatus.CANCELLED, now));
 
         // when
         OrderCancelResponse response = orderCancelService.cancelOrder(orderId, userId);
 
         // then
-        assertThat(response.status()).isEqualTo("REFUNDED");
+        assertThat(response.status()).isEqualTo("CANCELLED");
         verify(paymentGateway, never()).requestRefundAsync(any(), any(), any());
     }
 
     @Test
-    @DisplayName("PAID 취소는 비동기 환불을 접수만 시키고 REFUND_REQUESTED + paymentId로 즉시 응답한다")
+    @DisplayName("CONFIRMING 취소는 비동기 환불을 접수만 시키고 CANCEL_REQUESTED + paymentId로 즉시 응답한다")
     void cancelOrder_refundNeeded_acceptsAsyncRefundImmediately() {
         // given
         Payment payment = approvedPayment();
@@ -110,15 +110,15 @@ class OrderCancelServiceTest {
         // when
         OrderCancelResponse response = orderCancelService.cancelOrder(orderId, userId);
 
-        // then — 환불 완료(REFUNDED)를 기다리지 않고 REFUND_REQUESTED로 즉시 응답한다(#110)
-        assertThat(response.status()).isEqualTo("REFUND_REQUESTED");
+        // then — 환불 완료(CANCELLED)를 기다리지 않고 CANCEL_REQUESTED로 즉시 응답한다
+        assertThat(response.status()).isEqualTo("CANCEL_REQUESTED");
         assertThat(response.paymentId()).isEqualTo(payment.getId());
         assertThat(response.updatedAt()).isEqualTo(refundRequestedAt);
         verify(paymentGateway).requestRefundAsync(orderId, payment.getPgTransactionId(), payment.getAmount());
     }
 
     @Test
-    @DisplayName("PG 환불 접수 자체가 실패하면 PG_ERROR(502) 예외를 던진다(주문은 REFUND_REQUESTED에 머문다)")
+    @DisplayName("PG 환불 접수 자체가 실패하면 PG_ERROR(502) 예외를 던진다(주문은 CANCEL_REQUESTED에 머문다)")
     void cancelOrder_refundNeeded_pgAcceptFails_throwsPgError() {
         // given
         Payment payment = approvedPayment();

@@ -13,7 +13,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * expirationMinutes: 주문 생성 시 expired_at = 생성시각 + expirationMinutes.
  *
  * payment.lockWaitSeconds/lockHoldSeconds: 결제 요청 분산락(Redisson RLock) 대기/점유 시간.
- *   점유 시간은 "PENDING→PAYMENT_REQUESTED 전이 + 커밋"만 감싸는 짧은 구간 기준이며 PG 호출 전체를 포함하지 않는다.
+ *   점유 시간은 "PENDING 상태에서 결제 시도(Payment REQUESTED) 생성 + 커밋"만 감싸는 짧은 구간
+ *   기준이며 PG 호출 전체를 포함하지 않는다.
  * payment.idempotencyKeyTtlSeconds: Idempotency-Key 멱등성 캐시 TTL. 주문 expirationMinutes와 맞춤.
  *
  * compensation.refundMaxAttempts/refundRetryBackoffMillis: SAGA 보상(#88) PG 환불 재시도 횟수/간격.

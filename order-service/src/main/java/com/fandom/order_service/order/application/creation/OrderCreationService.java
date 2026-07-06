@@ -129,7 +129,7 @@ public class OrderCreationService {
 
     private OrderCreationResult findActiveBySeatIdOrThrow(CreateOrderRequest request, RuntimeException cause) {
 
-        // seatId + 진행중 상태(PENDING/PAYMENT_REQUESTED/PAID)로 실제 주문 조회.
+        // seatId + 진행중 상태(OrderStatus.ACTIVE = PENDING/CONFIRMING)로 실제 주문 조회.
         // attemptInsert의 충돌 케이스, resolveDuplicate의 폴백 케이스 둘 다 여기로 모임.
         return orderRepository.findFirstBySeatIdAndStatusIn(request.seatId(), OrderStatus.ACTIVE)
                 .map(order -> new OrderCreationResult(OrderResponse.from(order), false))

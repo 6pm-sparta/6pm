@@ -14,7 +14,7 @@ import java.util.UUID;
 
 /**
  * 결제 재시도 배치.
- * retryable=true인 FAILED Payment를 가진 PAYMENT_REQUESTED 주문 폴링 → 건당 Writer 위임.
+ * retryable=true인 FAILED Payment를 가진 PENDING 주문 폴링 → 건당 Writer 위임.
  */
 @Slf4j
 @Component

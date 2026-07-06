@@ -55,7 +55,7 @@ public class Order extends BaseEntity {
 
     /**
      * 주문 만료 기준 시각.
-     * 결제 타임아웃 처리와 Webhook 미수신으로 인한 PAYMENT_REQUESTED 좀비 상태 정리에 사용된다.
+     * 결제 타임아웃 처리와 Webhook 미수신으로 인한 PENDING 좀비 상태(결제 요청 중 웹훅 유실) 정리에 사용된다.
      */
     private LocalDateTime expiredAt;
 
@@ -92,41 +92,22 @@ public class Order extends BaseEntity {
     }
 
     /**
-     * PENDING → PAYMENT_REQUESTED. PG 호출 "전"에 먼저 반영해야 한다.
-     * 동시 요청 중 두 번째가 이 전이 이후 들어오면 status가 이미 PAYMENT_REQUESTED라 즉시 거부된다.
-     *
-     * @throws CustomException 호출 시점에 PENDING이 아니면 발생. 이 메서드는 항상 비관적 락으로
-     *         조회한 Order에 대해, 서비스 레이어(PaymentRequestWriter)가 PENDING 여부를 먼저 명시적으로
-     *         확인(PaymentErrorCode.INVALID_ORDER_STATUS로 409 응답)한 뒤 호출하는 것을 전제로 한다.
-     *         여기서 또 던지는 예외는 그 가드를 건너뛰고 직접 호출하는 실수를 막기 위한 방어적 체크라
-     *         정상 흐름에서는 발생하지 않으며, CommonErrorCode.INTERNAL_SERVER_ERROR(500)로 처리한다.
+     * PENDING → CONFIRMING. PG 승인 webhook을 받은 직후 호출한다.
      */
-    public void markPaymentRequested() {
+    public void markConfirming() {
 
         if (this.status != OrderStatus.PENDING) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
-        this.status = OrderStatus.PAYMENT_REQUESTED;
+        this.status = OrderStatus.CONFIRMING;
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
-    /** PAYMENT_REQUESTED → PAID. PG 승인 응답을 받은 직후 호출한다.*/
-    public void markPaid() {
-
-        if (this.status != OrderStatus.PAYMENT_REQUESTED) {
-            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
-        }
-
-        this.status = OrderStatus.PAID;
-        this.statusUpdatedAt = LocalDateTime.now();
-    }
-
-    /** PAYMENT_REQUESTED → FAILED. PG 거절/오류 응답을 받은 직후 호출한다.
-     *  COMPENSATING → FAILED. SAGA 보상(환불 재시도) 최종 실패 시에도 사용한다. */
+    /** PENDING → FAILED. 결제 영구 실패(PG 거절) 또는 결제 재시도 소진 시 호출한다. */
     public void markFailed() {
 
-        if (this.status != OrderStatus.PAYMENT_REQUESTED && this.status != OrderStatus.COMPENSATING) {
+        if (this.status != OrderStatus.PENDING) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -134,7 +115,7 @@ public class Order extends BaseEntity {
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
-    /** PENDING → CANCELLED. 결제 전 취소(유저 직접 또는 추후 타임아웃 P1)에 사용한다. */
+    /** PENDING → CANCELLED. 결제 전 취소(유저 직접 또는 타임아웃)에 사용한다. */
     public void markCancelled() {
 
         if (this.status != OrderStatus.PENDING) {
@@ -146,54 +127,27 @@ public class Order extends BaseEntity {
     }
 
     /**
-     * PAID/CONFIRMED/COMPENSATING/FAILED → REFUND_REQUESTED. PG 환불 호출 "전"에 먼저 반영해야 한다.
-     * COMPENSATING → REFUND_REQUESTED도 허용한다 — SAGA 보상 트랜잭션이 COMPENSATING을 거쳐
-     * 같은 REFUND_REQUESTED 상태로 들어오기 때문.
-     * FAILED → REFUND_REQUESTED도 허용한다 — 환불 복구 배치가 한 번 거절(FAILED)됐던 환불을
-     * 재시도할 때 사용. REFUND_REQUESTED 자체는 "PG 환불 호출 중/완료 대기"라는 의미만 가지며,
-     * 거기 들어온 경로(유저 직접 취소/SAGA 보상/복구 배치 재시도)는 상태값이 아니라
-     * order_status_histories.reason으로 구분한다.
+     * CONFIRMING/CONFIRMED/FAILED → CANCEL_REQUESTED. PG 환불 호출 "전"에 먼저 반영해야 한다.
+     * FAILED → CANCEL_REQUESTED는 환불 복구 배치가 한 번 거절(FAILED)됐던 환불을 재시도할 때 사용한다.
+     * 유저 직접 취소(결제후)/취소 가능 시간 내 확정 취소/SAGA 보상(좌석 예매 실패)/복구 배치 재시도가
+     * 전부 이 메서드를 거친다. 진입 경로 구분은 상태값이 아니라 order_status_histories.reason
+     * 프리픽스([USER]/[SAGA]/[RETRY])로 한다.
      */
-    public void markRefundRequested() {
+    public void markCancelRequested() {
 
-        if (this.status != OrderStatus.PAID && this.status != OrderStatus.CONFIRMED
-                && this.status != OrderStatus.COMPENSATING && this.status != OrderStatus.FAILED) {
+        if (this.status != OrderStatus.CONFIRMING && this.status != OrderStatus.CONFIRMED
+                && this.status != OrderStatus.FAILED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
-        this.status = OrderStatus.REFUND_REQUESTED;
+        this.status = OrderStatus.CANCEL_REQUESTED;
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
-    /** REFUND_REQUESTED/FAILED → REFUNDED. FAILED 허용은 복구 배치의 거래조회 동기화용. */
-    public void markRefunded() {
-
-        if (this.status != OrderStatus.REFUND_REQUESTED && this.status != OrderStatus.FAILED) {
-            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
-        }
-
-        this.status = OrderStatus.REFUNDED;
-        this.statusUpdatedAt = LocalDateTime.now();
-    }
-
-    /**
-     * PAID/CONFIRMED → COMPENSATING. ticketing.seat.book.failed 수신(좌석 예매 확정 실패) 직후
-     * 호출한다(SAGA 보상 트랜잭션의 시작점).
-     */
-    public void markCompensating() {
-
-        if (this.status != OrderStatus.PAID && this.status != OrderStatus.CONFIRMED) {
-            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
-        }
-
-        this.status = OrderStatus.COMPENSATING;
-        this.statusUpdatedAt = LocalDateTime.now();
-    }
-
-    /** PAID → CONFIRMED. ticketing.seat.booked 수신(좌석 예매 확정 완료) 직후 호출한다.*/
+    /** CONFIRMING → CONFIRMED. ticketing.seat.booked 수신(좌석 예매 확정 완료) 직후 호출한다.*/
     public void markConfirmed() {
 
-        if (this.status != OrderStatus.PAID) {
+        if (this.status != OrderStatus.CONFIRMING) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -202,12 +156,22 @@ public class Order extends BaseEntity {
     }
 
     /**
-     * REFUND_REQUESTED → FAILED.
-     * PG가 환불 거절 응답(REFUND_FAILED)을 반환한 경우 호출한다.
+     * CANCEL_REQUESTED/FAILED → CANCELLED. 환불 완료(PG 웹훅) 또는 복구 배치 거래조회 동기화 시 호출한다.
      */
-    public void markRefundFailed() {
+    public void markCancelCompleted() {
 
-        if (this.status != OrderStatus.REFUND_REQUESTED) {
+        if (this.status != OrderStatus.CANCEL_REQUESTED && this.status != OrderStatus.FAILED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.status = OrderStatus.CANCELLED;
+        this.statusUpdatedAt = LocalDateTime.now();
+    }
+
+    /** CANCEL_REQUESTED → FAILED. PG가 환불 거절 응답을 반환한 경우 호출한다. */
+    public void markCancelFailed() {
+
+        if (this.status != OrderStatus.CANCEL_REQUESTED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
@@ -215,10 +179,10 @@ public class Order extends BaseEntity {
         this.statusUpdatedAt = LocalDateTime.now();
     }
 
-    /** REFUND_REQUESTED/FAILED → MANUAL_REVIEW_REQUIRED. 복구 배치 재시도 소진 시 호출. */
+    /** CANCEL_REQUESTED/FAILED → MANUAL_REVIEW_REQUIRED. 복구 배치 재시도 소진 시 호출. */
     public void markManualReviewRequired() {
 
-        if (this.status != OrderStatus.REFUND_REQUESTED && this.status != OrderStatus.FAILED) {
+        if (this.status != OrderStatus.CANCEL_REQUESTED && this.status != OrderStatus.FAILED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
