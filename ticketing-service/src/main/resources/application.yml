@@ -5,30 +5,3 @@ spring:
     active: dev
   config:
     import: "optional:configserver:http://localhost:8888"
-
-# order-service 장애 시 releaseHold()가 무한정 물려있지 않도록 Feign 타임아웃을 짧게 잡는다.
-# 재시도(resilience4j)와 합쳐도 최악의 경우 (2s+3s) * 3회 = 15s 내로 끝난다.
-feign:
-  client:
-    config:
-      order-service:
-        connect-timeout: 2000
-        read-timeout: 3000
-
-resilience4j:
-  retry:
-    instances:
-      orderClient:
-        max-attempts: 3
-        wait-duration: 200ms
-        retry-exceptions:
-          - feign.RetryableException
-          - java.io.IOException
-        ignore-exceptions:
-          - io.github.resilience4j.circuitbreaker.CallNotPermittedException
-  circuitbreaker:
-    instances:
-      orderClient:
-        sliding-window-size: 10
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 5s
