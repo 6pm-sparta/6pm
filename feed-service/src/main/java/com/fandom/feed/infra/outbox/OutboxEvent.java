@@ -1,6 +1,7 @@
-package com.fandom.feed.infra.kafka.outbox;
+package com.fandom.feed.infra.outbox;
 
 import com.fandom.feed.domain.entity.SimpleBaseEntity;
+import com.fandom.feed.global.constant.RetryPolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
