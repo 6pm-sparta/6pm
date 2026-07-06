@@ -49,6 +49,8 @@ class ChatMessageServiceTest {
     private ChatMessageRepository messageRepository;
     @Mock
     private MessageDeliveryService messageDeliveryService;
+    @Mock
+    private MessagePolicy messagePolicy;
 
     @InjectMocks
     private ChatMessageService messageService;
