@@ -1,5 +1,7 @@
 # Ticketing Service CHANGELOG
 
+> **[archived]** 이 문서의 결정 항목들은 [../adr/](../adr/) 아래 ADR 001~009로 재정리됐다. 이 문서는 원본 보존용이며 더 이상 갱신하지 않는다.
+
 설계 결정 이력을 기록합니다. 다른 서비스에 영향을 주는 항목은 `[공유 필요]`로 표시합니다.
 
 ---
@@ -9,7 +11,7 @@
 ### 엔티티 생성 패턴: 빌더 채택
 - **방향**: 생성자 `private` + `@Builder`로 생성 경로 통일. 팩토리/혼합 대비 보일러플레이트 없이 가독성 확보.
 - **한계 인지**: 빌더 개방으로 잘못된 객체 생성 가능 → 코드 리뷰 + 필요 시 생성자 내 런타임 검증으로 보완.
-- **상세**: [entity rules](../260618%20entity%20rules.md)
+- **상세**: [entity rules](../../260618%20entity%20rules.md)
 
 ---
 
@@ -48,6 +50,13 @@
 - `/queue/status` → `/queue/shows/{showId}/status`
 - `/queue/stream` → `/queue/shows/{showId}/stream`
 - **이유**: showId 없이는 어느 공연 대기열인지 식별 불가.
+
+### API 경로 재변경 (이력 누락분 소급 기록, 실제 반영 시점 미상)
+- `/queue/shows/{showId}/enter` → `POST /api/v1/tickets/shows/{showId}/queue`
+- `/queue/shows/{showId}/status` → `GET /api/v1/tickets/shows/{showId}/queue/status`
+- `/queue/shows/{showId}/stream` → `GET /api/v1/tickets/shows/{showId}/queue/stream`
+- **현재 코드 기준**: `QueueController.java`(`@RequestMapping("/api/v1/tickets/shows/{showId}")` + `/queue`, `/queue/status`, `/queue/stream`)
+- **비고**: 이 변경이 언제/왜 있었는지 원 기록이 없어 코드 기준으로만 소급 기록함. CHANGELOG.md는 archive로 옮겨져 이 항목 추가를 끝으로 더 이상 갱신하지 않는다.
 
 ### Redis 백업 전략 확정: RDB + PostgreSQL 재적재
 - **이유**: AOF는 모든 쓰기에 I/O 비용이 발생. BOOKED 상태의 원본은 PostgreSQL Orders 테이블에 있으므로, 장애 시 CONFIRMED 주문 기준으로 Redis 재적재하는 방식으로 단순화.

@@ -28,15 +28,17 @@ import java.util.concurrent.TimeUnit;
  *
  * 1. Redis 분산락(Redisson RLock) 획득 — 인스턴스 간 동시 결제 요청 차단
  * 2. Redis 멱등성 키(Idempotency-Key) 확인 — 분산락 안에서, 재시도/중복 클릭 시 기존 결과 그대로 반환
- * 3-4. orders 비관적 락 + 상태 검증(PENDING) + PAYMENT_REQUESTED 전이 + 결제 시도 레코드 생성, 커밋
+ * 3-4. orders 비관적 락 + 상태 검증(PENDING) + 진행중 결제(payments.REQUESTED) 존재 여부 확인
+ *      + 결제 시도 레코드 생성, 커밋
  * 5. 분산락 해제
  * 6. PG에 비동기 승인 요청 — "접수됐다"는 사실과 pgTransactionId만 즉시 받는다.
  *    실제 승인/거절은 PgWebhookService가 콜백으로 받아 반영한다.
  * 7. pgTransactionId를 Payment에 기록, REQUESTED 상태로 응답 캐싱 후 즉시 응답 반환.
  *
- * 분산락은 PG 호출 전체를 감싸지 않는다. 4번에서 상태가 이미 PAYMENT_REQUESTED로 바뀌었으므로,
- * 락이 풀린 뒤 들어오는 동시 요청은 3번 단계의 상태 검증에서 자연히 거부된다(락은 1차 방어,
- * DB 상태값은 PG 호출 구간 전체를 덮는 2차 방어로 역할 분리).
+ * 분산락은 PG 호출 전체를 감싸지 않는다. 4번에서 orders.status는 PENDING 그대로 두고
+ * payments에 REQUESTED 레코드가 새로 생기므로, 락이 풀린 뒤 들어오는 동시 요청은 3번 단계의
+ * existsByOrderIdAndPaymentStatus(REQUESTED) 체크에서 자연히 거부된다(락은 1차 방어,
+ * payments 테이블 상태는 PG 호출 구간 전체를 덮는 2차 방어로 역할 분리).
  *
  * 멱등성 키 캐시는 세 가지 값 중 하나를 가진다:
  * - 키 자체가 없음: 처음 들어온 요청

@@ -238,7 +238,7 @@ class PgWebhookServiceTest {
         pgWebhookService.receive(request, "good-signature");
 
         // then
-        verify(refundResultWriter).applyRefundFailure(orderId, "한도 초과");
+        verify(refundResultWriter).applyRefundFailure(orderId, paymentId, "한도 초과");
     }
 
     @Test

@@ -5,16 +5,17 @@ import com.fandom.feed.application.event.PostBroadcastHandler;
 import com.fandom.feed.infra.kafka.outbox.OutboxEvent;
 import com.fandom.feed.infra.kafka.outbox.OutboxEventRepository;
 import com.fandom.feed.infra.kafka.outbox.OutboxStatus;
+import com.fandom.feed.infra.util.LogContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@Slf4j
+import static java.util.Map.entry;
+
 @Component
 @RequiredArgsConstructor
 public class OutboxPublisherScheduler {
@@ -40,10 +41,16 @@ public class OutboxPublisherScheduler {
                 }
                 event.markPublished();
             } catch (JsonProcessingException e) {
-                log.error("Outbox 이벤트 역직렬화 실패 - eventId={}, aggregateId={}", event.getId(), event.getAggregateId(), e);
+                LogContext.error(e, "[OutboxEvent] 역직렬화 실패",
+                        entry("eventId", event.getId()),
+                        entry("aggregateId", event.getAggregateId())
+                );
                 event.markFailedImmediately();
             } catch (Exception e) {
-                log.error("Outbox 이벤트 처리 실패 - eventId={}, aggregateId={}", event.getId(), event.getAggregateId(), e);
+                LogContext.error(e, "[OutboxEvent] 처리 실패",
+                        entry("eventId", event.getId()),
+                        entry("aggregateId", event.getAggregateId())
+                );
                 event.markFailed();
             }
             outboxEventRepository.save(event);

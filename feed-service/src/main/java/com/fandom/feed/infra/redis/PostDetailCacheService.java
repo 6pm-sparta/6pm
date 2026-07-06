@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.connection.StringRedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -95,7 +96,8 @@ public class PostDetailCacheService {
     /** 게시글 ID 목록으로 게시글 상세 케시를 삭제하는 메서드 */
     public void deleteAll(List<UUID> postIds) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
-            postIds.forEach(postId -> connection.keyCommands().del((RedisKeyPrefix.POST_DETAIL + postId).getBytes()));
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
+            postIds.forEach(postId -> stringConn.del((RedisKeyPrefix.POST_DETAIL + postId)));
             return null;
         });
     }

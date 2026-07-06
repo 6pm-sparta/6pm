@@ -12,6 +12,7 @@ import java.util.UUID;
  * ticketing.seat.book.failed 수신 → SAGA 보상 트랜잭션(SeatEventConsumer가 이 서비스를 호출).
  *
  * 환불이 webhook으로 REFUND_FAILED 응답을 받으면 그 시점에 바로 FAILED로 전이된다.
+ * (order.status 기준 FAILED. payment.paymentStatus는 REFUND_FAILED로 별도 전이.)
  */
 @Slf4j
 @Service
@@ -32,7 +33,7 @@ public class OrderCompensationService {
         }
 
         if (started.type() == OrderCompensationResult.Type.SKIPPED_INVALID_STATE) {
-            log.warn("[SAGA 보상] COMPENSATING으로 전이할 수 없는 상태 - 이벤트 스킵. orderId={}, status={}",
+            log.warn("[SAGA 보상] CANCEL_REQUESTED로 전이할 수 없는 상태 - 이벤트 스킵. orderId={}, status={}",
                     started.orderId(), started.status());
             return;
         }

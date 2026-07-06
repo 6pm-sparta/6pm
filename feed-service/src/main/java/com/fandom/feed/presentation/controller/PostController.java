@@ -46,7 +46,7 @@ public class PostController {
             @RequestBody @Valid PresignedUrlRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
-        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(request.imageNames());
+        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(request.imageNames(), idCard.getUserId());
         return ApiResponse.success(PresignedUrlResponse.from(uploadUrls));
     }
 

@@ -21,7 +21,8 @@ import java.util.UUID;
  * PG 환불 webhook(REFUNDED/REFUND_FAILED) 결과를 Order/Payment에 반영한다.
  *
  * 유저 직접 취소({@code OrderCancelWriter})와 SAGA 보상({@code OrderCompensationWriter})은 둘 다
- * PG에 환불을 요청하기 "전"에 이미 REFUND_REQUESTED로 전이해둔다.
+ * PG에 환불을 요청하기 "전"에 이미 order는 CANCEL_REQUESTED로, payment는 REFUND_REQUESTED로
+ * 전이해둔다.
  */
 @Component
 @RequiredArgsConstructor
@@ -42,7 +43,7 @@ public class RefundResultWriter {
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
 
-        if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
+        if (order.getStatus() != OrderStatus.CANCEL_REQUESTED) {
             return;
         }
 
@@ -50,9 +51,9 @@ public class RefundResultWriter {
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
         OrderStatus before = order.getStatus();
-        order.markRefunded();
+        order.markCancelCompleted();
         payment.refund();
-        saveHistory(order.getId(), before, order.getStatus(), "환불 완료(PG 웹훅)");
+        saveHistory(order.getId(), before, order.getStatus(), "[USER] 환불 완료(PG 웹훅)");
 
         outboxAppender.appendPaymentCancelled(order.getId());
         outboxAppender.appendOrderCancelledNotification(order.getId(), order.getUserId());
@@ -60,20 +61,25 @@ public class RefundResultWriter {
 
     /**
      * 환불 거절(REFUND_FAILED) webhook 반영. 최종 실패로 처리하고 수동 처리 대상으로 남긴다(발행 없음).
+     * order/payment FAILED로 전이.
      */
     @Transactional
-    public void applyRefundFailure(UUID orderId, String failureReason) {
+    public void applyRefundFailure(UUID orderId, UUID paymentId, String failureReason) {
 
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
 
-        if (order.getStatus() != OrderStatus.REFUND_REQUESTED) {
+        if (order.getStatus() != OrderStatus.CANCEL_REQUESTED) {
             return;
         }
 
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
         OrderStatus before = order.getStatus();
-        order.markRefundFailed();
-        saveHistory(order.getId(), before, order.getStatus(), "환불 거절(PG 웹훅): " + failureReason);
+        order.markCancelFailed();
+        payment.refundFail(failureReason);
+        saveHistory(order.getId(), before, order.getStatus(), "[USER] 환불 거절(PG 웹훅): " + failureReason);
     }
 
     private void saveHistory(UUID orderId, OrderStatus fromStatus, OrderStatus toStatus, String reason) {

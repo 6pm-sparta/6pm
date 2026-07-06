@@ -144,6 +144,45 @@ class SeatConfirmServiceTest {
         }
 
         @Test
+        @DisplayName("owner 키가 남아있으면 해당 유저의 purchase-count도 감소한다")
+        void releaseSeat_ownerPresent_decrementsPurchaseCount() {
+            // given
+            UUID orderId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+            seat.assignOrder(orderId);
+
+            given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn(userId + ":PENDING");
+
+            // when
+            seatConfirmService.releaseSeat(orderId);
+
+            // then
+            verify(valueOperations).decrement("purchase-count:%s:%s".formatted(userId, seat.getShowId()));
+        }
+
+        @Test
+        @DisplayName("owner 키가 이미 없으면(수동 해제가 먼저 처리함) purchase-count를 중복 감소하지 않는다")
+        void releaseSeat_ownerAlreadyGone_doesNotDoubleDecrement() {
+            // given
+            UUID orderId = UUID.randomUUID();
+            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
+            seat.assignOrder(orderId);
+
+            given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn(null);
+
+            // when
+            seatConfirmService.releaseSeat(orderId);
+
+            // then
+            verify(valueOperations, never()).decrement(anyString());
+        }
+
+        @Test
         @DisplayName("orderId에 해당하는 좌석이 없으면 아무 작업도 하지 않는다")
         void releaseSeat_notFound_noOp() {
             // given

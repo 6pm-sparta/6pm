@@ -37,6 +37,12 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findByOrderIdAndPaymentStatus(UUID orderId, PaymentStatus paymentStatus);
 
     /**
+     * 진행중(REQUESTED) 결제 존재 여부.
+     * PaymentRequestWriter.markPaymentRequestedAndSave에서 동시 결제 요청 차단에 사용한다.
+     */
+    boolean existsByOrderIdAndPaymentStatus(UUID orderId, PaymentStatus paymentStatus);
+
+    /**
      * PG 콜백(webhook)이 들고 오는 pgTransactionId로 결제 시도를 찾는다.
      */
     Optional<Payment> findByPgTransactionId(String pgTransactionId);

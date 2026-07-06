@@ -14,6 +14,7 @@ import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import com.fandom.order_service.payment.domain.exception.PaymentErrorCode;
 import com.fandom.order_service.payment.domain.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +26,16 @@ import java.util.UUID;
  * @Transactional 경계가 생기지 않으므로 다른 빈으로 분리해야 한다).
  *
  * 1. markPaymentRequestedAndSave: 분산락(Redisson RLock) "안에서" 짧게 커밋되어야 하는 구간.
- *    PENDING → PAYMENT_REQUESTED 전이 + 결제 시도 레코드(Payment, REQUESTED) INSERT.
- *    이 트랜잭션이 커밋된 뒤에야 분산락을 해제하고 PG를 호출한다.
+ *    orders.status는 PENDING 그대로 두고, 결제 시도 레코드(Payment, REQUESTED)만 INSERT한다.
+ *    동시 결제 요청 차단은 이제 "이 주문에 이미 REQUESTED Payment가 있는가"로 판단한다.
  * 2. recordPgTransactionId: PG가 요청 접수를 ack하며 즉시 반환한 pgTransactionId를 기록하는
  *    별도 트랜잭션. 승인/거절 여부는 아직 모른다 — webhook이 그 결과를 들고 온다.
  * 3. applyApproval/applyFailure: PG webhook 콜백을 받았을 때 결과를 반영하는 트랜잭션.
- *    PgWebhookService가 pgTransactionId로 Payment를 찾아 호출한다.
+ *    PgWebhookService가 pgTransactionId로 Payment를 찾아 호출한다. 멱등성/유효성 판단은
+ *    1차로 Payment.paymentStatus == REQUESTED인지(이 webhook이 아직 처리 안 된 결과인지),
+ *    2차로 order.status == PENDING인지(다른 경로로 이미 종결되지 않았는지) 두 단계로 확인한다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class PaymentRequestWriter {
@@ -60,9 +64,12 @@ public class PaymentRequestWriter {
             throw new CustomException(PaymentErrorCode.INVALID_ORDER_STATUS);
         }
 
-        OrderStatus before = order.getStatus();
-        order.markPaymentRequested();
-        saveHistory(order.getId(), before, order.getStatus(), "결제 요청");
+        // PENDING이 "결제 시도 전"과 "결제 시도 중"을 모두 포괄하게 되면서, 진행중 결제 존재 여부를
+        // payments 테이블에서 직접 확인해야 동시 결제 요청(중복 PG 호출)을 막을 수 있다.
+        // orders row 락을 이미 쥔 상태이므로 이 체크~INSERT 사이에는 경합이 없다.
+        if (paymentRepository.existsByOrderIdAndPaymentStatus(orderId, PaymentStatus.REQUESTED)) {
+            throw new CustomException(PaymentErrorCode.INVALID_ORDER_STATUS);
+        }
 
         // 결제 금액은 클라이언트 요청이 아니라 항상 DB(orders.total_amount) 기준이다
         Payment payment = Payment.builder()
@@ -75,6 +82,10 @@ public class PaymentRequestWriter {
 
         Payment saved = paymentRepository.save(payment);
         order.updateLatestPayment(saved.getId());
+
+        // orders.status는 변경 없음(PENDING 유지)이지만, 결제 시도 자체는 감사 기록에 남긴다.
+        saveHistory(order.getId(), OrderStatus.PENDING, OrderStatus.PENDING, "[USER] 결제 요청");
+
         return saved;
     }
 
@@ -93,21 +104,30 @@ public class PaymentRequestWriter {
     @Transactional
     public void applyApproval(UUID orderId, UUID paymentId) {
 
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
-
-        if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
-            return;
-        }
-
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
+        // 1차: 이 webhook이 아직 처리 안 된 결과인지 Payment 기준으로 판단(중복 수신 no-op).
+        if (payment.getPaymentStatus() != PaymentStatus.REQUESTED) {
+            return;
+        }
+
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
+
+        // 2차: 다른 경로(유저 취소, 타임아웃)로 이미 종결된 주문이면 승인 웹훅을 반영하지 않는다.
+        // 이 케이스는 데이터 불일치 신호이므로 로그를 남긴다 — 정상 흐름이라면 발생하지 않아야 한다.
+        if (order.getStatus() != OrderStatus.PENDING) {
+            log.error("[결제 승인] 주문이 이미 다른 경로로 종결됨. orderId={}, orderStatus={}, paymentId={}",
+                    orderId, order.getStatus(), paymentId);
+            return;
+        }
+
         OrderStatus before = order.getStatus();
-        order.markPaid();
+        order.markConfirming();
         payment.approve();
         paymentRepository.clearRetryableFlagByOrderId(orderId); // 재시도 폴링 대상에서 제외
-        saveHistory(order.getId(), before, order.getStatus(), "결제 승인");
+        saveHistory(order.getId(), before, order.getStatus(), "[USER] 결제 승인");
         outboxAppender.appendPaymentCompleted(order.getId());
     }
 
@@ -115,20 +135,26 @@ public class PaymentRequestWriter {
     @Transactional
     public void applyFailure(UUID orderId, UUID paymentId, String failureReason) {
 
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
-        if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
+        if (payment.getPaymentStatus() != PaymentStatus.REQUESTED) {
             return;
         }
 
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getStatus() != OrderStatus.PENDING) {
+            log.error("[결제 실패] 주문이 이미 다른 경로로 종결됨. orderId={}, orderStatus={}, paymentId={}",
+                    orderId, order.getStatus(), paymentId);
+            return;
+        }
 
         OrderStatus before = order.getStatus();
         order.markFailed();
         payment.fail(failureReason);
-        saveHistory(order.getId(), before, order.getStatus(), "결제 실패: " + failureReason);
+        saveHistory(order.getId(), before, order.getStatus(), "[USER] 결제 실패: " + failureReason);
         outboxAppender.appendPaymentFailed(order.getId());
     }
 
@@ -136,20 +162,16 @@ public class PaymentRequestWriter {
     @Transactional
     public void applyFailureWithRetry(UUID orderId, UUID paymentId, String failureReason) {
 
-        Order order = orderRepository.findByIdForUpdate(orderId)
-                .orElseThrow(() -> new CustomException(OrderErrorCode.ORDER_NOT_FOUND));
-
-        if (order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
-            return;
-        }
-
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new CustomException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
+        if (payment.getPaymentStatus() != PaymentStatus.REQUESTED) {
+            return;
+        }
+
         payment.failWithRetry(failureReason);
-        order.updateLatestPayment(payment.getId()); // 포인터가 이미 일치하지만 명시적으로 확인
-        saveHistory(order.getId(), OrderStatus.PAYMENT_REQUESTED, OrderStatus.PAYMENT_REQUESTED,
-                "결제 일시적 오류 — 재시도 예정: " + failureReason);
+        saveHistory(orderId, OrderStatus.PENDING, OrderStatus.PENDING,
+                "[RETRY] 결제 일시적 오류 — 재시도 예정: " + failureReason);
     }
 
     private void saveHistory(UUID orderId, OrderStatus fromStatus, OrderStatus toStatus, String reason) {

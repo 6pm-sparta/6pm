@@ -54,8 +54,9 @@ public class OrderController {
     }
 
     /**
-     * 주문 취소. PENDING은 즉시 CANCELLED, PAID/CONFIRMED(취소 가능 시간 내)는 PG 환불까지
-     * 동기 처리 후 최종 상태(REFUNDED)로 응답한다. 이미 CANCELLED/REFUNDED인 주문은 멱등 응답
+     * 주문 취소. PENDING은 즉시 CANCELLED, CONFIRMING/CONFIRMED(취소 가능 시간 내)는 PG 환불 요청을
+     * 접수만 시키고 CANCEL_REQUESTED 상태로 즉시 응답한다(PG 환불 결과는 webhook으로 비동기 반영,
+     * RefundResultWriter 참고 — 동기로 REFUNDED까지 기다리지 않는다). 이미 CANCELLED인 주문은 멱등 응답
      * (200 + 현재 상태 그대로).
      */
     @DeleteMapping("/orders/{id}")

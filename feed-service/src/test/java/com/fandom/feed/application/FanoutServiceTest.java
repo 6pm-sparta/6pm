@@ -1,6 +1,6 @@
 package com.fandom.feed.application;
 
-import com.fandom.feed.domain.util.UuidV7TimestampExtractor;
+import com.fandom.feed.infra.util.UuidV7TimestampExtractor;
 import com.fandom.feed.infra.redis.TimelineCacheService;
 import com.fasterxml.uuid.Generators;
 import org.junit.jupiter.api.DisplayName;

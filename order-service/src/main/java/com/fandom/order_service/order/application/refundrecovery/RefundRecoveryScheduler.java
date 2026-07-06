@@ -14,7 +14,7 @@ import java.util.UUID;
 
 /**
  * 환불 미완료 복구 배치.
- * REFUND_REQUESTED/FAILED 상태 주문을 폴링해 건당 RefundRecoveryWriter에 위임한다.
+ * CANCEL_REQUESTED/FAILED 상태 주문을 폴링해 건당 RefundRecoveryWriter에 위임한다.
  * 한 건의 예외가 배치 전체를 막지 않도록 건별 try-catch한다.
  */
 @Slf4j
@@ -30,7 +30,7 @@ public class RefundRecoveryScheduler {
     public void recoverIncompleteRefunds() {
 
         List<UUID> candidateIds = orderRepository.findRefundRecoveryCandidateOrderIds(
-                OrderStatus.REFUND_REQUESTED,
+                OrderStatus.CANCEL_REQUESTED,
                 OrderStatus.FAILED,
                 Limit.of(orderProperties.refundRecovery().batchSize()));
 

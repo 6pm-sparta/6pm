@@ -3,6 +3,7 @@ package com.fandom.feed.application.event;
 import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.constant.RedisScript;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.connection.StringRedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -29,9 +30,8 @@ public class CommentCountChangedEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleCommentAllDeletedBatch(Event.CommentAllDeleted event) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
-            event.postIds().forEach(postId ->
-                    connection.keyCommands().del((RedisKeyPrefix.COMMENT_COUNT + postId).getBytes())
-            );
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
+            event.postIds().forEach(postId -> stringConn.del(RedisKeyPrefix.COMMENT_COUNT + postId));
             return null;
         });
     }

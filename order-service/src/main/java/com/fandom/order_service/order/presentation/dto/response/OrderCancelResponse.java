@@ -7,7 +7,7 @@ import java.util.UUID;
 
 /**
  * 주문 취소 응답.
- * paymentId는 환불이 발생한 경우(PAID/CONFIRMED 취소)에만 채워진다.
+ * paymentId는 환불이 발생한 경우(CONFIRMING/CONFIRMED 취소)에만 채워진다.
  */
 public record OrderCancelResponse(
         UUID orderId,
@@ -23,6 +23,6 @@ public record OrderCancelResponse(
      * PG에 비동기 환불 요청을 접수시킨 직후 응답한다.
      */
     public static OrderCancelResponse refundRequested(UUID orderId, UUID paymentId, LocalDateTime updatedAt) {
-        return new OrderCancelResponse(orderId, OrderStatus.REFUND_REQUESTED.name(), paymentId, updatedAt);
+        return new OrderCancelResponse(orderId, OrderStatus.CANCEL_REQUESTED.name(), paymentId, updatedAt);
     }
 }

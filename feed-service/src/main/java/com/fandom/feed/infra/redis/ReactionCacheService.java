@@ -9,6 +9,7 @@ import com.fandom.feed.infra.redis.constant.RedisKeyPrefix;
 import com.fandom.feed.infra.redis.dto.ReactionInfoCache;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.connection.StringRedisConnection;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -44,16 +45,17 @@ public class ReactionCacheService {
     public List<ReactionInfoCache> getReactionInfoBatch(List<UUID> postIds, UUID userId, boolean isLiked) {
         // Redis Pipeline을 통해 여러 명령을 한 번의 네트워크 요청으로 처리
         List<Object> results = redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
             postIds.forEach(postId -> {
                 String commentKey = RedisKeyPrefix.COMMENT_COUNT + postId;
                 String likeKey = RedisKeyPrefix.LIKE + postId;
 
                 // 커맨드 순서: commentCount → likeCount → isLiked
-                connection.stringCommands().get(commentKey.getBytes());
-                connection.setCommands().sCard(likeKey.getBytes());
+                stringConn.get(commentKey);
+                stringConn.sCard(likeKey);
 
                 if (!isLiked && (userId != null))
-                    connection.setCommands().sIsMember(likeKey.getBytes(), userId.toString().getBytes());
+                    stringConn.sIsMember(likeKey, userId.toString());
             });
             return null;
         });
@@ -168,9 +170,8 @@ public class ReactionCacheService {
     /** 게시글 ID 목록으로 좋아요 캐시에서 사용자 ID를 삭제하는 메서드 */
     public void removeLikeBatch(List<UUID> postIds, UUID userId) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
-            postIds.forEach(postId ->
-                    connection.setCommands().sRem((RedisKeyPrefix.LIKE + postId).getBytes(), userId.toString().getBytes())
-            );
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
+            postIds.forEach(postId -> stringConn.sRem(RedisKeyPrefix.LIKE + postId, userId.toString()));
             return null;
         });
     }
@@ -178,7 +179,8 @@ public class ReactionCacheService {
     /** 게시글 ID 목록으로 좋아요 캐시를 삭제하는 메서드 */
     public void deleteLikeSetBatch(List<UUID> postIds) {
         redisTemplate.executePipelined((RedisCallback<?>) connection -> {
-            postIds.forEach(postId -> connection.keyCommands().del((RedisKeyPrefix.LIKE + postId).getBytes()));
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
+            postIds.forEach(postId -> stringConn.del(RedisKeyPrefix.LIKE + postId));
             return null;
         });
     }
@@ -198,6 +200,7 @@ public class ReactionCacheService {
         Map<UUID, long[]> resultMap = new HashMap<>();
 
         redisTemplate.executePipelined((RedisCallback<Object>) connection -> {
+            StringRedisConnection stringConn = (StringRedisConnection) connection;
             for (UUID missedId : missedIds) {
                 long commentCount = commentCounts.getOrDefault(missedId, 0L);
                 List<UUID> likeUsers = likeUserMap.getOrDefault(missedId, List.of());
@@ -205,18 +208,12 @@ public class ReactionCacheService {
                 String commentKey = RedisKeyPrefix.COMMENT_COUNT + missedId;
                 String likeKey = RedisKeyPrefix.LIKE + missedId;
 
-                connection.stringCommands().setEx(
-                        commentKey.getBytes(),
-                        commentCountTtl,
-                        String.valueOf(commentCount).getBytes()
-                );
+                stringConn.setEx(commentKey, commentCountTtl, String.valueOf(commentCount));
 
                 // Set 복원 후 TTL 설정
                 if (!likeUsers.isEmpty()) {
-                    byte[][] memberBytes = likeUsers.stream()
-                            .map(uid -> uid.toString().getBytes())
-                            .toArray(byte[][]::new);
-                    connection.setCommands().sAdd(likeKey.getBytes(), memberBytes);
+                    String[] members = likeUsers.stream().map(Object::toString).toArray(String[]::new);
+                    stringConn.sAdd(likeKey, members);
                 }
 
                 resultMap.put(missedId, new long[]{commentCount, (long) likeUsers.size()});

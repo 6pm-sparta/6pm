@@ -15,6 +15,25 @@
 | Kafka 토픽 목록이 필요하다 | → [4. Kafka 토픽](#4-kafka-토픽) |
 | 미확정 항목을 확인하고 싶다 | → [9. 미확정 항목](#9-미확정-항목) |
 
+**문서 목록 (order-service 문서 구조와 동일하게 분리, 2026-07-03)**
+
+| 문서 | 내용 |
+|------|------|
+| [architecture.md](./architecture.md) | ERD, 좌석 상태 모델(HELD/PENDING/CONFIRMED), Kafka 이벤트, 동시성 제어 전략, 미확정 항목 |
+| [flows.md](./flows.md) | 전체 시나리오별 흐름 (대기열, hold, checkout, 확정/해제, SAGA 보상) |
+| [adr/001-entity-builder-pattern.md](./adr/001-entity-builder-pattern.md) | 엔티티 생성 패턴: 빌더 채택 |
+| [adr/002-kafka-topic-renaming.md](./adr/002-kafka-topic-renaming.md) | Kafka 토픽 구성 정리 (개명/신규/제거) |
+| [adr/003-notification-consumer-migration.md](./adr/003-notification-consumer-migration.md) | notification Consumer를 order.confirmed 구독으로 이관 |
+| [adr/004-order-status-alignment.md](./adr/004-order-status-alignment.md) | Orders 상태 머신을 order-service와 정렬 |
+| [adr/005-hold-rollback-on-order-failure.md](./adr/005-hold-rollback-on-order-failure.md) | 주문 생성 실패 시 Redis 선점 즉시 롤백 |
+| [adr/006-queue-api-path-showid.md](./adr/006-queue-api-path-showid.md) | 대기열 API 경로에 showId 포함 |
+| [adr/007-redis-backup-strategy.md](./adr/007-redis-backup-strategy.md) | Redis 백업 전략: RDB + PostgreSQL 재적재 |
+| [adr/008-postgresql-17.md](./adr/008-postgresql-17.md) | PostgreSQL 17 채택 |
+| [adr/009-order-cancel-integration.md](./adr/009-order-cancel-integration.md) | 주문 취소 연동 (#155) |
+| [redis-keys.md](./redis-keys.md) | ticketing-service Redis 키 설계 (Lua 스크립트, TTL, 알려진 버그) |
+
+이 README는 요약/네비게이션 용도로 유지하고, 상세 설계는 위 문서들을 최신 상태로 관리한다.
+
 ---
 
 ## 1. 기술 스택
@@ -83,20 +102,27 @@ flowchart TD
     C[purchase-token 발급]
     E[좌석 목록 조회]
     F{좌석 Hold 요청 - 토큰 검증}
-    G[주문 생성 - PENDING]
+    G0[HELD - 선점만, 주문 없음]
+    G1{체크아웃 요청}
+    G[주문 생성 - PENDING → CONFIRMED]
     H[결제 요청]
     I[PAID → CONFIRMED + 좌석 BOOKED]
     J[FAILED + 좌석 해제]
 
     A --> B --> C --> E
     E --> F
-    F -->|토큰 있음 + 선점 성공| G --> H
+    F -->|토큰 있음 + 선점 성공| G0
     F -->|토큰 없음 403 / 선점 실패 409| E
+    G0 --> G1
+    G1 -->|본인 소유 + HELD| G --> H
+    G1 -->|CONFIRMED| G
     H -->|결제 성공| I
     H -->|결제 실패| J
 ```
 
-> **변경 (2026-06-23):** 토큰 검증 주체를 Gateway → `SeatService.hold()`로 변경. 좌석 목록 조회는 토큰 없이도 가능하며, 검증은 Hold 시점에 이루어진다. 자세한 배경은 [260623 대기열 토큰.md](./260623%20대기열%20토큰.md), 변경 이력은 [ticketing-system-change-log.md](./ticketing-system-change-log.md) 참고.
+> **변경 (2026-06-23):** 토큰 검증 주체를 Gateway → `SeatService.hold()`로 변경. 좌석 목록 조회는 토큰 없이도 가능하며, 검증은 Hold 시점에 이루어진다. 자세한 배경은 [260623 대기열 토큰.md](./archive/260623%20대기열%20토큰.md), 변경 이력은 [ticketing-system-change-log.md](./archive/ticketing-system-change-log.md) 참고.
+>
+> **변경 (2026-07-03):** 주문 생성을 `hold()`에서 분리해 별도 체크아웃 API(`POST .../seats/{seatId}/checkout`)로 이전. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출(order-service Feign)이 들어있던 걸 가벼운 Redis 전용 연산으로 줄이기 위함. 자세한 배경은 [SA-260703.md 11번](../SA-260703.md) 참고.
 
 ---
 
@@ -132,12 +158,14 @@ sequenceDiagram
 
 ---
 
-### 구간 2 — 좌석 선점 + 주문 생성
+### 구간 2 — 좌석 선점(hold) + 체크아웃(주문 생성)
 
 **좌석 Hold 시 구매 토큰 검증 (2026-06-23 추가):**
-`SeatService.hold()` 진입 시 `purchase-token:{showId}:{userId}` 존재 여부를 가장 먼저 확인한다. 없으면 `PURCHASE_TOKEN_NOT_FOUND`(403)로 즉시 거부하고, 있으면 기존 좌석 선점 Lua 스크립트(`HOLD_SCRIPT`) → 주문 생성 흐름으로 진행한다. 토큰은 Hold 성공 여부와 무관하게 TTL(600초)로만 만료되며 별도 삭제 로직은 없다.
+`SeatService.hold()` 진입 시 `purchase-token:{showId}:{userId}` 존재 여부를 가장 먼저 확인한다. 없으면 `PURCHASE_TOKEN_NOT_FOUND`(403)로 즉시 거부하고, 있으면 좌석 선점 Lua 스크립트(`HOLD_SCRIPT`)만 실행하고 끝난다(**2026-07-03부터 주문 생성 없음**). 토큰은 Hold 성공 여부와 무관하게 TTL(600초)로만 만료되며 별도 삭제 로직은 없다.
 
-(이하 주문 생성은 order-service에서)
+**체크아웃(주문 생성, 2026-07-03 신설):** `POST .../seats/{seatId}/checkout`이 별도 API로 분리됐다. `SeatService.checkout()`이 owner 상태가 `HELD`인지 확인 후 `CHECKOUT_CLAIM_SCRIPT`로 `PENDING` 전이 → `orderClient.create()` 호출(기존 hold()가 하던 것과 동일) → 성공 시 `CONFIRMED` 전이 + `HoldResponse(orderId)` 반환. 이미 `CONFIRMED`(재요청)면 주문 생성 없이 기존 orderId로 멱등 응답. 주문 생성 실패 시 이 좌석의 선점만 롤백(seatKey/ownerKey 삭제, 재고/구매카운트 복구).
+
+(이하 결제/확정은 order-service에서)
 
 ### 구간 3 — 결제 및 예매 확정 (order-service에서)
 
@@ -153,9 +181,9 @@ sequenceDiagram
 | TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우) |
 | 사용자 직접 취소 | `DELETE /api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | `SeatService.releaseHold()` — owner 본인 확인 후 Redis seat/owner 키 삭제, 재고 복구, DB `orderId` 해제 |
 
-**hold ↔ release 동시 호출 레이스 방지:** `hold()`가 주문 생성(`orderClient.create`, 외부 네트워크 호출)을 하는 동안 owner 키 상태를 `PENDING`으로 두고, 주문 생성이 끝나야 `CONFIRMED`로 바꾼다. `releaseHold()`는 `PENDING`인 동안은 무조건 `SEAT_HOLD_PROCESSING`(409)으로 거부한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
+**hold ↔ release ↔ checkout 동시 호출 레이스 방지 (2026-07-03 갱신):** owner 키 상태가 `HELD`(선점만, 주문 없음) → `PENDING`(체크아웃 진행 중, `orderClient.create` 외부 네트워크 호출) → `CONFIRMED`(주문 생성 완료) 3단계로 전이한다. `releaseHold()`는 `PENDING`인 동안(체크아웃이 주문 생성을 기다리는 중)만 `SEAT_HOLD_PROCESSING`(409)으로 거부하고, `HELD`나 `CONFIRMED` 상태에서는 해제를 허용한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
 
-> **주문 취소 연동 (완료, 2026-07-01):** `releaseHold()`는 `OrderClient.cancel(orderId)`로 order-service 주문도 함께 취소한다. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
+> **주문 취소 연동:** `releaseHold()`는 `OrderClient.cancel(orderId, requesterId)`로 order-service 주문도 함께 취소한다. order-service의 `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 2026-07-03 이전엔 실제로 존재하지 않아 항상 404였음(정합성 버그) — 2026-07-03에 수정 완료. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
 
 ---
 
@@ -169,7 +197,8 @@ sequenceDiagram
 | GET | `/api/v1/tickets/shows/{showId}/queue/status` | 현재 순번 조회 |
 | GET | `/api/v1/tickets/shows/{showId}/queue/stream` | SSE 연결 — 순번 실시간 수신 |
 | GET | `/api/v1/tickets/shows/{showId}/seats` | 회차별 좌석 목록 + 상태 조회 |
-| POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 + 주문 생성 트리거 |
+| POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점만(주문 없음, HELD 상태). 응답 바디 없음 |
+| POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/checkout` | 체크아웃 — 주문 생성(2026-07-03 신설). HELD 상태에서만 가능, 이미 CONFIRMED면 멱등 응답 |
 | DELETE | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 해제 (본인 선점만 가능) |
 
 ---
@@ -196,8 +225,10 @@ sequenceDiagram
 | 항목 | 현황 | 결정 필요 사항 |
 |---|---|---|
 | `holdId` | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 사용할지 |
-| 스케줄러 분산 락 | 미구현 | `QueueScheduler`가 멀티 인스턴스로 떠 있을 때 같은 배치를 중복 처리할 수 있음. ShedLock 등 분산 락 적용 필요 |
 | `GET /purchase-limit` 엔드포인트 | 미문서화 | `SeatController.java:54-60`에 구현되어 있으나 섹션 6 API 명세에 누락. 코드에 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있어 설계 자체도 미확정 |
 | 구매 한도 값(`MAX_PER_USER`) | 미문서화 | 섹션 3 Redis 키 설계에 `purchase-count` 키는 있지만 실제 한도 값(현재 코드상 4)이 어디에도 명시돼 있지 않음. 2→4 변경 사실도 문서에 반영 안 됨 |
 | SSE `ENTERED` 이벤트 (문서/코드 불일치) | 미구현 | "260623 대기열 토큰.md"는 토큰 발급 시 SSE로 `ENTERED` 이벤트를 전송한다고 적혀 있으나, 실제 `QueueSseService.java:58,61`에서는 `READY`/`RANK` 이벤트만 전송하고 `ENTERED`는 코드 어디에도 없음 |
-| CHANGELOG.md API 경로 변경 이력 | 수정 필요 | `/queue/enter` → `/queue/shows/{showId}/enter` 기록 이후 실제로는 `/api/v1/tickets/shows/{showId}/queue`로 한 번 더 변경됐는데 반영 안 됨. 최신 경로 변경 이력 추가 필요 |
+| `SeatService.hold()` switch default 케이스 | 미확정 | 알 수 없는 결과값(-3 이하 등) 처리를 현재 `SEAT_ALREADY_HELD`로 하고 있는데, `INTERNAL_SERVER_ERROR`가 더 적절한지 결정 필요 (구 TODO.md 코드 품질 항목) |
+| `checkout()` 트랜잭션 커밋 지연 레이스 | 알려진 제약(낮은 우선순위) | `assignOrder` DB 저장과 owner 키 `CONFIRMED` Redis 갱신 사이, `@Transactional` 커밋 전 시점에 `releaseHold`가 끼어들면 이론상 레이스 재현 가능. 윈도우가 매우 작아(로컬 DB 커밋 지연 수준) 우선순위 낮으나 해결 여부 결정 필요 |
+| `QueueScheduler.findActiveShowIds()`의 `KEYS` 사용 | 알려진 제약(낮은 우선순위) | O(N) 전체 스캔이라 키 스페이스가 커지면 다른 Redis 명령(좌석 Hold 등)을 블로킹할 수 있음. 현재 동시 활성 공연 수가 적어 우선순위 낮으나 `SCAN` 커서 기반 전환 여부/시점 결정 필요 |
+| `releaseHold()` → order-service 주문 취소 연동 끊김 | 🔴 설계 미확정 | `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 develop `InternalOrderController`에 아직 없음 — 설계 미확정으로 임시 주석 처리함. `SeatService.releaseHold()`의 `orderClientRetryWrapper.cancel()` 호출을 아예 주석 처리해둠(항상 404 나는 호출을 굳이 시도 안 하게). order-service 쪽 주문 취소는 당분간 타임아웃 자동취소(#231)에만 의존. 설계 확정되고 엔드포인트 추가되면 주석 해제 |

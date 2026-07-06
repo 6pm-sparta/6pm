@@ -33,17 +33,20 @@ public class PostResponse {
             UUID postId, UserResponse author, String content, boolean hasMore, String imageUrl,
             int imageCount, long commentCount, long likeCount, boolean liked, LocalDateTime createdAt
     ) {
+        private static final int LIMIT = 150;
+
         public static Summary of(PostDetailCache cachedPost, ReactionInfoCache reactionInfo) {
             List<String> imageUrls = cachedPost.imageUrls();
             String content = cachedPost.content();
 
-            boolean hasMore = content != null && content.length() > 150;
-            String summaryContent = hasMore ? content.substring(0, 150) : content;
+            boolean hasMore = content != null && content.length() > LIMIT;
 
             return new Summary(
-                    cachedPost.postId(), cachedPost.author(), summaryContent, hasMore,
+                    cachedPost.postId(), cachedPost.author(),
+                    hasMore ? content.substring(0, LIMIT) : content, hasMore,
                     imageUrls.isEmpty() ? null : imageUrls.getFirst(), imageUrls.size(),
-                    reactionInfo.commentCount(), reactionInfo.likeCount(), reactionInfo.liked(), cachedPost.createdAt()
+                    reactionInfo.commentCount(), reactionInfo.likeCount(), reactionInfo.liked(),
+                    cachedPost.createdAt()
             );
         }
     }

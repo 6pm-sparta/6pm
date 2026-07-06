@@ -17,12 +17,12 @@ import java.util.UUID;
         name = "images",
         uniqueConstraints = @UniqueConstraint(name = "uq_posts_post_order_index", columnNames = {"post_id", "order_index"})
 )
-@Check(constraints = "order_index BETWEEN 0 AND 3")
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Image extends SimpleBaseEntity {
     @Column(nullable = false)
     private UUID postId;
 
+    @Check(constraints = "order_index BETWEEN 0 AND 3")
     @Column(nullable = false)
     private Integer orderIndex;
 

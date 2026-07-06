@@ -8,6 +8,8 @@ import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
 import com.fandom.order_service.order.domain.repository.OrderRepository;
 import com.fandom.order_service.order.domain.repository.OrderStatusHistoryRepository;
+import com.fandom.order_service.payment.domain.entity.PaymentStatus;
+import com.fandom.order_service.payment.domain.repository.PaymentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+/**
+ * issue #292 — PAYMENT_REQUESTED가 PENDING에 흡수되면서, 진행중 결제(payments.REQUESTED)가 있으면
+ * 타임아웃 취소를 스킵하는 가드가 새로 생겼다. PaymentRepository 의존성 추가에 따른 테스트 반영.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("OrderTimeoutWriter 단위 테스트")
 class OrderTimeoutWriterTest {
@@ -37,6 +43,9 @@ class OrderTimeoutWriterTest {
     private OrderStatusHistoryRepository orderStatusHistoryRepository;
 
     @Mock
+    private PaymentRepository paymentRepository;
+
+    @Mock
     private OutboxAppender outboxAppender;
 
     private OrderTimeoutWriter orderTimeoutWriter;
@@ -45,7 +54,7 @@ class OrderTimeoutWriterTest {
 
     @BeforeEach
     void setUp() {
-        orderTimeoutWriter = new OrderTimeoutWriter(orderRepository, orderStatusHistoryRepository, outboxAppender);
+        orderTimeoutWriter = new OrderTimeoutWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, outboxAppender);
         orderId = UUID.randomUUID();
     }
 
@@ -57,11 +66,12 @@ class OrderTimeoutWriterTest {
     }
 
     @Test
-    @DisplayName("PENDING 상태면 CANCELLED로 전이하고 history를 남긴다")
-    void expireIfStillPending_pending_cancelsAndRecordsHistory() {
+    @DisplayName("PENDING이고 진행중 결제가 없으면 CANCELLED로 전이하고 history를 남긴다")
+    void expireIfStillPending_pendingNoInFlightPayment_cancelsAndRecordsHistory() {
         // given
         Order order = pendingOrderWithId();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.existsByOrderIdAndPaymentStatus(orderId, PaymentStatus.REQUESTED)).willReturn(false);
 
         // when
         OrderTimeoutResult result = orderTimeoutWriter.expireIfStillPending(orderId);
@@ -75,25 +85,25 @@ class OrderTimeoutWriterTest {
         OrderStatusHistory history = historyCaptor.getValue();
         assertThat(history.getFromStatus()).isEqualTo(OrderStatus.PENDING);
         assertThat(history.getToStatus()).isEqualTo(OrderStatus.CANCELLED);
-        assertThat(history.getReason()).isEqualTo("주문 타임아웃 자동 취소");
+        assertThat(history.getReason()).isEqualTo("[USER] 주문 타임아웃 자동 취소");
         verify(outboxAppender).appendHoldReleased(order.getId());
     }
 
     @Test
-    @DisplayName("이미 다른 상태(PAYMENT_REQUESTED)로 바뀐 주문은 SKIPPED를 반환하고 변경하지 않는다 — " +
-            "조회와 처리 사이에 결제 요청이 먼저 들어간 경합 상황")
-    void expireIfStillPending_alreadyPaymentRequested_skips() {
+    @DisplayName("issue #292 — PENDING이어도 진행중(REQUESTED) 결제가 있으면 SKIPPED를 반환하고 변경하지 않는다 — " +
+            "웹훅 결과를 기다려야 하는 상황(오취소 방지)")
+    void expireIfStillPending_pendingWithInFlightPayment_skips() {
         // given
         Order order = pendingOrderWithId();
-        order.markPaymentRequested();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.existsByOrderIdAndPaymentStatus(orderId, PaymentStatus.REQUESTED)).willReturn(true);
 
         // when
         OrderTimeoutResult result = orderTimeoutWriter.expireIfStillPending(orderId);
 
         // then
         assertThat(result).isEqualTo(OrderTimeoutResult.SKIPPED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.PAYMENT_REQUESTED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING); // 변경 없음
         verify(orderStatusHistoryRepository, never()).save(org.mockito.ArgumentMatchers.any());
         verify(outboxAppender, never()).appendHoldReleased(org.mockito.ArgumentMatchers.any());
     }
