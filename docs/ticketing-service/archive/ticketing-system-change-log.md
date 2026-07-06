@@ -66,5 +66,5 @@
 ### 변경 파일
 - `ticketing-service/src/main/java/com/fandom/ticketing_service/queue/application/QueueScheduler.java`
 - `ticketing-service/src/test/java/com/fandom/ticketing_service/queue/application/QueueSchedulerTest.java`
-- `docs/ticketing-service/TODO.md`
+- `docs/ticketing-service/archive/TODO.md`
 - `docs/ticketing-service/architecture.md` (§5, §6)

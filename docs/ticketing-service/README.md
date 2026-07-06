@@ -21,9 +21,18 @@
 |------|------|
 | [architecture.md](./architecture.md) | ERD, 좌석 상태 모델(HELD/PENDING/CONFIRMED), Kafka 이벤트, 동시성 제어 전략, 미확정 항목 |
 | [flows.md](./flows.md) | 전체 시나리오별 흐름 (대기열, hold, checkout, 확정/해제, SAGA 보상) |
+| [adr/001-entity-builder-pattern.md](./adr/001-entity-builder-pattern.md) | 엔티티 생성 패턴: 빌더 채택 |
+| [adr/002-kafka-topic-renaming.md](./adr/002-kafka-topic-renaming.md) | Kafka 토픽 구성 정리 (개명/신규/제거) |
+| [adr/003-notification-consumer-migration.md](./adr/003-notification-consumer-migration.md) | notification Consumer를 order.confirmed 구독으로 이관 |
+| [adr/004-order-status-alignment.md](./adr/004-order-status-alignment.md) | Orders 상태 머신을 order-service와 정렬 |
+| [adr/005-hold-rollback-on-order-failure.md](./adr/005-hold-rollback-on-order-failure.md) | 주문 생성 실패 시 Redis 선점 즉시 롤백 |
+| [adr/006-queue-api-path-showid.md](./adr/006-queue-api-path-showid.md) | 대기열 API 경로에 showId 포함 |
+| [adr/007-redis-backup-strategy.md](./adr/007-redis-backup-strategy.md) | Redis 백업 전략: RDB + PostgreSQL 재적재 |
+| [adr/008-postgresql-17.md](./adr/008-postgresql-17.md) | PostgreSQL 17 채택 |
+| [adr/009-order-cancel-integration.md](./adr/009-order-cancel-integration.md) | 주문 취소 연동 (#155) |
 | [redis-keys.md](./redis-keys.md) | ticketing-service Redis 키 설계 (Lua 스크립트, TTL, 알려진 버그) |
 
-이 README는 요약/네비게이션 용도로 유지하고, 상세 설계는 위 세 문서를 최신 상태로 관리한다.
+이 README는 요약/네비게이션 용도로 유지하고, 상세 설계는 위 문서들을 최신 상태로 관리한다.
 
 ---
 
@@ -111,9 +120,9 @@ flowchart TD
     H -->|결제 실패| J
 ```
 
-> **변경 (2026-06-23):** 토큰 검증 주체를 Gateway → `SeatService.hold()`로 변경. 좌석 목록 조회는 토큰 없이도 가능하며, 검증은 Hold 시점에 이루어진다. 자세한 배경은 [260623 대기열 토큰.md](./260623%20대기열%20토큰.md), 변경 이력은 [ticketing-system-change-log.md](./ticketing-system-change-log.md) 참고.
+> **변경 (2026-06-23):** 토큰 검증 주체를 Gateway → `SeatService.hold()`로 변경. 좌석 목록 조회는 토큰 없이도 가능하며, 검증은 Hold 시점에 이루어진다. 자세한 배경은 [260623 대기열 토큰.md](./archive/260623%20대기열%20토큰.md), 변경 이력은 [ticketing-system-change-log.md](./archive/ticketing-system-change-log.md) 참고.
 >
-> **변경 (2026-07-03):** 주문 생성을 `hold()`에서 분리해 별도 체크아웃 API(`POST .../seats/{seatId}/checkout`)로 이전. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출(order-service Feign)이 들어있던 걸 가벼운 Redis 전용 연산으로 줄이기 위함. 자세한 배경은 [SA-260703.md §11](../SA-260703.md) 참고.
+> **변경 (2026-07-03):** 주문 생성을 `hold()`에서 분리해 별도 체크아웃 API(`POST .../seats/{seatId}/checkout`)로 이전. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출(order-service Feign)이 들어있던 걸 가벼운 Redis 전용 연산으로 줄이기 위함. 자세한 배경은 [SA-260703.md 11번](../SA-260703.md) 참고.
 
 ---
 
@@ -216,8 +225,9 @@ sequenceDiagram
 | 항목 | 현황 | 결정 필요 사항 |
 |---|---|---|
 | `holdId` | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 사용할지 |
-| 스케줄러 분산 락 | 미구현 | `QueueScheduler`가 멀티 인스턴스로 떠 있을 때 같은 배치를 중복 처리할 수 있음. ShedLock 등 분산 락 적용 필요 |
 | `GET /purchase-limit` 엔드포인트 | 미문서화 | `SeatController.java:54-60`에 구현되어 있으나 섹션 6 API 명세에 누락. 코드에 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있어 설계 자체도 미확정 |
 | 구매 한도 값(`MAX_PER_USER`) | 미문서화 | 섹션 3 Redis 키 설계에 `purchase-count` 키는 있지만 실제 한도 값(현재 코드상 4)이 어디에도 명시돼 있지 않음. 2→4 변경 사실도 문서에 반영 안 됨 |
 | SSE `ENTERED` 이벤트 (문서/코드 불일치) | 미구현 | "260623 대기열 토큰.md"는 토큰 발급 시 SSE로 `ENTERED` 이벤트를 전송한다고 적혀 있으나, 실제 `QueueSseService.java:58,61`에서는 `READY`/`RANK` 이벤트만 전송하고 `ENTERED`는 코드 어디에도 없음 |
-| CHANGELOG.md API 경로 변경 이력 | 수정 필요 | `/queue/enter` → `/queue/shows/{showId}/enter` 기록 이후 실제로는 `/api/v1/tickets/shows/{showId}/queue`로 한 번 더 변경됐는데 반영 안 됨. 최신 경로 변경 이력 추가 필요 |
+| `SeatService.hold()` switch default 케이스 | 미확정 | 알 수 없는 결과값(-3 이하 등) 처리를 현재 `SEAT_ALREADY_HELD`로 하고 있는데, `INTERNAL_SERVER_ERROR`가 더 적절한지 결정 필요 (구 TODO.md 코드 품질 항목) |
+| `checkout()` 트랜잭션 커밋 지연 레이스 | 알려진 제약(낮은 우선순위) | `assignOrder` DB 저장과 owner 키 `CONFIRMED` Redis 갱신 사이, `@Transactional` 커밋 전 시점에 `releaseHold`가 끼어들면 이론상 레이스 재현 가능. 윈도우가 매우 작아(로컬 DB 커밋 지연 수준) 우선순위 낮으나 해결 여부 결정 필요 |
+| `QueueScheduler.findActiveShowIds()`의 `KEYS` 사용 | 알려진 제약(낮은 우선순위) | O(N) 전체 스캔이라 키 스페이스가 커지면 다른 Redis 명령(좌석 Hold 등)을 블로킹할 수 있음. 현재 동시 활성 공연 수가 적어 우선순위 낮으나 `SCAN` 커서 기반 전환 여부/시점 결정 필요 |
