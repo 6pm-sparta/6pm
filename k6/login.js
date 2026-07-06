@@ -3,11 +3,15 @@ import { check, group, sleep } from 'k6';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const USER_COUNT = parseInt(__ENV.USER_COUNT || '200', 10);
-const PASSWORD = __ENV.PASSWORD || 'Test1234!';
+const PASSWORD = __ENV.PASSWORD;
 const SMOKE = __ENV.SMOKE === '1';
 const PEAK = parseInt(__ENV.PEAK || '200', 10);
 const SLEEP = parseFloat(__ENV.SLEEP || '1');
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
+
+if (!PASSWORD) {
+    throw new Error('PASSWORD env is required. Use -e PASSWORD=<password>.');
+}
 
 export const options = {
     scenarios: {
