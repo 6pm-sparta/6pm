@@ -44,4 +44,19 @@ class RedisCacheConfigTest {
             cache.put("test-key", cachedPost);
         });
     }
+
+    @Test
+    @DisplayName("캐시 직렬화 라운드트립 확인")
+    void cacheRoundTrip() {
+        Cache cache = cacheManager.getCache(RedisKeyPrefix.POST_DETAIL);
+        PostDetailCache original = new PostDetailCache(
+                UUID.randomUUID(), null, "내용", List.of(), LocalDateTime.now(), LocalDateTime.now()
+        );
+
+        Assertions.assertNotNull(cache);
+        cache.put("test-key", original);
+        PostDetailCache result = cache.get("test-key", PostDetailCache.class);
+
+        assertThat(result).isEqualTo(original);
+    }
 }
