@@ -17,6 +17,7 @@ const PASSWORD   = __ENV.PASSWORD   || 'Test1234!';
 const JSON_HDR   = { headers: { 'Content-Type': 'application/json' } };
 
 export const options = {
+    summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
     scenarios: {
         stress: {
             executor: 'ramping-vus',

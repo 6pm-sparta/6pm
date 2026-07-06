@@ -18,6 +18,7 @@ const JSON_HDR   = { headers: { 'Content-Type': 'application/json' } };
 // ── 부하 시나리오 ────────────────────────────────────────────────────
 // 처음엔 ramp 만 켜고 baseline. spike 는 따로 돌려 비교(동시에 돌리면 해석 어려움).
 export const options = {
+    summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'p(99)', 'max'],
     scenarios: {
         ramp: {
             executor: 'ramping-vus',
