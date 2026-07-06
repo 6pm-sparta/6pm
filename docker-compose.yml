@@ -238,6 +238,7 @@ services:
         SERVICE: config-server
     profiles: ["core", "all"]
     container_name: 6pm-config
+    env_file: .env.dev
     ports:
       - "8888:8888"
 
