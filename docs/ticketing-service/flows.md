@@ -208,13 +208,17 @@ sequenceDiagram
     alt 좌석 없음(이미 해제됨)
         SC->>SC: no-op (멱등)
     else 좌석 있음
+        SC->>R: GET ownerKey (userId 파싱용, 삭제 전에 읽음)
         DB->>DB: releaseOrder() (order_id = null)
         SC->>R: DEL seatKey, DEL ownerKey
         SC->>R: INCR inventory
+        alt ownerKey 값이 있었음
+            SC->>R: DECR purchase-count (owner가 이미 없으면(수동 해제가 먼저 처리) 생략 — 중복 감소 방지)
+        end
     end
 ```
 
-> **알려진 제한**: 이 경로는 `purchase-count`를 감소시키지 않는다. 결제 실패/취소를 반복해도 사용자의 구매 한도 카운트는 계속 쌓인다([architecture.md §6](./architecture.md#6-미확정-항목)).
+> **해결됨 (#286, 2026-07-06)**: 과거엔 이 경로가 `purchase-count`를 감소시키지 않아 결제 실패/취소를 반복하면 구매 한도 카운트가 계속 쌓이는 버그가 있었다. `ownerKey`를 삭제하기 전에 값을 읽어 userId를 파싱하고 감소시키도록 수정함.
 
 ---
 
@@ -261,7 +265,8 @@ sequenceDiagram
 ```
 seatKey TTL 만료(EXPIRED 이벤트)
 → SeatHoldExpirationListener가 show:{showId}:seat:{seatId} 패턴 매칭
-→ SeatService.releaseExpiredHold(): show_seats.order_id = null, inventory +1
+→ SeatService.releaseExpiredHold(): (order_id != null이면) show_seats.order_id = null,
+  inventory +1, (ownerKey 값 있으면) purchase-count -1
 ```
 
 ```mermaid
@@ -274,14 +279,18 @@ sequenceDiagram
     R->>L: __keyevent@__:expired → "show:{showId}:seat:{seatId}"
     L->>L: 정규식 매칭 (owner 키는 :owner 접미사로 제외됨)
     L->>T: releaseExpiredHold(showId, seatId)
+    T->>R: GET ownerKey (userId 파싱용, 삭제 전에 읽음)
     T->>DB: findById(seatId)
-    alt order_id == null (주문 없이 hold만 하다 만료)
-        T->>T: no-op
-    else order_id != null
+    alt order_id != null (체크아웃까지 진행됨)
         DB->>DB: releaseOrder()
-        T->>R: INCR inventory:{showId}
+    end
+    T->>R: INCR inventory:{showId} (order_id 여부와 무관하게 항상 복구)
+    alt ownerKey 값이 있었음
+        T->>R: DECR purchase-count, DEL ownerKey
     end
 ```
+
+> **해결됨 (#286, 2026-07-06)**: 과거엔 `order_id == null`(체크아웃 없이 hold만 하다 방치된 경우)이면 조기 return해서 inventory/purchase-count 둘 다 복구가 안 되는 버그가 있었다. 이제는 order_id 여부와 무관하게 항상 inventory를 복구하고, ownerKey에 남아있던 userId를 파싱해 purchase-count도 감소시킨다.
 
 > 이 경로는 `orderClient.cancel()`을 호출하지 않는다 — order-service가 자체 `expired_at` 기준 타임아웃 스케줄러로 `PENDING` 주문을 별도로 취소하고 `order.hold.released`를 발행하며, ticketing은 그 이벤트를 `onHoldReleased()`(§5)로 다시 수신해 멱등 처리한다. 즉 좌석 hold TTL(600초)과 order-service 주문 만료(`expirationMinutes`)가 각자 독립적으로 동작하고, 두 이벤트가 겹쳐도 `releaseSeat()`의 멱등성으로 안전하다.
 

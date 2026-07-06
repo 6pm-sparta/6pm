@@ -219,7 +219,6 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 | 대기열 스케줄러 분산 락 | 완료(2026-07-05) | Redisson `RLock`으로 `processQueue()`를 감싸 인스턴스당 한 번만 실행되도록 수정 |
 | Kafka 발행 신뢰성(Outbox 미적용) | 미검토 | §4 참고. DB 커밋 후 Kafka 발행 실패 시 이벤트 유실 가능 |
 | `GET /purchase-limit` 엔드포인트 설계 | 미확정 | 코드(`SeatController.java:64`)엔 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있음 |
-| `purchase-count` 감소 누락 | 알려진 버그 | TTL 만료(`releaseExpiredHold`)·결제실패/취소(`releaseSeat`) 경로에서 `purchase-count`를 감소시키지 않는다. 정상 유저가 구매 한도에 잘못 걸릴 수 있음(`hold()`/`checkout()` 실패 롤백 경로만 감소시킴) |
 | Venue/Performance/Show 관리 API | 미구현 | 엔티티만 존재, 컨트롤러 없음. 시드 데이터로만 채워짐 |
 | CONFIRMED 취소(공연 확정 후 환불) 시 좌석 처리 | order-service 미확정 항목과 연동 | 취소 가능 시간 기준(공연 시작 vs 확정 시각)이 order-service 쪽에서도 미정 — [order-service/architecture.md §6](../order-service/architecture.md#6-미확정-항목) 참고 |
 | 다중예매(N좌석 묶음) | 결정 대기 | A(1좌석=1주문 유지) / A'(batchId만 부여) / B(N좌석=주문 1개) 트레이드오프 검토 중 — [SA-260703.md §11](../SA-260703.md#다중예매-옵션-결정-대기--담당자-확인-중) 참고 |

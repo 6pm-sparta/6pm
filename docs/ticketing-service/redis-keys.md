@@ -151,19 +151,19 @@ KEYS = `[ownerKey, seatKey, inventoryKey, countKey]`, ARGV = `[userId]`. `HELD`/
 한 유저가 같은 쇼의 좌석을 무제한으로 선점하지 못하게 막아야 한다(`MAX_PER_USER = 4`).
 
 **동작**
-`HOLD_SCRIPT`가 선점 성공 시 `INCR`. `checkout()` 실패 롤백 경로와 `RELEASE_SCRIPT`(사용자 직접 해제)만 `DECR`한다.
+`HOLD_SCRIPT`가 선점 성공 시 `INCR`. 해제되는 모든 경로(`checkout()` 실패 롤백, `releaseHold()`, `releaseExpiredHold()`, `releaseSeat()`)가 각각 `DECR`한다.
 
-**알려진 버그 — TTL 만료/결제실패·취소 경로에서 감소하지 않음**
+**해결된 버그 (#286, 2026-07-06) — TTL 만료/결제실패·취소 경로에서 감소하지 않던 문제**
 
 | 경로 | count 감소 여부 |
 | --- | --- |
 | `hold()` 성공 | INCR (증가) |
 | `checkout()` 주문 생성 실패 롤백 | DECR |
 | `releaseHold()` (사용자 직접 해제, `RELEASE_SCRIPT`) | DECR |
-| `releaseExpiredHold()` (TTL 자연 만료) | **감소 안 함** |
-| `releaseSeat()` (결제 실패/취소/`hold.released`) | **감소 안 함** |
+| `releaseExpiredHold()` (TTL 자연 만료) | DECR (수정 완료) |
+| `releaseSeat()` (결제 실패/취소/`hold.released`) | DECR (수정 완료) |
 
-정상적으로 좌석을 선점했다가 결제까지 못 가고(타임아웃) 풀린 경우, 또는 결제했다가 실패/취소된 경우 카운터가 영구히 남는다. 이 상태로 4번 반복하면 실제로는 아무것도 못 산 유저가 `PURCHASE_LIMIT_EXCEEDED`(400)에 막힌다. `GET /purchase-limit` 엔드포인트 설계 확정과 함께 정리가 필요한 항목([architecture.md §6](./architecture.md#6-미확정-항목)).
+과거엔 정상적으로 좌석을 선점했다가 결제까지 못 가고(타임아웃) 풀리거나 결제 실패/취소된 경우 카운터가 영구히 남아, 실제로는 아무것도 못 산 유저가 `PURCHASE_LIMIT_EXCEEDED`(400)에 막히는 버그가 있었다. `SeatService.releaseExpiredHold()`/`SeatConfirmService.releaseSeat()`에 `decrement` 로직을 추가해 해결함(owner 값에서 userId를 파싱해 카운트를 내림 — owner가 이미 없으면 다른 경로가 먼저 처리한 것으로 보고 중복 감소하지 않음). `GET /purchase-limit` 엔드포인트 자체의 설계 확정은 별개로 여전히 미확정([architecture.md §6](./architecture.md#6-미확정-항목)).
 
 ---
 
