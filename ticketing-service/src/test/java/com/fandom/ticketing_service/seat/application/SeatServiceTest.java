@@ -377,8 +377,10 @@ class SeatServiceTest {
         }
 
         @Test
-        @DisplayName("선점 해제 시 연결된 주문이 있으면 orderClientRetryWrapper.cancel()이 호출된다")
-        void releaseHold_success_cancelsOrder() {
+        // TODO: order-service에 DELETE /internal/v1/orders/{orderId} 엔드포인트가 생기면
+        // SeatService.releaseHold()의 주문 취소 호출 주석을 풀고 이 테스트도 cancel() 호출 검증으로 되돌릴 것.
+        @DisplayName("선점 해제 시 연결된 주문이 있어도 주문 취소 호출은 하지 않는다 (order-service 엔드포인트 없음, 임시)")
+        void releaseHold_success_doesNotCancelOrder() {
             // given
             UUID seatId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
@@ -393,7 +395,7 @@ class SeatServiceTest {
             seatService.releaseHold(seatId, userId);
 
             // then
-            verify(orderClientRetryWrapper).cancel(orderId, userId);
+            verifyNoInteractions(orderClientRetryWrapper);
         }
 
         @Test

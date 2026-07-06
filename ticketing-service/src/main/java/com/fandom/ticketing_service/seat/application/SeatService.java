@@ -220,15 +220,13 @@ public class SeatService {
         seat.releaseOrder();
         log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
 
-        // TODO: order-service의 DELETE /internal/v1/orders/{orderId} 엔드포인트가 아직 develop에 없어서
-        // (order 파트 승인 대기 중, InternalOrderController 변경분은 이번 브랜치에서 제외함) 아래 호출은
-        // 현재 항상 404로 실패한다. OrderClientRetryWrapper의 폴백이 예외를 삼켜서 releaseHold() 자체는
-        // 정상 응답하지만, order-service 쪽 주문 취소는 order-service 타임아웃 자동취소(#231)에만 의존하게 됨.
-        // order-service에 해당 엔드포인트가 추가되면 이 TODO는 제거.
-        if (orderId != null) {
-            orderClientRetryWrapper.cancel(orderId, userId);
-            log.info("주문 취소 요청: orderId={}, showSeatId={}", orderId, showSeatId);
-        }
+        // TODO: order-service의 DELETE /internal/v1/orders/{orderId} 엔드포인트가 아직 develop에 없음 —
+        // 설계 미확정으로 임시 주석 처리함. order-service 쪽 주문 취소는 당분간
+        // order-service 타임아웃 자동취소(#231)에만 의존. 설계 확정되고 엔드포인트 추가되면 아래 주석을 풀 것.
+        // if (orderId != null) {
+        //     orderClientRetryWrapper.cancel(orderId, userId);
+        //     log.info("주문 취소 요청: orderId={}, showSeatId={}", orderId, showSeatId);
+        // }
     }
 
     // inventory 키는 쇼/좌석 생성 시점에 초기화되는 곳이 없어서, hold 시점에 없으면 DB 기준으로 lazy 초기화한다.
