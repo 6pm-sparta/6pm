@@ -1,3 +1,6 @@
+-- DEPRECATED: 서비스별 DB 분리(postgres-ticketing) 이전 단일 postgres(fandom_db) 기준 스크립트.
+-- show_seats.show_id도 bigint 가정이라 현재 UUID 컬럼과 안 맞음. 대신 ticketing-service/src/main/resources/data.sql 사용할 것.
+--
 -- 로컬 테스트용 ticketing 시드 데이터
 -- 실행: docker exec -i 6pm-postgres psql -U root -d fandom_db < db-init/seed-ticketing.sql
 -- (비밀번호는 PGPASSWORD=password 환경변수로 주거나 비밀번호 프롬프트에 입력)

@@ -250,6 +250,10 @@ services:
         SERVICE: gateway-service
     profiles: ["core", "all"]
     container_name: 6pm-gateway
+    env_file: .env.dev
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports:
       - "8080:8080"
     depends_on:
@@ -266,6 +270,10 @@ services:
         SERVICE: auth-service
     profiles: ["apps", "all"]
     container_name: 6pm-auth
+    env_file: .env.dev
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8087:8087"]                # ← develop 값으로 맞추세요
 
   user-service:
@@ -276,6 +284,10 @@ services:
         SERVICE: user-service
     profiles: ["apps", "all"]
     container_name: 6pm-user
+    env_file: .env.dev
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8081:8081"]
 
   feed-service:
@@ -296,8 +308,11 @@ services:
         SERVICE: ticketing-service
     profiles: ["apps", "all"]
     container_name: 6pm-ticketing
+    env_file: .env.dev
     ports: ["8083:8083"]
     environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
       # 대기열 스케줄러 주기(ms). 기본 60000(운영값). 로컬 .env에 QUEUE_SCHEDULER_DELAY=2000 등을 넣으면
       # Postman 테스트 시 대기열 진입 후 빠르게 isReady=true로 전환되어 대기 시간을 줄일 수 있다.
       # env에 QUEUE_SCHEDULER_DELAY=2000 넣어야 작동
@@ -312,6 +327,10 @@ services:
         SERVICE: order-service
     profiles: ["apps", "all"]
     container_name: 6pm-order
+    env_file: .env.dev
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8084:8084"]
 
   notification-service:
