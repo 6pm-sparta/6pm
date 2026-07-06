@@ -12,10 +12,10 @@ CS RAG RAGAS 평가 (심판=Gemini 고정)
 필수 환경변수:
   GEMINI_API_KEY       AI Studio 키 (심판용)
   CS_MASTER_USER_ID    MASTER 사용자 UUID (평가 엔드포인트 인증용)
+  HMAC_SECRET          IdCard 서명 시크릿 (config의 값과 동일하게 주입)
 선택 환경변수:
   CS_ANSWER_LABEL      답변 생성기 라벨(파일명 구분): ollama | gemini (기본 unknown)
   CS_EVAL_URL          평가 엔드포인트 URL (기본 http://localhost:8089/api/v1/cs/eval)
-  HMAC_SECRET          IdCard 서명 시크릿 (기본: 코드 기본 시크릿)
   RAGAS_TIMEOUT        지표당 타임아웃 초 (기본 600)
   RAGAS_WORKERS        동시 실행 수 (기본 1; 429 나면 그대로, 빠르게 하려면 상향)
 
@@ -38,10 +38,7 @@ import requests
 ANSWER_LABEL = os.getenv("CS_ANSWER_LABEL", "unknown")  # 답변 생성기 라벨(파일명용)
 CS_EVAL_URL = os.getenv("CS_EVAL_URL", "http://localhost:8089/api/v1/cs/eval")
 CS_MASTER_USER_ID = os.getenv("CS_MASTER_USER_ID", "")
-HMAC_SECRET = os.getenv(
-    "HMAC_SECRET",
-    "6pm-fandom-sns-hmac-shared-secret-key-must-be-at-least-32-bytes-long",
-)
+HMAC_SECRET = os.getenv("HMAC_SECRET")  # 기본값 없음: 반드시 환경변수로 주입
 
 DATASET_PATH = Path(__file__).parent / "dataset.json"
 
@@ -49,6 +46,8 @@ DATASET_PATH = Path(__file__).parent / "dataset.json"
 def build_id_card_headers() -> dict:
     if not CS_MASTER_USER_ID:
         sys.exit("CS_MASTER_USER_ID 환경변수가 필요합니다 (MASTER 사용자 UUID).")
+    if not HMAC_SECRET:
+        sys.exit("HMAC_SECRET 환경변수가 필요합니다 (IdCard 서명 키).")
     id_card = '{"userId":"%s","role":"MASTER"}' % CS_MASTER_USER_ID
     signature = base64.b64encode(
         hmac.new(HMAC_SECRET.encode(), id_card.encode(), hashlib.sha256).digest()

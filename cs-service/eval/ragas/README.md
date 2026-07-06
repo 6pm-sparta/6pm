@@ -53,7 +53,7 @@ $env:CS_ANSWER_LABEL="gemini"
 | `CS_MASTER_USER_ID` | (필수) | MASTER 사용자 UUID |
 | `CS_ANSWER_LABEL` | `unknown` | 답변 생성기 라벨(파일명 구분): ollama \| gemini |
 | `CS_EVAL_URL` | `http://localhost:8089/api/v1/cs/eval` | 평가 엔드포인트 |
-| `HMAC_SECRET` | 코드 기본 시크릿 | IdCard 서명 키(config에서 바꿨으면 지정) |
+| `HMAC_SECRET` | (필수) | IdCard 서명 키(config의 값과 동일하게 지정, 기본값 없음) |
 | `RAGAS_TIMEOUT` | `600` | 지표당 타임아웃(초) |
 | `RAGAS_WORKERS` | `1` | 동시 실행 수(429 나면 그대로, 빠르게 하려면 상향) |
 
