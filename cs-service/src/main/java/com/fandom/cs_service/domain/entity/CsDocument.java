@@ -23,10 +23,13 @@ public class CsDocument extends BaseEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    // embedding 추가 필요
-
     @Builder
     private CsDocument(String title, String content) {
+        this.title = title;
+        this.content = content;
+    }
+
+    public void updateContent(String title, String content) {
         this.title = title;
         this.content = content;
     }
