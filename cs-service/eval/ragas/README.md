@@ -36,6 +36,7 @@ python -m venv .venv
 $env:CS_ANSWER_LABEL="ollama"
 $env:GEMINI_API_KEY="<AI Studio 키>"
 $env:CS_MASTER_USER_ID="<마스터 UUID>"
+$env:HMAC_SECRET="<config의 IdCard 시크릿>"
 .\.venv\Scripts\python.exe run_ragas.py      # → results_ollama_by_gemini.csv
 
 # 2) Gemini 답변 → Gemini 채점  (CS 서비스: CS_CHAT_PROVIDER=openai 로 재시작)
