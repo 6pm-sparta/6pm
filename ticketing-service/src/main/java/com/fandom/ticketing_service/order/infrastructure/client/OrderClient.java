@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
@@ -18,5 +19,5 @@ public interface OrderClient {
     ApiResponse<CreateOrderResponse> create(@RequestBody CreateOrderRequest request);
 
     @DeleteMapping("/{orderId}")
-    ApiResponse<Void> cancel(@PathVariable UUID orderId);
+    ApiResponse<Void> cancel(@PathVariable UUID orderId, @RequestParam UUID requesterId);
 }

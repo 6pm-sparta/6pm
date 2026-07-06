@@ -49,3 +49,22 @@
 
 ### 남은 제약
 - `redisTemplate.keys()`는 Redis `KEYS` 명령(O(N), 전체 키스페이스 스캔)을 사용함. 현재 단일 노드 Redis + 동시 활성 공연 수가 많지 않은 규모라 허용했으나, 키 스페이스가 커지면 `SCAN` 기반으로 전환 검토 필요
+
+---
+
+## 2026-07-05 — `QueueScheduler` 분산 락 적용
+
+### 변경 내용
+- `processQueue()` 전체를 Redisson `RLock`(`lock:queue-scheduler`)으로 감싸 인스턴스당 한 번에 하나만 실행되도록 수정
+- 락을 못 얻으면(다른 인스턴스가 처리 중) 이번 주기는 조용히 스킵하고 다음 스케줄 주기를 기다림 (`tryLock(0, TimeUnit.SECONDS)` — 대기 없이 즉시 판단)
+- 활성 공연 수에 따라 처리 시간이 가변적이라 고정 `leaseTime`을 주지 않고 Redisson 워치독(보유 중 자동 갱신, 미갱신 시 기본 30초 후 만료)에 맡김
+
+### 변경 이유
+- 멀티 인스턴스 환경에서 같은 배치를 중복 처리할 수 있는 문제가 있었음(2026-06-23 변경 이력에서 남은 제약으로 기록됨). `issue()`/`ZREM`이 멱등이라 데이터 정합성 문제는 없었지만 로그/SSE 중복 호출 비효율이 있었음
+- `redisson-spring-boot-starter`가 이미 의존성에 있어 별도 라이브러리 추가 없이 적용 가능했고, order-service `PaymentRequestService`에서 쓰는 `RedissonClient`/`RLock` 패턴과 동일하게 맞춤
+
+### 변경 파일
+- `ticketing-service/src/main/java/com/fandom/ticketing_service/queue/application/QueueScheduler.java`
+- `ticketing-service/src/test/java/com/fandom/ticketing_service/queue/application/QueueSchedulerTest.java`
+- `docs/ticketing-service/archive/TODO.md`
+- `docs/ticketing-service/architecture.md` (§5, §6)
