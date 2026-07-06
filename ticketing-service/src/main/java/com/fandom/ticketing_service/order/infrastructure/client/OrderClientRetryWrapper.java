@@ -21,6 +21,8 @@ public class OrderClientRetryWrapper {
 
     private final OrderClient orderClient;
 
+    // TODO: order-service에 DELETE /internal/v1/orders/{orderId} 엔드포인트가 아직 없어서(order 파트
+    // 승인 대기 중) 이 호출은 현재 항상 404로 실패하고 아래 폴백으로 흡수된다. 엔드포인트 추가되면 정상 동작.
     @Retry(name = "orderClient", fallbackMethod = "cancelFallback")
     @CircuitBreaker(name = "orderClient")
     public void cancel(UUID orderId, UUID requesterId) {

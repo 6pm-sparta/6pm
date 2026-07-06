@@ -1,7 +1,6 @@
 package com.fandom.order_service.order.presentation.controller;
 
 import com.fandom.common.dto.ApiResponse;
-import com.fandom.order_service.order.application.cancellation.OrderCancelService;
 import com.fandom.order_service.order.application.creation.OrderCreationResult;
 import com.fandom.order_service.order.application.creation.OrderCreationService;
 import com.fandom.order_service.order.presentation.dto.request.CreateOrderRequest;
@@ -10,15 +9,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.UUID;
 
 /**
  * 내부 주문 생성 API. (서비스 간 통신 전용 — Gateway가 수신하지 않아야 함)
@@ -32,7 +26,6 @@ import java.util.UUID;
 public class InternalOrderController {
 
     private final OrderCreationService orderCreationService;
-    private final OrderCancelService orderCancelService;
 
     /**
      * 주문 생성. 신규 생성이면 201, 동일 holdId로 인한 멱등 응답이면 200을 반환한다.
@@ -49,19 +42,5 @@ public class InternalOrderController {
         }
 
         return ResponseEntity.ok(ApiResponse.success(result.order()));
-    }
-
-    /**
-     * 주문 취소. Ticketing의 releaseHold()가 좌석 선점 해제 시 호출한다.
-     * requesterId는 좌석을 선점했던(주문을 생성한) 유저의 id — 본인 확인은 OrderCancelService가 수행한다.
-     */
-    @DeleteMapping("/orders/{orderId}")
-    public ApiResponse<Void> cancelOrder(
-            @PathVariable UUID orderId,
-            @RequestParam UUID requesterId) {
-
-        orderCancelService.cancelOrder(orderId, requesterId);
-
-        return ApiResponse.success();
     }
 }
