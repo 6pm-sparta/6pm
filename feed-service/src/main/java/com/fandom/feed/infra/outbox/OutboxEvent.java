@@ -16,12 +16,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "outbox_events",
-        indexes = {
-                @Index(name = "idx_outbox_event_status_id", columnList = "status, id")
-        }
-)
+@Table(indexes = {@Index(name = "idx_outbox_event_status_id", columnList = "status, id")})
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OutboxEvent extends SimpleBaseEntity {
     @Column(nullable = false)
