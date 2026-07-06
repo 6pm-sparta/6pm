@@ -238,7 +238,7 @@ services:
         SERVICE: config-server
     profiles: ["core", "all"]
     container_name: 6pm-config
-    env_file: .env.dev
+    env_file: .env.docker
     ports:
       - "8888:8888"
 
@@ -250,7 +250,7 @@ services:
         SERVICE: gateway-service
     profiles: ["core", "all"]
     container_name: 6pm-gateway
-    env_file: .env.dev
+    env_file: .env.docker
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
       - EUREKA_URI=http://eureka-server:8761/eureka/
@@ -270,7 +270,7 @@ services:
         SERVICE: auth-service
     profiles: ["apps", "all"]
     container_name: 6pm-auth
-    env_file: .env.dev
+    env_file: .env.docker
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
       - EUREKA_URI=http://eureka-server:8761/eureka/
@@ -284,7 +284,7 @@ services:
         SERVICE: user-service
     profiles: ["apps", "all"]
     container_name: 6pm-user
-    env_file: .env.dev
+    env_file: .env.docker
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
       - EUREKA_URI=http://eureka-server:8761/eureka/
@@ -308,7 +308,7 @@ services:
         SERVICE: ticketing-service
     profiles: ["apps", "all"]
     container_name: 6pm-ticketing
-    env_file: .env.dev
+    env_file: .env.docker
     ports: ["8083:8083"]
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
@@ -327,7 +327,7 @@ services:
         SERVICE: order-service
     profiles: ["apps", "all"]
     container_name: 6pm-order
-    env_file: .env.dev
+    env_file: .env.docker
     environment:
       - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
       - EUREKA_URI=http://eureka-server:8761/eureka/
