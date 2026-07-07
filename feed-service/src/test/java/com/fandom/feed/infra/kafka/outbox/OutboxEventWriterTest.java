@@ -2,6 +2,10 @@ package com.fandom.feed.infra.kafka.outbox;
 
 import com.fandom.common.exception.CustomException;
 import com.fandom.feed.application.event.Event;
+import com.fandom.feed.infra.outbox.OutboxEvent;
+import com.fandom.feed.infra.outbox.OutboxEventRepository;
+import com.fandom.feed.infra.outbox.OutboxEventType;
+import com.fandom.feed.infra.outbox.OutboxEventWriter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;

@@ -1,6 +1,7 @@
-package com.fandom.feed.infra.kafka.outbox;
+package com.fandom.feed.infra.outbox;
 
 import com.fandom.feed.domain.entity.SimpleBaseEntity;
+import com.fandom.feed.global.constant.RetryPolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,12 +17,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "outbox_events",
-        indexes = {
-                @Index(name = "idx_outbox_event_status_id", columnList = "status, id")
-        }
-)
+@Table(indexes = {@Index(name = "idx_outbox_event_status_id", columnList = "status, id")})
 @Getter @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OutboxEvent extends SimpleBaseEntity {
     @Column(nullable = false)
@@ -66,7 +62,7 @@ public class OutboxEvent extends SimpleBaseEntity {
 
     public void markFailed() {
         this.retryCount++;
-        this.status = retryCount >= 3 ? OutboxStatus.FAILED : OutboxStatus.PENDING;
+        this.status = retryCount >= RetryPolicy.MAX_RETRY_COUNT ? OutboxStatus.FAILED : OutboxStatus.PENDING;
     }
 
     public void markFailedImmediately() {
