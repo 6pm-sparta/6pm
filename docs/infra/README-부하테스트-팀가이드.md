@@ -13,7 +13,7 @@ k6/
  ├─ ticketing-loadtest.js     ← SLO-1·2 예매 핵심경로 (대기열→순번→좌석목록)
  ├─ feed-loadtest.js          ← SLO-5 피드 타임라인
  ├─ order-loadtest.js         ← SLO-4 결제 (큐 우회)
- ├─ notification-loadtest2.js  ← 알림 조회
+ ├─ notification-loadtest.js  ← 알림 조회
  ├─ user-loadtest.js          ← SLO-7 가입/로그인
 ```
 
