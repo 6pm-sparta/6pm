@@ -31,7 +31,7 @@ resource "aws_cloudwatch_log_group" "svc" {
 
 # ── 각 서비스에 주입할 환경변수(env)를 동적으로 구성 ──
 locals {
-  redis_host    = { for k, c in aws_elasticache_cluster.redis : k => c.cache_nodes[0].address }
+  redis_host = { for k, c in aws_elasticache_cluster.redis : k => c.cache_nodes[0].address }
   # Kafka(EC2)의 private IP:9092 — 앱은 PLAINTEXT로 그대로 연결(코드 변경 없음)
   msk_bootstrap = "${aws_instance.kafka.private_ip}:9092"
 
@@ -47,23 +47,23 @@ locals {
         REDIS_PASSWORD          = ""
       },
       # config-server 자신은 import 안 함
-        name == "config-server" ? {} : { SPRING_CONFIG_IMPORT = "optional:configserver:http://config-server.6pm.local:8888" },
+      name == "config-server" ? {} : { SPRING_CONFIG_IMPORT = "optional:configserver:http://config-server.6pm.local:8888" },
       # DB URL (db 있는 서비스만) — 예: user-service → USER_DB_URL
-        s.db == null ? {} : { "${upper(replace(name, "-service", ""))}_DB_URL" = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/${s.db}" },
+      s.db == null ? {} : { "${upper(replace(name, "-service", ""))}_DB_URL" = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/${s.db}" },
       # Redis (AWS ElastiCache는 포트 6379, 데모는 AUTH 없음 → 비번 빈 값)
-        s.redis == "general"   ? { REDIS_GENERAL_HOST = local.redis_host["general"],     REDIS_GENERAL_PORT = "6379", REDIS_GENERAL_PASSWORD = "" } : {},
-        s.redis == "ticketing" ? { REDIS_TICKETING_HOST = aws_instance.kafka.private_ip, REDIS_TICKETING_PORT = "6379", REDIS_TICKETING_PASSWORD = "fandom_redis_pw" } : {},
+      s.redis == "general" ? { REDIS_GENERAL_HOST = local.redis_host["general"], REDIS_GENERAL_PORT = "6379", REDIS_GENERAL_PASSWORD = "" } : {},
+      s.redis == "ticketing" ? { REDIS_TICKETING_HOST = aws_instance.kafka.private_ip, REDIS_TICKETING_PORT = "6379", REDIS_TICKETING_PASSWORD = "fandom_redis_pw" } : {},
     )
   }
 
   # 모든 태스크에 주입할 시크릿(Secrets Manager 참조)
   secret_refs = [
-    { name = "DB_PASSWORD",       valueFrom = aws_secretsmanager_secret.s["DB_PASSWORD"].arn },
-    { name = "JWT_SECRET",        valueFrom = aws_secretsmanager_secret.s["JWT_SECRET"].arn },
-    { name = "HMAC_SECRET_KEY",   valueFrom = aws_secretsmanager_secret.s["HMAC_SECRET_KEY"].arn },
-    { name = "GEMINI_API_KEY",    valueFrom = aws_secretsmanager_secret.s["GEMINI_API_KEY"].arn },
+    { name = "DB_PASSWORD", valueFrom = aws_secretsmanager_secret.s["DB_PASSWORD"].arn },
+    { name = "JWT_SECRET", valueFrom = aws_secretsmanager_secret.s["JWT_SECRET"].arn },
+    { name = "HMAC_SECRET_KEY", valueFrom = aws_secretsmanager_secret.s["HMAC_SECRET_KEY"].arn },
+    { name = "GEMINI_API_KEY", valueFrom = aws_secretsmanager_secret.s["GEMINI_API_KEY"].arn },
     { name = "SLACK_WEBHOOK_URL", valueFrom = aws_secretsmanager_secret.s["SLACK_WEBHOOK_URL"].arn },
-    { name = "CONFIG_GIT_TOKEN",  valueFrom = aws_secretsmanager_secret.s["CONFIG_GIT_TOKEN"].arn },
+    { name = "CONFIG_GIT_TOKEN", valueFrom = aws_secretsmanager_secret.s["CONFIG_GIT_TOKEN"].arn },
   ]
 }
 
@@ -122,7 +122,7 @@ resource "aws_ecs_service" "svc" {
       container_port   = each.value.port
     }
   }
-  health_check_grace_period_seconds = each.value.alb ? 120 : null  # 스프링 느린 기동
+  health_check_grace_period_seconds = each.value.alb ? 120 : null # 스프링 느린 기동
 
   # ⚠️ ECS는 서비스 간 기동 순서를 강제 못함. config-server/eureka가 늦으면
   #    다른 서비스가 잠깐 실패→재시작 반복하다 안정화됨(정상). 급하면 config/eureka만 먼저 apply.

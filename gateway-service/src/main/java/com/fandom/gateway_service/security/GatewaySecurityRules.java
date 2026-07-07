@@ -33,6 +33,10 @@ public class GatewaySecurityRules {
         String path = request.getPath().value();
         HttpMethod method = request.getMethod();
 
+        if (isSwaggerOrApiDocs(path)) {
+            return true;
+        }
+
         if (path.equals("/api/v1/auth/login")) {
             return true;
         }
@@ -47,6 +51,17 @@ public class GatewaySecurityRules {
                 && HttpMethod.GET.equals(method);
 
         return (isSignUp && HttpMethod.POST.equals(method)) || isProfileLookup;
+    }
+
+    /**
+     * Swagger UI / OpenAPI 문서 조회 경로는 인증 없이 통과시킨다. 문서 조회 자체는 보안 리스크가 없고,
+     * discovery locator가 자동 생성하는 서비스별 프록시 경로(예: /user-service/v3/api-docs)까지
+     * 패턴을 계속 늘리지 않아도 되도록 contains로 느슨하게 매칭한다.
+     * 실제 API 호출(Execute)은 각 라우트의 정상 인증 정책을 그대로 따른다 — 여기서 막는 건
+     * "문서/UI 리소스 조회"뿐이다.
+     */
+    private boolean isSwaggerOrApiDocs(String path) {
+        return path.contains("/v3/api-docs") || path.contains("/swagger-ui");
     }
 
     public boolean isPreflight(ServerHttpRequest request) {
