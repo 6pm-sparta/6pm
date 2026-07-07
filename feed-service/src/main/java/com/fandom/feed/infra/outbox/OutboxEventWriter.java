@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.function.Function;
 
-import static java.util.Map.entry;
+import static com.fandom.feed.infra.util.LogContext.entry;
 
 @Component
 @RequiredArgsConstructor
