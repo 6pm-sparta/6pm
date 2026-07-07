@@ -76,5 +76,9 @@ terraform.tfvars
 .terraform.lock.hcl
 crash.log
 
-## eval
+# k6 부하테스트 결과 (실행마다 생성 — 커밋 X)
+k6/result_*.json
+
+##eval
 **/.venv
+
