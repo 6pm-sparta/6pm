@@ -11,10 +11,10 @@ const USER_COUNT = parseInt(__ENV.USER_COUNT || "200");
 const PEAK       = parseInt(__ENV.PEAK || "150");
 const SLEEP      = parseFloat(__ENV.SLEEP || "0.5");
 const PASSWORD   = __ENV.PASSWORD   || "Test1234!";
+
 const DEVICE_TYPES = ["ANDROID", "IOS", "WEB"];
 
 export const options = loadOptions(PEAK, 800);   // p99 < 800ms
-
 export function setup() {
     return { tokens: makeTokens(BASE_URL, USER_COUNT, PASSWORD, "noti") };
 }
@@ -56,6 +56,5 @@ export default function (data) {
         const r = http.get(`${BASE_URL}/api/v1/notifications`, auth);
         check(r, { "알림조회 200": (x) => x.status === 200 });
     });
-
     sleep(SLEEP);
 }
