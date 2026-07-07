@@ -22,6 +22,7 @@ public class DataSourceConfig {
     }
 
     @Bean
+    @ConfigurationProperties("spring.datasource.write.hikari")
     public DataSource writeDataSource() {
         return writeDataSourceProperties()
                 .initializeDataSourceBuilder()
@@ -36,6 +37,7 @@ public class DataSourceConfig {
     }
 
     @Bean
+    @ConfigurationProperties("spring.datasource.read.hikari")
     public DataSource readDataSource() {
         return readDataSourceProperties()
                 .initializeDataSourceBuilder()
