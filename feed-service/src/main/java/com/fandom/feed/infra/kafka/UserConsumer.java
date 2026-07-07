@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
-import static java.util.Map.entry;
+import static com.fandom.feed.infra.util.LogContext.entry;
 
 @Component
 @RequiredArgsConstructor
