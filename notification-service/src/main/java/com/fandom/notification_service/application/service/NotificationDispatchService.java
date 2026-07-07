@@ -5,6 +5,7 @@ import com.fandom.notification_service.application.dto.DeliveryTarget;
 import com.fandom.notification_service.application.dto.DispatchPlan;
 import com.fandom.notification_service.application.port.NotificationSender;
 import com.fandom.notification_service.support.LogMask;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,8 +19,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class NotificationDispatchService {
 
+    private static final String RESULT_METRIC = "notification.push.result"; // {result=success|fail}
+
     private final NotificationDispatchTxService txService;
     private final NotificationSender notificationSender;
+    private final MeterRegistry meterRegistry;
 
     // 발송
     public void dispatch(UUID notificationId) {
@@ -55,8 +59,10 @@ public class NotificationDispatchService {
                             String title, String body) {
         try {
             notificationSender.send(deviceToken, deviceType, title, body);
+            meterRegistry.counter(RESULT_METRIC, "result", "success").increment();
             return true;
         } catch (Exception e) {
+            meterRegistry.counter(RESULT_METRIC, "result", "fail").increment();
             log.error("기기 발송 실패 id={}, token={}", notificationId, LogMask.token(deviceToken), e);
             return false;
         }
