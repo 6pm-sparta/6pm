@@ -13,7 +13,7 @@ const SLEEP      = parseFloat(__ENV.SLEEP || "0.5");
 const PASSWORD   = __ENV.PASSWORD   || "Test1234!";
 const DEVICE_TYPES = ["ANDROID", "IOS", "WEB"];
 
-export const options = loadOptions(PEAK, 800);
+export const options = loadOptions(PEAK, 800);   // p99 < 800ms
 
 export function setup() {
     return { tokens: makeTokens(BASE_URL, USER_COUNT, PASSWORD, "noti") };

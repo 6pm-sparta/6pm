@@ -45,14 +45,23 @@ locals {
         CONFIG_GIT_USERNAME     = var.config_git_username
         ZIPKIN_URI              = "http://zipkin.6pm.local:9411/api/v2/spans"
         REDIS_PASSWORD          = ""
+
+        EUREKA_INSTANCE_HOSTNAME          = "${name}.6pm.local"
+        EUREKA_INSTANCE_PREFER_IP_ADDRESS = "false"
       },
       # config-server 자신은 import 안 함
       name == "config-server" ? {} : { SPRING_CONFIG_IMPORT = "optional:configserver:http://config-server.6pm.local:8888" },
       # DB URL (db 있는 서비스만) — 예: user-service → USER_DB_URL
-      s.db == null ? {} : { "${upper(replace(name, "-service", ""))}_DB_URL" = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/${s.db}" },
-      # Redis (AWS ElastiCache는 포트 6379, 데모는 AUTH 없음 → 비번 빈 값)
-      s.redis == "general" ? { REDIS_GENERAL_HOST = local.redis_host["general"], REDIS_GENERAL_PORT = "6379", REDIS_GENERAL_PASSWORD = "" } : {},
-      s.redis == "ticketing" ? { REDIS_TICKETING_HOST = aws_instance.kafka.private_ip, REDIS_TICKETING_PORT = "6379", REDIS_TICKETING_PASSWORD = "fandom_redis_pw" } : {},
+      # DB URL. feed는 읽기/쓰기 분리라 WRITE/READ 두 개 주입 (단일 RDS라 둘 다 같은 주소)
+        name == "cs-service" ? { CS_CHAT_PROVIDER = "gemini" } : {},
+        name == "notification-service" ? { FCM_ENABLED = "false" } : {},
+        name == "feed-service" ? {
+        FEED_DB_WRITE_URL = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/feed_db"
+        FEED_DB_READ_URL  = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/feed_db"
+      } : (s.db == null ? {} : { "${upper(replace(name, "-service", ""))}_DB_URL" = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/${s.db}" }),
+      # Redis
+        s.redis == "general"   ? { REDIS_GENERAL_HOST = local.redis_host["general"], REDIS_GENERAL_PORT = "6379", REDIS_GENERAL_PASSWORD = "" } : {},
+        s.redis == "ticketing" ? { REDIS_TICKETING_HOST = aws_instance.kafka.private_ip, REDIS_TICKETING_PORT = "6379", REDIS_TICKETING_PASSWORD = "fandom_redis_pw" } : {},
     )
   }
 

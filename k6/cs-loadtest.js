@@ -3,6 +3,7 @@
 //    "저VU에서 동시 문의가 정상 처리되는지"만 확인한다. (팀 가이드 §8 방침)
 // ⚠️ cs-service 기동 + cs.rag.enabled=true + Ollama(또는 Gemini) 준비 필요.
 //    Ollama는 keep_alive 기본 5분이라 첫 요청은 콜드스타트로 느릴 수 있음(정상).
+//    ※ 운영(AWS)엔 Ollama가 없음 → CS_CHAT_PROVIDER=gemini 로 돌려야 함(로컬은 ollama).
 // 실행: k6 run -e VUS=5 -e DURATION=1m cs-loadtest.js
 import http from "k6/http";
 import { check, sleep } from "k6";
