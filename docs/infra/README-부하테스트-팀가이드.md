@@ -50,7 +50,7 @@ k6 run -e USER_COUNT=200 -e PEAK=150 feed-loadtest.js
 k6 run -e USER_COUNT=100 -e PEAK=80 order-loadtest.js
 
 # 알림
-k6 run -e USER_COUNT=200 -e PEAK=150 notification-loadtest2.js
+k6 run -e USER_COUNT=200 -e PEAK=150 notification-loadtest.js
 
 # 가입/로그인 (SLO-7)
 k6 run -e PEAK=150 user-loadtest.js
