@@ -11,7 +11,7 @@ resource "aws_lb_target_group" "gateway" {
   port        = 8080
   protocol    = "HTTP"
   vpc_id      = aws_vpc.main.id
-  target_type = "ip"          # Fargate(awsvpc)는 ip 타입
+  target_type = "ip" # Fargate(awsvpc)는 ip 타입
   health_check {
     path                = "/actuator/health"
     matcher             = "200"

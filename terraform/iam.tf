@@ -42,7 +42,7 @@ resource "aws_iam_role_policy" "ecs_task_app" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
-      { Effect = "Allow", Action = ["s3:*"], Resource = ["*"] }   # feed S3 (데모: 넓게. 운영은 좁히기)
+      { Effect = "Allow", Action = ["s3:*"], Resource = ["*"] } # feed S3 (데모: 넓게. 운영은 좁히기)
     ]
   })
 }

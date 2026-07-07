@@ -37,18 +37,18 @@ provider "aws" {
 # desired: 실행 태스크 수
 locals {
   services = {
-    config-server        = { port = 8888, cpu = 256, mem = 512,  desired = 1, db = null,             redis = null,        alb = false }
-    eureka-server        = { port = 8761, cpu = 256, mem = 512,  desired = 1, db = null,             redis = null,        alb = false }
-    gateway-service      = { port = 8080, cpu = 512, mem = 1024, desired = 2, db = null,             redis = "general",   alb = true  }
-    user-service         = { port = 8081, cpu = 256, mem = 512,  desired = 1, db = "user_db",         redis = null,        alb = false }
-    feed-service         = { port = 8082, cpu = 256, mem = 512,  desired = 1, db = "feed_db",         redis = "ticketing",   alb = false }
-    ticketing-service    = { port = 8083, cpu = 512, mem = 1024, desired = 1, db = "ticketing_db",    redis = "ticketing", alb = false }
-    order-service        = { port = 8084, cpu = 256, mem = 512,  desired = 1, db = "order_db",        redis = "ticketing", alb = false }
-    notification-service = { port = 8085, cpu = 256, mem = 512,  desired = 1, db = "notification_db", redis = null,        alb = false }
-    aiops-service        = { port = 8086, cpu = 256, mem = 512,  desired = 1, db = "aiops_db",        redis = null,        alb = false }
-    auth-service         = { port = 8087, cpu = 256, mem = 512,  desired = 1, db = null,             redis = "general",   alb = false }
-    chat-service         = { port = 8088, cpu = 256, mem = 512,  desired = 1, db = "chat_db",         redis = "general",   alb = false }
-    cs-service           = { port = 8089, cpu = 256, mem = 512,  desired = 1, db = "cs_db",           redis = null,        alb = false }
+    config-server        = { port = 8888, cpu = 256, mem = 512, desired = 1, db = null, redis = null, alb = false }
+    eureka-server        = { port = 8761, cpu = 256, mem = 512, desired = 1, db = null, redis = null, alb = false }
+    gateway-service      = { port = 8080, cpu = 512, mem = 1024, desired = 2, db = null, redis = "general", alb = true }
+    user-service         = { port = 8081, cpu = 256, mem = 512, desired = 1, db = "user_db", redis = null, alb = false }
+    feed-service         = { port = 8082, cpu = 256, mem = 512, desired = 1, db = "feed_db", redis = "general", alb = false }
+    ticketing-service    = { port = 8083, cpu = 512, mem = 1024, desired = 1, db = "ticketing_db", redis = "ticketing", alb = false }
+    order-service        = { port = 8084, cpu = 256, mem = 512, desired = 1, db = "order_db", redis = "ticketing", alb = false }
+    notification-service = { port = 8085, cpu = 256, mem = 512, desired = 1, db = "notification_db", redis = null, alb = false }
+    aiops-service        = { port = 8086, cpu = 256, mem = 512, desired = 1, db = "aiops_db", redis = null, alb = false }
+    auth-service         = { port = 8087, cpu = 256, mem = 512, desired = 1, db = null, redis = "general", alb = false }
+    chat-service         = { port = 8088, cpu = 256, mem = 512, desired = 1, db = "chat_db", redis = "general", alb = false }
+    cs-service           = { port = 8089, cpu = 256, mem = 512, desired = 1, db = "cs_db", redis = null, alb = false }
   }
 
   # RDS 안에 만들 데이터베이스 8개 (db != null 인 서비스들)

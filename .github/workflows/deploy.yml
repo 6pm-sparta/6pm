@@ -1,0 +1,77 @@
+# =====================================================================
+# .github/workflows/deploy.yml
+# main 머지 → 12개 이미지 빌드·ECR push → ECS 강제 재배포 (OIDC, 장기키 없음)
+# 사전: terraform으로 github-oidc.tf 적용 → 나온 role ARN을
+#       GitHub 레포 Settings > Secrets > Actions 에 AWS_DEPLOY_ROLE_ARN 로 등록
+# =====================================================================
+name: Deploy to AWS (ECR + ECS)
+
+on:
+  push:
+    branches: [main]        # main 머지 시 자동 배포
+  workflow_dispatch: {}     # Actions 탭에서 수동 실행 버튼
+
+env:
+  AWS_REGION: ap-northeast-2
+  CLUSTER: 6pm-dev-cluster
+
+permissions:
+  id-token: write           # OIDC 토큰 발급(필수)
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - config-server
+          - eureka-server
+          - gateway-service
+          - user-service
+          - feed-service
+          - ticketing-service
+          - order-service
+          - notification-service
+          - aiops-service
+          - auth-service
+          - chat-service
+          - cs-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          build-args: SERVICE=${{ matrix.service }}
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/6pm/${{ matrix.service }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}   # 레이어 캐시로 재빌드 가속
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      # ECS가 살아있을 때만 재배포. (destroy 상태면 이 스텝은 실패 → continue-on-error로 무시)
+      - name: Force ECS new deployment
+        continue-on-error: true
+        run: |
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "${{ matrix.service }}" \
+            --force-new-deployment \
+            --region "$AWS_REGION"
