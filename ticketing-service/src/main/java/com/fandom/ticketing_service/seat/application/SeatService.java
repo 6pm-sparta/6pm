@@ -256,6 +256,16 @@ public class SeatService {
         String ownerKey = OWNER_KEY.formatted(showId, showSeatId);
         String owner = redisTemplate.opsForValue().get(ownerKey);
 
+        // owner가 PENDING이면 checkout()이 orderClient.create() ~ CONFIRM_OWNER_SCRIPT 사이 진행 중이라는 뜻.
+        // RELEASE_SCRIPT(사용자 직접 해제)는 이 구간을 -3(SEAT_HOLD_PROCESSING)으로 막아주는데,
+        // TTL 자연 만료 경로는 그 보호를 거치지 않아 같은 레이스(더블부킹)가 그대로 뚫려 있었다(#325) —
+        // 여기서 스킵하고 checkout()이 성공(CONFIRMED 전이) 또는 실패(자체 catch 블록에서 롤백)로
+        // 매듭짓게 둔다.
+        if (owner != null && owner.endsWith(":" + OWNER_STATUS_PENDING)) {
+            log.warn("체크아웃 진행 중(PENDING) 선점의 TTL 만료 이벤트 - 해제 스킵: showId={}, seatId={}", showId, showSeatId);
+            return;
+        }
+
         showSeatRepository.findById(showSeatId).ifPresentOrElse(seat -> {
             if (seat.getOrderId() != null) {
                 seat.releaseOrder();
