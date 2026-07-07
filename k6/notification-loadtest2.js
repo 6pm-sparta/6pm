@@ -1,6 +1,6 @@
-// notification-loadtest.js — 알림 baseline (보관함 조회 + 디바이스 토큰 등록)
+// notification-loadtest2.js — 알림 baseline (보관함 조회 + 디바이스 토큰 등록)
 // ⚠️ notification-service(8085) 기동 필요.
-// 실행: k6 run -e USER_COUNT=200 -e PEAK=150 notification-loadtest.js
+// 실행: k6 run -e USER_COUNT=200 -e PEAK=150 notification-loadtest2.js
 import http from "k6/http";
 import { check, group, sleep } from "k6";
 import { makeTokens, loadOptions } from "./common.js";
