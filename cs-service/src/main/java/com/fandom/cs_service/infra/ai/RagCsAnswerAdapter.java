@@ -1,5 +1,6 @@
 package com.fandom.cs_service.infra.ai;
 
+import com.fandom.cs_service.application.dto.AnswerResult;
 import com.fandom.cs_service.application.port.CsAnswerPort;
 import com.fandom.cs_service.application.port.CsVectorStorePort;
 import com.fandom.cs_service.domain.entity.CsMessage;
@@ -45,10 +46,15 @@ public class RagCsAnswerAdapter implements CsAnswerPort {
 
     @Override
     public String generateAnswer(String question, List<CsMessage> history) {
+        return generateAnswerDetailed(question, history).answer();
+    }
+
+    @Override
+    public AnswerResult generateAnswerDetailed(String question, List<CsMessage> history) {
         try {
             List<String> contexts = vectorStore.searchSimilar(question, TOP_K);
             String context = contexts.isEmpty() ? "(관련 문서 없음)" : String.join("\n---\n", contexts);
-            
+
             List<Message> messages = new ArrayList<>();
             messages.add(new SystemMessage(SYSTEM_PROMPT.formatted(context)));
             history.forEach(m -> messages.add(m.getSenderRole() == SenderRole.USER
@@ -58,10 +64,11 @@ public class RagCsAnswerAdapter implements CsAnswerPort {
 
             log.info("cs RAG 멀티턴 이력 {}건 포함", history.size());
 
-            return chatClient.prompt()
+            String answer = chatClient.prompt()
                     .messages(messages)
                     .call()
                     .content();
+            return new AnswerResult(answer, contexts);
         } catch (Exception e) {
             log.error("cs RAG 답변 생성 실패", e);
             throw new CustomException(CsErrorCode.CS_ANSWER_GENERATION_FAILED);

@@ -28,4 +28,7 @@ dependencies {
     implementation 'org.springframework.ai:spring-ai-starter-model-ollama'          // 임베딩(nomic) + LLM(qwen)
     implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector' // pgvector VectorStore
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
+
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
 }
