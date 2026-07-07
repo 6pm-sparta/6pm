@@ -29,9 +29,10 @@ import java.util.UUID;
  * - PENDING(결제 시도 진행중) → 409. — PAYMENT_REQUESTED가 PENDING에 흡수되면서
  *   생긴 케이스. PG 승인/거절 webhook이 오는 중에 취소를 허용하면 "취소됐는데 결제는 승인됨" 같은
  *   레이스가 생긴다. payments에 REQUESTED row가 있으면 웹훅 결과를 먼저 기다리게 한다.
- * - CONFIRMING/CONFIRMED(취소 가능 시간 내) → CANCEL_REQUESTED까지만 전이. 실제 PG 환불은 락 밖
- *   (Service)에서 비동기로 요청하며, 환불 완료/거절 결과는 PG 웹훅으로 비동기 반영된다
- *   (RefundResultWriter 참고). 이 클래스는 CANCEL_REQUESTED 전이까지만 책임진다.
+ * - CONFIRMING/CONFIRMED(취소 가능 시간 내) → CANCEL_REQUESTED까지만 전이. 좌석 해제 이벤트는
+ *   환불 성공/실패와 무관하게 이 전이 시점에 바로 발행한다(환불이 REFUND_FAILED/MANUAL_REVIEW_REQUIRED로
+ *   빠져도 좌석이 영구 잠기지 않게 하기 위함). 실제 PG 환불은 락 밖(Service)에서 비동기로 요청하며,
+ *   환불 완료/거절 결과는 PG 웹훅으로 비동기 반영된다(RefundResultWriter 참고, 알림만 담당).
  * - CANCELLED → 변경 없음, 멱등 응답용 현재 상태만 반환
  */
 @Component
@@ -81,6 +82,8 @@ public class OrderCancelWriter {
                 payment.requestRefund();
                 order.markCancelRequested();
                 saveHistory(order.getId(), before, order.getStatus(), "[USER] 유저 직접 취소(결제 후)");
+                // 환불 성공/실패와 무관하게 취소 요청 확정 시점에 좌석부터 바로 해제한다.
+                outboxAppender.appendPaymentCancelled(order.getId());
                 yield OrderCancelDecision.refundNeeded(order.getId(), payment, order.getStatusUpdatedAt());
             }
 
@@ -92,6 +95,7 @@ public class OrderCancelWriter {
                 payment.requestRefund();
                 order.markCancelRequested();
                 saveHistory(order.getId(), before, order.getStatus(), "[USER] 유저 직접 취소(확정 후, 취소 가능 시간 내)");
+                outboxAppender.appendPaymentCancelled(order.getId());
                 yield OrderCancelDecision.refundNeeded(order.getId(), payment, order.getStatusUpdatedAt());
             }
 
