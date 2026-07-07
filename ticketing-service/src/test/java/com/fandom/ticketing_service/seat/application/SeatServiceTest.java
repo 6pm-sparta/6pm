@@ -490,8 +490,8 @@ class SeatServiceTest {
         }
 
         @Test
-        @DisplayName("체크아웃까지 진행된(orderId!=null) hold가 만료되면 DB orderId도 해제된다")
-        void releaseExpiredHold_checkedOut_releasesOrder() {
+        @DisplayName("주문 생성까지 끝난(CONFIRMED, orderId!=null) hold가 만료되면 DB orderId도 해제된다")
+        void releaseExpiredHold_confirmed_releasesOrder() {
             // given
             UUID showId = UUID.randomUUID();
             UUID seatId = UUID.randomUUID();
@@ -501,7 +501,7 @@ class SeatServiceTest {
 
             given(showSeatRepository.findById(seatId)).willReturn(Optional.of(seat));
             given(redisTemplate.opsForValue()).willReturn(valueOperations);
-            given(valueOperations.get(anyString())).willReturn(userId + ":PENDING");
+            given(valueOperations.get(anyString())).willReturn(userId + ":CONFIRMED");
 
             // when
             seatService.releaseExpiredHold(showId, seatId);
@@ -510,6 +510,26 @@ class SeatServiceTest {
             assertThat(seat.getOrderId()).isNull();
             verify(valueOperations).increment("inventory:%s".formatted(showId));
             verify(valueOperations).decrement("purchase-count:%s:%s".formatted(userId, showId));
+        }
+
+        @Test
+        @DisplayName("체크아웃 진행 중(PENDING)인 hold의 TTL이 만료되면 해제를 스킵한다 (#325)")
+        void releaseExpiredHold_pending_skipsRelease() {
+            // given
+            UUID showId = UUID.randomUUID();
+            UUID seatId = UUID.randomUUID();
+            UUID userId = UUID.randomUUID();
+
+            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(valueOperations.get(anyString())).willReturn(userId + ":PENDING");
+
+            // when
+            seatService.releaseExpiredHold(showId, seatId);
+
+            // then
+            verify(showSeatRepository, never()).findById(any());
+            verify(valueOperations, never()).increment(anyString());
+            verify(valueOperations, never()).decrement(anyString());
         }
 
         @Test
