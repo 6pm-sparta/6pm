@@ -15,10 +15,10 @@ import java.util.UUID;
  * 주문 취소. 락 획득 순서는 결제 요청과 같은 원칙을 따른다(api 명세서 "주문 취소" 고려점 1, 3):
  *
  * 1. orders 비관적 락 + 본인 확인 + 상태 분기 + (필요 시) CANCEL_REQUESTED 전이 — 짧은 트랜잭션(OrderCancelWriter.decide)
+ *    이 트랜잭션 안에서 좌석 해제(order.payment.cancelled) 이벤트도 함께 발행한다(환불 성공/실패 무관).
  * 2. 락 밖에서 PG에 비동기 환불 요청을 접수만 시키고 즉시 응답. 실제 환불 완료/거절은 PG 웹훅으로
  *    비동기 반영된다(RefundResultWriter). 응답 시점엔 아직 CANCEL_REQUESTED 상태다.
- * 3. 환불 완료 후 좌석 반환(order.payment.cancelled)/알림(notification.send) 발행은 webhook 처리
- *    쪽(PgWebhookService)이 담당.
+ * 3. 환불 완료 후 알림(notification.send) 발행은 webhook 처리 쪽(PgWebhookService)이 담당.
  *
  * PG 접수 호출이 동기적으로 실패하면(네트워크 오류 등, webhook 자체가 오지 않을
  * 상황) PG_ERROR(502)로 응답한다.

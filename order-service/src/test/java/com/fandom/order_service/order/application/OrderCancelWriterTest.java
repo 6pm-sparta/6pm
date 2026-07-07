@@ -165,6 +165,7 @@ class OrderCancelWriterTest {
         assertThat(decision.paymentToRefund()).isEqualTo(payment);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED); // issue #292 신규
         verify(orderStatusHistoryRepository).save(any());
+        verify(outboxAppender).appendPaymentCancelled(order.getId()); // 환불 결과 무관, 취소 확정 즉시 좌석 해제
     }
 
     @Test
@@ -186,6 +187,7 @@ class OrderCancelWriterTest {
         assertThat(decision.type()).isEqualTo(OrderCancelDecision.Type.REFUND_NEEDED);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED);
+        verify(outboxAppender).appendPaymentCancelled(order.getId());
     }
 
     @Test
