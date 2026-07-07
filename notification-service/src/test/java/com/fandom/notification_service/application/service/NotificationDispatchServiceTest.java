@@ -5,12 +5,15 @@ import com.fandom.notification_service.application.dto.DeliveryTarget;
 import com.fandom.notification_service.application.dto.DispatchPlan;
 import com.fandom.notification_service.application.port.NotificationSender;
 import com.fandom.notification_service.domain.entity.DeviceType;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -35,6 +38,8 @@ class NotificationDispatchServiceTest {
     private NotificationDispatchTxService txService;
     @Mock
     private NotificationSender notificationSender;
+    @Spy
+    private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @InjectMocks
     private NotificationDispatchService dispatchService;
