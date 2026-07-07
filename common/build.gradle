@@ -6,4 +6,13 @@ dependencies {
     implementation 'com.fasterxml.uuid:java-uuid-generator:5.1.0'            // UUIDv7 생성 (BaseEntity)
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'io.micrometer:micrometer-tracing'
+
+    // Swagger(OpenAPI) 공통 자동설정용. compileOnly라 common 자체가 springdoc을 강제하지 않고,
+    // 실제로 springdoc-openapi-starter-webmvc-ui를 gradle에 추가한 9개 도메인 서비스에서만
+    // CommonOpenApiAutoConfiguration이 활성화된다(@ConditionalOnClass).
+    // gateway(webflux)/eureka-server/config-server는 이 의존성이 없어 영향 없음.
+    compileOnly 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
+    // compileOnly는 test source set에는 적용되지 않으므로, 테스트에서 springdoc 타입(ParameterCustomizer 등)을
+    // 사용하려면 testImplementation으로 따로 추가해야 한다.
+    testImplementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17'
 }

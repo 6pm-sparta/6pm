@@ -50,7 +50,7 @@ locals {
         EUREKA_INSTANCE_PREFER_IP_ADDRESS = "false"
       },
       # config-server 자신은 import 안 함
-        name == "config-server" ? {} : { SPRING_CONFIG_IMPORT = "optional:configserver:http://config-server.6pm.local:8888" },
+      name == "config-server" ? {} : { SPRING_CONFIG_IMPORT = "optional:configserver:http://config-server.6pm.local:8888" },
       # DB URL (db 있는 서비스만) — 예: user-service → USER_DB_URL
         s.db == null ? {} : { "${upper(replace(name, "-service", ""))}_DB_URL" = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/${s.db}" },
       # Redis
