@@ -13,10 +13,12 @@ import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
 import com.fandom.ticketing_service.seat.presentation.dto.HoldResponse;
 import com.fandom.ticketing_service.seat.presentation.dto.PurchaseLimitResponse;
 import com.fandom.ticketing_service.seat.presentation.dto.ShowSeatResponse;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,6 +57,11 @@ class SeatServiceTest {
 
     @Mock
     private PurchaseTokenService purchaseTokenService;
+
+    // real MeterRegistry는 실제 환경(Spring context)에서만 만들어짐 → 단위 테스트에선 격리를 위해 mock으로 대체.
+    // deep stub: meterRegistry.counter(...)가 null이 아니라 mock Counter를 반환하게 해서 increment() NPE를 막는다.
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    private MeterRegistry meterRegistry;
 
     @InjectMocks
     private SeatService seatService;

@@ -86,6 +86,7 @@ Orders               (주문 = 예약 + 확정 통합 단일 애그리게이트)
 | `order.payment.completed` | order-service | ticketing-service | 결제 승인 → 좌석 BOOKED |
 | `order.payment.failed` | order-service | ticketing-service | 결제 실패 → 좌석 해제 |
 | `order.payment.cancelled` | order-service | ticketing-service | 결제 취소 → 좌석 해제 |
+| `order.hold.released` | order-service | ticketing-service | 타임아웃 자동취소(#231) → 좌석 해제(`releaseSeat`, 멱등) |
 | `ticketing.seat.booked` | ticketing-service | order-service | 좌석 확정 → 주문 CONFIRMED |
 | `ticketing.seat.book.failed` | ticketing-service | order-service | 좌석 예매 실패 → SAGA 보상 시작 |
 
@@ -178,12 +179,12 @@ sequenceDiagram
 | 경로 | 트리거 | 처리 |
 |---|---|---|
 | 결제 실패/취소 | Kafka `order.payment.failed`, `order.payment.cancelled` | `SeatConfirmService.releaseSeat()` — DB `orderId` 해제, Redis seat/owner 키 삭제, 재고 복구 |
-| TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우) |
+| TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우). **owner가 `PENDING`(체크아웃 진행 중)이면 해제를 스킵**하고 경고 로그만 남김 (#326, 2026-07-07) |
 | 사용자 직접 취소 | `DELETE /api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | `SeatService.releaseHold()` — owner 본인 확인 후 Redis seat/owner 키 삭제, 재고 복구, DB `orderId` 해제 |
 
-**hold ↔ release ↔ checkout 동시 호출 레이스 방지 (2026-07-03 갱신):** owner 키 상태가 `HELD`(선점만, 주문 없음) → `PENDING`(체크아웃 진행 중, `orderClient.create` 외부 네트워크 호출) → `CONFIRMED`(주문 생성 완료) 3단계로 전이한다. `releaseHold()`는 `PENDING`인 동안(체크아웃이 주문 생성을 기다리는 중)만 `SEAT_HOLD_PROCESSING`(409)으로 거부하고, `HELD`나 `CONFIRMED` 상태에서는 해제를 허용한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
+**hold ↔ release ↔ checkout 동시 호출 레이스 방지 (2026-07-03 갱신, 2026-07-07 확장):** owner 키 상태가 `HELD`(선점만, 주문 없음) → `PENDING`(체크아웃 진행 중, `orderClient.create` 외부 네트워크 호출) → `CONFIRMED`(주문 생성 완료) 3단계로 전이한다. `releaseHold()`는 `PENDING`인 동안(체크아웃이 주문 생성을 기다리는 중)만 `SEAT_HOLD_PROCESSING`(409)으로 거부하고, `HELD`나 `CONFIRMED` 상태에서는 해제를 허용한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다. 이 가드는 `releaseHold()`뿐 아니라 `releaseExpiredHold()`(TTL 만료 경로)에도 동일하게 적용된다(#326).
 
-> **주문 취소 연동:** `releaseHold()`는 `OrderClient.cancel(orderId, requesterId)`로 order-service 주문도 함께 취소한다. order-service의 `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 2026-07-03 이전엔 실제로 존재하지 않아 항상 404였음(정합성 버그) — 2026-07-03에 수정 완료. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
+> **주문 취소 연동 (🔴 설계 미확정, [9. 미확정 항목](#9-미확정-항목) 참고):** `releaseHold()`에 `OrderClient.cancel(orderId, requesterId)` 호출 코드가 있으나 현재 주석 처리되어 있다. order-service의 `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 develop에 아직 없어 항상 404가 나기 때문. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
 
 ---
 
