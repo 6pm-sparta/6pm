@@ -1,38 +1,54 @@
-// cs-loadtest.js — CS 문의(RAG) 동시성 스모크  [SKELETON]
-// LLM(RAG)은 느리고 비싸서 대량 부하 부적합 → "소량 동시성으로 안정성만" 확인.
-// ⚠️ cs 담당이 ★ 부분을 실제 값으로 채우세요 (Postman에 없어 추정값임):
-//    - CS_PATH: 문의 생성 엔드포인트 (예: /api/v1/cs/inquiries)
-//    - 요청 바디 형식
-// 실행: k6 run -e VUS=5 cs-loadtest.js
+// cs-loadtest.js — CS 챗봇(RAG) 소량 동시성 스모크
+// ⚠️ 일반 부하 대상이 아니다. LLM(RAG) 응답이라 느리고 비용이 커서
+//    "저VU에서 동시 문의가 정상 처리되는지"만 확인한다. (팀 가이드 §8 방침)
+// ⚠️ cs-service 기동 + cs.rag.enabled=true + Ollama(또는 Gemini) 준비 필요.
+//    Ollama는 keep_alive 기본 5분이라 첫 요청은 콜드스타트로 느릴 수 있음(정상).
+//    ※ 운영(AWS)엔 Ollama가 없음 → CS_CHAT_PROVIDER=gemini 로 돌려야 함(로컬은 ollama).
+// 실행: k6 run -e VUS=5 -e DURATION=1m cs-loadtest.js
 import http from "k6/http";
 import { check, sleep } from "k6";
-import { Trend } from "k6/metrics";
 import { makeTokens } from "./common.js";
 
-const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
-const CS_PATH  = __ENV.CS_PATH || "/api/v1/cs/inquiries";   // ★ 실제 문의 엔드포인트
-const VUS      = parseInt(__ENV.VUS || "5");                // LLM이라 소량 (5~10)
-const DURATION = __ENV.DURATION || "1m";
-const PASSWORD = __ENV.PASSWORD || "Test1234!";
+const BASE_URL   = __ENV.BASE_URL   || "http://localhost:8080";
+const VUS        = parseInt(__ENV.VUS || "5");       // 소량 동시성
+const DURATION   = __ENV.DURATION   || "1m";
+const USER_COUNT = parseInt(__ENV.USER_COUNT || "10");
+const PASSWORD   = __ENV.PASSWORD   || "Test1234!";
+const P99_MS     = parseInt(__ENV.P99_MS || "20000"); // LLM이라 임계값 크게(20s)
 
-const llmLatency = new Trend("cs_llm_latency", true);  // LLM 응답 지연 별도 추적
+const QUESTIONS = [
+    "환불 언제까지 돼요?",
+    "예매한 티켓 취소하고 싶어요",
+    "좌석은 몇 자리까지 선택 가능한가요?",
+    "결제가 실패했는데 어떻게 하나요?",
+    "대기열은 어떻게 동작하나요?",
+];
 
 export const options = {
-    scenarios: { smoke: { executor: "constant-vus", vus: VUS, duration: DURATION } },
-    thresholds: { http_req_failed: ["rate<0.05"] },  // LLM은 느리니 p99 임계 대신 실패율만
+    summaryTrendStats: ["avg", "min", "med", "p(90)", "p(95)", "p(99)", "max"],
+    scenarios: {
+        smoke: { executor: "constant-vus", vus: VUS, duration: DURATION },
+    },
+    thresholds: {
+        http_req_failed: ["rate<0.05"],
+        http_req_duration: [`p(99)<${P99_MS}`],
+    },
 };
 
 export function setup() {
-    return { tokens: makeTokens(BASE_URL, VUS, PASSWORD, "cs") };
+    return { tokens: makeTokens(BASE_URL, USER_COUNT, PASSWORD, "cs") };
 }
 
 export default function (data) {
-    const token = data.tokens[__VU % data.tokens.length];
-    const r = http.post(`${BASE_URL}${CS_PATH}`,
-        JSON.stringify({ question: "환불은 어떻게 하나요?" }),   // ★ 바디 형식 확인
-        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, timeout: "60s" });
+    const auth = { headers: { Authorization: `Bearer ${data.tokens[__VU % data.tokens.length]}`, "Content-Type": "application/json" } };
+    const q = QUESTIONS[__ITER % QUESTIONS.length];
 
-    llmLatency.add(r.timings.duration);
-    check(r, { "문의 2xx": (x) => x.status === 200 || x.status === 201 });
-    sleep(1);
+    const r = http.post(`${BASE_URL}/api/v1/cs/inquiries`,
+        JSON.stringify({ question: q }), auth);
+    check(r, {
+        "문의 200": (x) => x.status === 200,
+        "답변 존재": (x) => (x.json("data.answer") || "").length > 0,
+    });
+
+    sleep(1); // LLM 부담 완화용 간격
 }

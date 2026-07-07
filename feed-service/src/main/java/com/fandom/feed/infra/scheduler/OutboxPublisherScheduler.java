@@ -14,7 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-import static java.util.Map.entry;
+import static com.fandom.feed.infra.util.LogContext.entry;
 
 @Component
 @RequiredArgsConstructor

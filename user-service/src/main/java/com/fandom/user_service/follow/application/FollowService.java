@@ -25,8 +25,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Map;
@@ -59,7 +57,8 @@ public class FollowService {
         increaseFollowingCount(followerId);
         increaseFollowerCount(creatorId);
         Profile followerProfile = findProfileByUserId(followerId);
-        publishFollowedEventAfterCommit(follow.getId(), followerId, creatorId, followerProfile.getNickname());
+        // Outbox 적재는 도메인 변경과 같은 트랜잭션이어야 원자성이 보장된다(커밋 후 호출 금지).
+        followEventPublisher.publishFollowed(follow.getId(), followerId, creatorId, followerProfile.getNickname());
 
         return follow;
     }
@@ -77,7 +76,8 @@ public class FollowService {
 
         decreaseFollowingCount(followerId);
         decreaseFollowerCount(creatorId);
-        publishUnfollowedEventAfterCommit(follow.getId(), followerId, creatorId);
+        // Outbox 적재는 도메인 변경과 같은 트랜잭션이어야 원자성이 보장된다(커밋 후 호출 금지).
+        followEventPublisher.publishUnfollowed(follow.getId(), followerId, creatorId);
     }
 
     public PageResponse<FollowerResponse> getFollowers(UUID creatorId, Pageable pageable) {
@@ -274,31 +274,5 @@ public class FollowService {
         if (updatedCount == 0) {
             throw new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND);
         }
-    }
-
-    private void publishFollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId, String nickname) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
-            }
-        });
-    }
-
-    private void publishUnfollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            followEventPublisher.publishUnfollowed(followId, followerId, followeeId);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                followEventPublisher.publishUnfollowed(followId, followerId, followeeId);
-            }
-        });
     }
 }

@@ -75,10 +75,10 @@ broadcast:
 cache:
   ttl:
     default: 600  # 10분
-    post-detail: 3600  # 60분
+    post-detail: 3600  # 1시간
     post-list: 300  # 5분
     comment-count: 300  # 5분
-    timeline: 86400  # 24시간
+    timeline: 86400  # 1일
     large-following: 600  # 10분
 
 scheduler:

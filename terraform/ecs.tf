@@ -53,6 +53,7 @@ locals {
       name == "config-server" ? {} : { SPRING_CONFIG_IMPORT = "optional:configserver:http://config-server.6pm.local:8888" },
       # DB URL (db 있는 서비스만) — 예: user-service → USER_DB_URL
       # DB URL. feed는 읽기/쓰기 분리라 WRITE/READ 두 개 주입 (단일 RDS라 둘 다 같은 주소)
+        name == "cs-service" ? { CS_CHAT_PROVIDER = "gemini" } : {},
         name == "feed-service" ? {
         FEED_DB_WRITE_URL = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/feed_db"
         FEED_DB_READ_URL  = "jdbc:postgresql://${aws_db_instance.postgres.address}:5432/feed_db"
