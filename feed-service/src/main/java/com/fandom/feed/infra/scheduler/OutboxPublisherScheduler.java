@@ -2,9 +2,9 @@ package com.fandom.feed.infra.scheduler;
 
 import com.fandom.feed.application.event.Event;
 import com.fandom.feed.application.event.PostBroadcastHandler;
-import com.fandom.feed.infra.kafka.outbox.OutboxEvent;
-import com.fandom.feed.infra.kafka.outbox.OutboxEventRepository;
-import com.fandom.feed.infra.kafka.outbox.OutboxStatus;
+import com.fandom.feed.infra.outbox.OutboxEvent;
+import com.fandom.feed.infra.outbox.OutboxEventRepository;
+import com.fandom.feed.infra.outbox.OutboxStatus;
 import com.fandom.feed.infra.util.LogContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
