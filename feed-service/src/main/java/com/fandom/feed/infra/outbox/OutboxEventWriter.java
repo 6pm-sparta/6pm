@@ -1,4 +1,4 @@
-package com.fandom.feed.infra.kafka.outbox;
+package com.fandom.feed.infra.outbox;
 
 import com.fandom.common.exception.CommonErrorCode;
 import com.fandom.common.exception.CustomException;

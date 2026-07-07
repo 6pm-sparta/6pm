@@ -1,4 +1,4 @@
-package com.fandom.feed.infra.kafka.outbox;
+package com.fandom.feed.infra.outbox;
 
 public enum OutboxStatus {
     PENDING, PUBLISHED, FAILED
