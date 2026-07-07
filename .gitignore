@@ -75,3 +75,6 @@ terraform.tfvars
 *.tfstate.*
 .terraform.lock.hcl
 crash.log
+
+##eval
+**/.venv
