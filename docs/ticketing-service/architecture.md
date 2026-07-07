@@ -121,29 +121,9 @@ erDiagram
 | `HOLDING` | 누군가 선점 중 | 600초 |
 | `BOOKED` | 확정 | 없음(영구) |
 
-```mermaid
-stateDiagram-v2
-    [*] --> AVAILABLE : 기본값(키 없음)
-    AVAILABLE --> HOLDING : hold() 성공(TTL 600초)
-    HOLDING --> BOOKED : confirmSeat() (결제 완료, TTL 없음)
-    HOLDING --> AVAILABLE : releaseHold() / TTL 만료(releaseExpiredHold) / releaseSeat()(결제 실패·취소)
-    BOOKED --> AVAILABLE : releaseSeat() (결제 완료 후 취소·환불)
-```
-
 ### ownerKey — 소유권 상태 (`{userId}:{status}`)
 
-`hold()`(선점)와 `checkout()`(주문 생성)이 분리된 2026-07-03 리팩토링 이후 3단계로 구성된다.
-
-```mermaid
-stateDiagram-v2
-    [*] --> HELD : hold() 성공
-    HELD --> PENDING : checkout() 진입(CHECKOUT_CLAIM_SCRIPT)
-    PENDING --> CONFIRMED : 주문 생성 성공
-    PENDING --> [*] : 주문 생성 실패 (선점 롤백)
-    HELD --> [*] : releaseHold() / TTL 만료
-    CONFIRMED --> [*] : confirmSeat() (결제 완료, ownerKey DELETE)
-    CONFIRMED --> [*] : releaseSeat() (결제 실패/취소)
-```
+`hold()`(선점)와 `checkout()`(주문 생성)이 분리된 2026-07-03 리팩토링 이후 3단계로 구성된다. 상태 전이 다이어그램은 [README §5 상태 전이](../ticketing-service/README.md#상태-전이) 참고.
 
 | 상태 | 의미 |
 |---|---|
