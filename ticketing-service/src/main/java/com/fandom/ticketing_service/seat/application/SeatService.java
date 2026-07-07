@@ -149,7 +149,7 @@ public class SeatService {
             }
             case -1 -> throw new CustomException(TicketingErrorCode.NO_INVENTORY);
             case -2 -> throw new CustomException(TicketingErrorCode.PURCHASE_LIMIT_EXCEEDED);
-            default -> throw new CustomException(TicketingErrorCode.SEAT_ALREADY_HELD);
+            default -> throw new CustomException(TicketingErrorCode.SEAT_HOLD_UNKNOWN_RESULT);
         }
     }
 
