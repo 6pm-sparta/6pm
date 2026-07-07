@@ -1,49 +1,44 @@
-# ADR 010 — Kafka DLQ 처리 (Consumer + Outbox)
+# ADR 010 — Kafka DLQ 도입 (Consumer + Outbox)
 
 **날짜**: 2026-07
-**상태**: 구현 완료
+**상태**: ✅ 구현 완료
 
 ---
 
 ## 배경
 
-DLQ 도입 전 두 쪽 다 "재시도 소진 = 유실"이었다.
+기존에 도입한 Transactional Outbox 패턴과 기본 Kafka 컨슈머 재시도만으로는 두 지점에서 메시지가 조용히 유실될 수 있었다.
 
-**Consumer 쪽**: 기존 `DefaultErrorHandler`는 `FixedBackOff(1000ms, 2회)` 재시도 후에도 실패하면 `log.error`만 남기고 오프셋을 커밋해버렸다. 문제는 이 컨슈머가 받는 이벤트가 `ticketing.seat.book.failed`라는 점이다 — 이건 SAGA 보상(자동 환불) 트리거다. 처리 중 예외가 재시도까지 다 소진되면 보상 트랜잭션 자체가 시작되지 않은 채 메시지가 조용히 사라진다. 결제는 이미 승인됐는데 환불도 안 되고 좌석도 안 풀리는, 로그 한 줄 말고는 흔적도 안 남는 정합성 사고로 이어질 수 있었다.
+**Consumer 측**: `ticketing.seat.booked`, `ticketing.seat.book.failed` 리스너가 처리 중 예외를 던지면 기본 재시도 정책(고정 횟수)을 소진한 뒤 메시지가 그냥 버려졌다. 특히 `ticketing.seat.book.failed`는 SAGA 보상 트랜잭션의 유일한 트리거인데, 이게 유실되면 결제는 승인됐지만 좌석 확정도 환불도 되지 않는 주문이 조용히 방치된다.
 
-**Outbox 쪽**: 발행 실패 시 `markPublished()`를 호출하지 않고 `PENDING`을 유지해 다음 폴링이 재시도하는 구조였는데, 실패 횟수에 상한이 없었다. 즉 직렬화가 깨졌거나 토픽 설정이 잘못된 것처럼 **영원히 실패할 수밖에 없는 레코드**가 하나 생기면, 그 레코드가 폴링 배치 슬롯을 매 주기 계속 차지하면서 무한 재시도만 반복하고, 운영자 입장에서는 "얘가 고장났다"는 신호를 받을 방법이 로그를 직접 뒤지는 것 말고는 없었다.
-
-두 경우 모두 "실패가 조용히 반복되거나 조용히 사라진다"는 같은 뿌리의 문제였지만, 실패 지점이 다르기 때문에(하나는 메시지가 이미 브로커에 있고, 하나는 우리 쪽 발행 자체가 안 된 것) 처리 방식은 분리했다.
+**Outbox 측**: `OutboxRecordPublisher`가 발행에 실패하면 레코드가 `PENDING`으로 남아 다음 폴링에서 다시 시도한다(의도된 재시도). 하지만 재시도 횟수 상한이 없어서, 영구적으로 발행에 실패하는 레코드(예: 잘못된 페이로드, 브로커 설정 문제)가 있으면 매 폴링마다 계속 같은 실패를 반복하는 무한 루프가 된다.
 
 ---
 
-## 결정 1: Consumer는 `DeadLetterPublishingRecoverer`로 `{topic}.DLQ` 이동
+## 결정 1: Consumer 측 — DeadLetterPublishingRecoverer
 
-`ticketing.seat.booked`, `ticketing.seat.book.failed` 컨슈머에 `DefaultErrorHandler(recoverer, FixedBackOff(1000ms, 2회))`를 적용했다. 재시도 소진 시 `record.topic() + ".DLQ"`로 토픽명을 동적 조합해 이동시킨다.
+`DefaultErrorHandler` + `DeadLetterPublishingRecoverer` 조합으로, 재시도 소진 시 원본 메시지를 `{topic}.DLQ` 토픽으로 옮긴다.
 
-역직렬화 실패가 리스너 스레드를 죽이지 않도록 `ErrorHandlingDeserializer`로 감쌌다 — 역직렬화 실패도 동일하게 재시도 → DLQ 경로를 탄다.
+- DLQ 토픽명은 `record.topic() + ".DLQ"` 동적 생성 방식 채택. 초기엔 `KafkaTopics.SEAT_BOOKED_DLQ`/`SEAT_BOOK_FAILED_DLQ` 상수로 명시적 매핑했으나, 코드 리뷰 피드백을 받아 확장성을 위해 동적 생성으로 리팩토링 — 이 과정에서 두 상수는 미사용이 되어 제거됨.
+- DLQ 발행 전용 `dlqKafkaTemplate`을 별도로 둔다. 주 발행용 `kafkaTemplate`과 달리 idempotence를 비활성화 — DLQ는 "일단 남긴다"가 목적이라 exactly-once 보장이 불필요하고, 원본 메시지 발행 경로와 완전히 독립시켜 장애 전파를 막기 위함.
 
----
+## 결정 2: Outbox 측 — retryCount + MAX_RETRY_COUNT
 
-## 결정 2: DLQ 전용 `dlqKafkaTemplate` 분리 (idempotence 비활성화)
+`OrderOutbox`에 `retryCount` 컬럼을 추가하고, `OutboxRecordPublisher`에서 발행 실패 시마다 증가시킨다. `MAX_RETRY_COUNT`(클래스 상수, 5)를 초과하면 `OutboxStatus.FAILED`로 전환해 폴링 대상에서 제외한다.
 
-메인 `kafkaTemplate`(`@Primary`, 비즈니스 이벤트 발행용)은 `enable.idempotence=true`로 설정돼 있다. `DeadLetterPublishingRecoverer`는 원본 토픽이 무엇이든 임의의 `{topic}.DLQ`에 써야 하는데, idempotence가 켜진 프로듀서로 이런 범용 쓰기를 하는 게 부적절하다고 판단해 `dlqKafkaTemplate`을 idempotence 비활성화 상태로 별도 생성했다.
+`MAX_RETRY_COUNT`를 `OrderProperties`가 아니라 클래스 레벨 상수로 둔 이유: `OrderProperties`는 record라 필드를 추가할 때마다 기존 테스트의 positional 생성자 호출이 전부 깨지는 문제가 반복됐다(Timeout, RefundRecovery, 이후 zombie-payment 때도 동일). 이 값은 운영 중 튜닝 필요성이 낮다고 판단해 설정화 비용을 감수하지 않기로 했다.
 
----
+## 검토했으나 반려한 안
 
-## 결정 3: Outbox는 별도 DLQ 토픽 대신 `OutboxStatus.FAILED`로 종결
-
-`OutboxRecordPublisher`가 발행 실패 시 `retryCount`를 증가시키고, `MAX_RETRY_COUNT(5)`를 넘으면 `OutboxStatus.FAILED`로 전이한다. Consumer처럼 별도 `.DLQ` 토픽으로 보내지 않는다.
-
-**이유**: Outbox 발행 실패는 "우리 쪽에서 Kafka로 내보내는 것 자체"가 안 된 상황이다. 컨슈머가 이미 받은 메시지를 처리하다 실패한 게 아니라, 애초에 메시지가 브로커에 도달하지 못했다. 이런 상황을 별도 DLQ 토픽으로 보내봐야 소비할 대상이 없다 — 그냥 DB 상태(`FAILED`)로 남겨 운영자가 직접 원인(브로커 장애, 직렬화 오류 등)을 확인하는 편이 더 명확하다.
-
-`FAILED`는 폴링 대상에서 제외되므로 무한 재시도로 `PENDING`이 쌓이는 것도 함께 방지한다.
-
-`MAX_RETRY_COUNT`는 `OutboxRecordPublisher` 내부 클래스 상수로 뒀다(`OrderProperties`가 아니라) — 테스트 생성자 호출부 전체를 건드리는 cascading 변경을 피하기 위함(`OrderProperties`는 record라 필드 추가 시 모든 테스트 생성자를 고쳐야 한다).
+**Consumer/Outbox 실패 원인 통합 모니터링**: DLQ와 Outbox FAILED를 하나의 대시보드/알림 채널로 묶는 안을 검토했으나, 관측 인프라(AIOps 서비스) 쪽 작업과 맞물려 있어 이번 스코프에서는 제외. DLQ 토픽/`OutboxStatus.FAILED` 각각을 운영자가 별도로 확인하는 것을 MVP 기준으로 삼는다.
 
 ---
+
+## 남은 갭
+
+- DLQ에 쌓인 메시지의 재처리 절차가 수동이다(운영자가 직접 확인 후 재발행/폐기). 자동 재처리 배치는 범위 밖.
+- Outbox `FAILED` 레코드도 마찬가지로 수동 개입 전제. 알림 연동은 미구현.
 
 ## 관련 문서
 
-- SA_2차: 공통 이벤트 정책(재시도/DLQ 정책)
-- adr/005: Writer 빈 분리(Outbox 단건 트랜잭션 분리와 같은 맥락 — self-invocation 프록시 문제)
+- `architecture.md` 4번 섹션: Kafka 이벤트 및 Outbox 패턴
