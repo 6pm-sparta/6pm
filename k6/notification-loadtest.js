@@ -46,10 +46,15 @@ export default function (data) {
         });
     }
 
-    // 4) 보관함 조회 (read) — 핵심 읽기 경로
+    // 3) 보관함 조회 (read) — 핵심 읽기 경로
     group("notification_inbox", () => {
         const r = http.get(`${BASE_URL}/api/v1/notifications?size=20`, auth);
         check(r, { "보관함조회 200": (x) => x.status === 200 });
+    });
+
+    group("notification_list", () => {
+        const r = http.get(`${BASE_URL}/api/v1/notifications`, auth);
+        check(r, { "알림조회 200": (x) => x.status === 200 });
     });
 
     sleep(SLEEP);

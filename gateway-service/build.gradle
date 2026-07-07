@@ -29,7 +29,6 @@ dependencies {
     implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j'
 
     implementation 'io.micrometer:micrometer-registry-prometheus'
-
     // Swagger 통합 페이지로, gateway-service 자체에는 REST API가 거의 없습니다. (/fallback 정도만 있음)
     // 9개 도메인 서비스의 public 그룹을 하나의 드롭다운(swagger-ui.urls)에서 볼 수 있다.
     // WebFlux용 아티팩트이므로 WebFlux와 충돌하지 않는다. (common에서 spring-boot-starter-web을 제외함)
