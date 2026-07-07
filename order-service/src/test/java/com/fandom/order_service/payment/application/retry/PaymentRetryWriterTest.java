@@ -1,0 +1,211 @@
+package com.fandom.order_service.payment.application.retry;
+
+import com.fandom.order_service.config.OrderProperties;
+import com.fandom.order_service.order.domain.entity.Order;
+import com.fandom.order_service.order.domain.entity.OrderStatus;
+import com.fandom.order_service.order.domain.repository.OrderRepository;
+import com.fandom.order_service.order.domain.repository.OrderStatusHistoryRepository;
+import com.fandom.order_service.payment.domain.entity.Payment;
+import com.fandom.order_service.payment.domain.entity.PaymentMethod;
+import com.fandom.order_service.payment.domain.entity.PaymentStatus;
+import com.fandom.order_service.payment.domain.repository.PaymentRepository;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
+import com.fandom.order_service.payment.application.request.PaymentRequestWriter;
+import com.fandom.order_service.payment.infra.pg.PaymentGateway;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+/**
+ * issue #292 — PaymentRetryWriter의 가드가 order.status == PAYMENT_REQUESTED에서
+ * order.status == PENDING으로 바뀌었다(결제 재시도 동안 orders.status는 PENDING 유지).
+ */
+@ExtendWith(MockitoExtension.class)
+@DisplayName("PaymentRetryWriter 단위 테스트")
+class PaymentRetryWriterTest {
+
+    @Mock private OrderRepository orderRepository;
+    @Mock private OrderStatusHistoryRepository orderStatusHistoryRepository;
+    @Mock private PaymentRepository paymentRepository;
+    @Mock private PaymentGateway paymentGateway;
+    @Mock private PaymentRequestWriter paymentRequestWriter;
+    @Mock private OutboxAppender outboxAppender;
+
+    private PaymentRetryWriter writer;
+
+    private static final int MAX_ATTEMPTS = 3;
+    private UUID orderId;
+
+    @BeforeEach
+    void setUp() {
+        OrderProperties.PaymentRetry paymentRetry = new OrderProperties.PaymentRetry(MAX_ATTEMPTS, 100, 15000L);
+        OrderProperties properties = new OrderProperties(null, 0, null, paymentRetry, null, null, null, null, null);
+        writer = new PaymentRetryWriter(orderRepository, orderStatusHistoryRepository, paymentRepository, paymentGateway, paymentRequestWriter, outboxAppender, properties);
+        orderId = UUID.randomUUID();
+    }
+
+    private Order pendingOrder() {
+        Order order = Order.createPending(UUID.randomUUID(), UUID.randomUUID(), 50_000L,
+                LocalDateTime.now().plusMinutes(10));
+        ReflectionTestUtils.setField(order, "id", orderId);
+        return order;
+    }
+
+    private UUID latestPaymentId;
+
+    private Payment retryableFailedPayment() {
+        latestPaymentId = UUID.randomUUID();
+        Payment payment = Payment.builder()
+                .orderId(orderId)
+                .amount(50_000L)
+                .paymentStatus(PaymentStatus.REQUESTED)
+                .paymentMethod(PaymentMethod.CARD)
+                .idempotencyKey("idem-transient")
+                .build();
+        payment.failWithRetry("TRANSIENT:PG 일시적 오류");
+        ReflectionTestUtils.setField(payment, "id", latestPaymentId);
+        return payment;
+    }
+
+    @Test
+    @DisplayName("재시도 조건이 충족되면 새 Payment를 INSERT하고 RETRYING을 반환한다(order.status는 PENDING 유지)")
+    void prepareRetry_eligible_createsNewPaymentAndReturnsRetrying() {
+        // given
+        Order order = pendingOrder();
+        Payment failedPayment = retryableFailedPayment();
+
+        ReflectionTestUtils.setField(order, "latestPaymentId", latestPaymentId);
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.countByOrderId(orderId)).willReturn(1L); // 1회 시도, MAX_ATTEMPTS(3) 미만
+        given(paymentRepository.findById(latestPaymentId)).willReturn(Optional.of(failedPayment));
+        given(paymentRepository.save(any(Payment.class))).willAnswer(inv -> {
+            Payment p = inv.getArgument(0);
+            ReflectionTestUtils.setField(p, "id", UUID.randomUUID());
+            return p;
+        });
+
+        // when
+        PaymentRetryResult result = writer.prepareRetry(orderId);
+
+        // then
+        assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.RETRYING);
+        assertThat(result.retryPayment()).isNotNull();
+        assertThat(result.retryPayment().getPaymentStatus()).isEqualTo(PaymentStatus.REQUESTED);
+        assertThat(result.retryPayment().getIdempotencyKey()).startsWith("retry-");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING); // issue #292 — 재시도 동안 orders.status는 그대로
+        // latest_payment_id 포인터 갱신 확인
+        assertThat(order.getLatestPaymentId()).isEqualTo(result.retryPayment().getId());
+        verify(orderStatusHistoryRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("재시도 횟수가 maxAttempts에 도달하면 Order를 FAILED로 전이하고 EXHAUSTED를 반환한다")
+    void prepareRetry_exceededMaxAttempts_failsOrderAndReturnsExhausted() {
+        // given
+        Order order = pendingOrder();
+        Payment failedPayment = retryableFailedPayment();
+
+        ReflectionTestUtils.setField(order, "latestPaymentId", latestPaymentId);
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.findById(latestPaymentId)).willReturn(Optional.of(failedPayment));
+        given(paymentRepository.countByOrderId(orderId)).willReturn((long) MAX_ATTEMPTS); // 정확히 한도 도달(>=)
+
+        // when
+        PaymentRetryResult result = writer.prepareRetry(orderId);
+
+        // then
+        assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.EXHAUSTED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.FAILED);
+        verify(outboxAppender).appendPaymentFailed(orderId);
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("latestPayment가 REQUESTED(PG 호출 미완료 orphan) 상태이면 SKIPPED를 반환한다")
+    void prepareRetry_latestPaymentStillRequested_returnsSkipped() {
+        // given
+        Order order = pendingOrder();
+        UUID requestedPaymentId = UUID.randomUUID();
+
+        Payment requestedPayment = Payment.builder()
+                .orderId(orderId)
+                .amount(50_000L)
+                .paymentStatus(PaymentStatus.REQUESTED)
+                .paymentMethod(PaymentMethod.CARD)
+                .idempotencyKey("idem-in-flight")
+                .build();
+        ReflectionTestUtils.setField(requestedPayment, "id", requestedPaymentId);
+        ReflectionTestUtils.setField(order, "latestPaymentId", requestedPaymentId);
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.findById(requestedPaymentId)).willReturn(Optional.of(requestedPayment));
+
+        // when
+        PaymentRetryResult result = writer.prepareRetry(orderId);
+
+        // then
+        assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.SKIPPED);
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("issue #292 — PENDING이 아닌 주문(예: CONFIRMING)이면 SKIPPED를 반환한다")
+    void prepareRetry_notPending_returnsSkipped() {
+        // given
+        Order order = pendingOrder();
+        order.markConfirming(); // PENDING이 아니게 만듦
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+
+        // when
+        PaymentRetryResult result = writer.prepareRetry(orderId);
+
+        // then
+        assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.SKIPPED);
+        verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("retryable Payment가 없으면 SKIPPED를 반환한다")
+    void prepareRetry_noRetryablePayment_returnsSkipped() {
+        // given
+        Order order = pendingOrder();
+        Payment permanentFailed = Payment.builder()
+                .orderId(orderId)
+                .amount(50_000L)
+                .paymentStatus(PaymentStatus.REQUESTED)
+                .paymentMethod(PaymentMethod.CARD)
+                .idempotencyKey("idem-perm")
+                .build();
+        permanentFailed.fail("잔액이 부족합니다."); // retryable=false
+
+        UUID permPaymentId = UUID.randomUUID();
+        ReflectionTestUtils.setField(permanentFailed, "id", permPaymentId);
+        ReflectionTestUtils.setField(order, "latestPaymentId", permPaymentId);
+
+        given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
+        given(paymentRepository.findById(permPaymentId)).willReturn(Optional.of(permanentFailed));
+
+        // when
+        PaymentRetryResult result = writer.prepareRetry(orderId);
+
+        // then
+        assertThat(result.type()).isEqualTo(PaymentRetryResult.Type.SKIPPED);
+    }
+}

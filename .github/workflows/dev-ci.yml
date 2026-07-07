@@ -31,10 +31,12 @@ jobs:
             ticketing-service: 'ticketing-service/**'
             order-service: 'order-service/**'
             notification-service: 'notification-service/**'
+            chat-service: 'chat-service/**'
+            cs-service: 'cs-service/**'
 
       - id: set
         run: |
-          ALL='["common","eureka-server","config-server","gateway-service","user-service","feed-service","ticketing-service","order-service","notification-service"]'
+          ALL='["common","eureka-server","config-server","gateway-service","user-service","feed-service","ticketing-service","order-service","notification-service","chat-service","cs-service"]'
           CHANGED='${{ steps.filter.outputs.changes }}'   # 예: ["user-service","common"]
           # 함정① common/루트 빌드파일이 바뀌면 전체 빌드
           if echo "$CHANGED" | grep -q '"common"'; then

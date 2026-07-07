@@ -1,0 +1,73 @@
+# =====================================================================
+# 6pm AIOps · Prometheus 설정 (감지 파이프라인용)
+# 저장 위치: 레포의 ./infra/prometheus.yml 로 두세요 (compose 마운트 경로)
+# 핵심: scrape(메트릭 수집) + rule_files(알림 규칙) + alerting(Alertmanager 연동)
+# =====================================================================
+global:
+  scrape_interval: 5s          # 부하 테스트라 촘촘하게(평상시 15s) — 노이즈 주의
+  evaluation_interval: 5s      # alert rule 평가 주기
+  external_labels:
+    cluster: 6pm-local
+
+# 1) 알림 규칙 파일 (SLO 위반 감지)
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+# 2) Alertmanager 연동 (규칙 발화 → Alertmanager 로 전달)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']   # 같은 compose 네트워크의 서비스명
+
+# 3) 수집 대상
+#   ⚠️ 이번 주 워크플로우: infra=docker, 앱=IntelliJ(호스트) 기동.
+#      docker 안의 prometheus 에서 호스트 앱을 보려면 host.docker.internal 사용.
+#      (Linux 호스트면 compose 의 prometheus 서비스에
+#         extra_hosts: ["host.docker.internal:host-gateway"]  추가 필요.
+#       Mac/Windows Docker Desktop 은 기본 동작.)
+#   ▶ 나중에 전부 docker(--profile all)로 돌릴 땐 host.docker.internal:<port>
+#      → <service-name>:<port> 로만 바꾸면 됨 (예: user-service:8081).
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'gateway-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8080'] }]
+
+  - job_name: 'eureka-server'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8761'] }]
+
+  - job_name: 'user-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8081'] }]
+
+  - job_name: 'feed-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8082'] }]
+
+  - job_name: 'ticketing-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8083'] }]
+
+  - job_name: 'order-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8084'] }]
+
+  - job_name: 'notification-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8085'] }]
+
+  - job_name: 'aiops-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8086'] }]
+
+  - job_name: 'auth-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8087'] }]
+
+  - job_name: 'chat-service'
+    metrics_path: /actuator/prometheus
+    static_configs: [{ targets: ['host.docker.internal:8088'] }]

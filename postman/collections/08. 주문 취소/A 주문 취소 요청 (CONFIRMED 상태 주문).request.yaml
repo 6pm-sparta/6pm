@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{baseUrl}}/api/v1/orders/{{orderId}}"
+method: DELETE
+headers:
+  Authorization: Bearer {{userA_token}}
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); const data = pm.response.json().data; pm.test("상태는 REFUND_REQUESTED", function () { pm.expect(data.status).to.eql("REFUND_REQUESTED"); }); pm.collectionVariables.set("paymentId", data.paymentId);
+    language: text/javascript
+order: 1000

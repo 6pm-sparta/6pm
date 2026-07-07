@@ -1,0 +1,213 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "timezone": "browser",
+  "title": "6pm 부하 관측 대시보드",
+  "uid": "6pm-loadtest",
+  "schemaVersion": 39,
+  "version": 2,
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0,
+        "refresh": 1
+      },
+      {
+        "name": "job",
+        "label": "Service (job)",
+        "type": "query",
+        "datasource": "${datasource}",
+        "query": "label_values(http_server_requests_seconds_count, job)",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "current": { "text": "ticketing-service", "value": "ticketing-service" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 100,
+      "type": "row",
+      "title": "트래픽 & 지연 (Service: $job)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
+      "id": 1,
+      "title": "처리량 RPS (요청/초)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(http_server_requests_seconds_count{job=\"$job\"}[1m]))", "legendFormat": "RPS" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "응답시간 p95 / p99 (SLO p99<500ms)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 5 },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.5 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"$job\"}[1m])) by (le))", "legendFormat": "p99" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{job=\"$job\"}[1m])) by (le))", "legendFormat": "p95" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "에러율 5xx (SLO < 1%)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "custom": { "drawStyle": "line", "fillOpacity": 10 },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.01 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(http_server_requests_seconds_count{job=\"$job\",status=~\"5..\"}[1m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"$job\"}[1m])), 0.001)", "legendFormat": "5xx rate" }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "엔드포인트별 p99 지연 (uri) — 어디가 느린가",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job=\"$job\"}[1m])) by (le, uri))", "legendFormat": "{{uri}}" }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "상태코드별 RPS (2xx/4xx/5xx 분포)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 30, "stacking": { "mode": "normal", "group": "A" } } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(http_server_requests_seconds_count{job=\"$job\"}[1m])) by (status)", "legendFormat": "{{status}}" }
+      ]
+    },
+    {
+      "id": 101,
+      "type": "row",
+      "title": "자원 (USE: 사용률·포화·에러)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "panels": []
+    },
+    {
+      "id": 4,
+      "title": "HikariCP 커넥션 (pending>0 = 병목!)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "hikaricp_connections_active{job=\"$job\"}", "legendFormat": "active" },
+        { "refId": "B", "expr": "hikaricp_connections_pending{job=\"$job\"}", "legendFormat": "pending ★" },
+        { "refId": "C", "expr": "hikaricp_connections_max{job=\"$job\"}", "legendFormat": "max" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "CPU 사용률",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "process_cpu_usage{job=\"$job\"}", "legendFormat": "process" },
+        { "refId": "B", "expr": "system_cpu_usage{job=\"$job\"}", "legendFormat": "system" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Heap 사용률",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1, "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(jvm_memory_used_bytes{job=\"$job\",area=\"heap\"}) / sum(jvm_memory_max_bytes{job=\"$job\",area=\"heap\"})", "legendFormat": "heap used %" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "GC pause (초/초)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "rate(jvm_gc_pause_seconds_sum{job=\"$job\"}[1m])", "legendFormat": "gc pause/s" }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Kafka consumer lag (없으면 kafka-exporter 필요)",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(kafka_consumer_fetch_manager_records_lag{job=\"$job\"})", "legendFormat": "lag" }
+      ]
+    },
+    {
+      "id": 102,
+      "type": "row",
+      "title": "Gateway (WebFlux · 라우트별)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "title": "Gateway 라우트별 평균 지연",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 35 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(spring_cloud_gateway_requests_seconds_sum{job=\"gateway-service\"}[1m])) by (routeId) / clamp_min(sum(rate(spring_cloud_gateway_requests_seconds_count{job=\"gateway-service\"}[1m])) by (routeId), 0.001)", "legendFormat": "{{routeId}}" }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Gateway 라우트별 RPS",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 35 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(spring_cloud_gateway_requests_seconds_count{job=\"gateway-service\"}[1m])) by (routeId)", "legendFormat": "{{routeId}}" }
+      ]
+    }
+  ]
+}

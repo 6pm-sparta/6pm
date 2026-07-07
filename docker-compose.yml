@@ -1,45 +1,173 @@
 # =====================================================================
-# 6pm MSA Docker Compose (보강판) — Profile 기반
+# 6pm MSA Docker Compose — Profile 기반
 # =====================================================================
-# 변경점 vs 기존:
-#   + postgres 에 init-db.sql 마운트(서비스별 스키마 자동 생성)
-#   + Loki / Promtail / Alertmanager 추가 (o11y 프로파일)
-#   + prometheus 가 alertmanager 와 연동되도록 alertmanager.yml 추가
-#   + gateway 포트 8080 으로 통일
-#   + [신규] core/apps 9개 서비스의 build 를 공통 멀티스테이지 Dockerfile 로 연결
-#           (멀티모듈이라 context 는 레포 루트, 모듈 구분은 args.SERVICE)
-# 사용법:
-#   인프라만:        docker compose --profile infra up -d
-#   인프라+관측:     docker compose --profile infra --profile o11y up -d
-#   전체:            docker compose --profile all up -d --build
+# 인프라 재구성(Production 대비):
+#   * DB-per-service: 단일 postgres(fandom_db) → 서비스별 독립 인스턴스 8개
+#       user(5432) feed(5433) ticketing(5434) order(5435)
+#       notification(5436) aiops(5437) chat(5438) cs(5439)
+#     - auth/gateway 는 DB 미사용 → 인스턴스 없음
+#     - 테이블은 각 서비스 JPA(ddl-auto=update) 가 생성. aiops 만 incident 테이블 init 선반영.
+#     - AWS RDS N개 구조에 1:1 대응 (연결 주소만 환경별로 전환)
+#   * Redis 분리: 단일 redis → redis-general(6379) + redis-ticketing(6380)
+#     - 일반(세션/캐시/refresh/blacklist) vs 티켓팅(대기열/재고/분산락) 물리 분리
+#   * kafka dual-listener(INTERNAL kafka:29092 / EXTERNAL localhost:9092)
+#   * o11y(prometheus/alertmanager/loki/promtail/grafana) 유지
+#
+# Profile 그룹 (서비스별 1:1 — 필요한 것만 정확히 띄운다. 묶고 싶으면 여러 개 나열):
+#   DB:    db-user / db-feed / db-ticketing / db-order / db-notification / db-aiops / db-chat / db-cs
+#   Redis: redis-general(6379) / redis-ticketing(6380)
+#   묶음:  infra(=DB·Redis·kafka·zipkin 전부) / core / apps / o11y / all
+#
+# 사용법 (스프링 서버는 IDE에서 실행, docker는 인프라만 띄우는 방식):
+#   내 도메인(user/auth/gateway) 개발:  docker compose --profile db-user --profile redis-general up -d
+#   티켓팅 개발:            docker compose --profile db-ticketing --profile redis-ticketing up -d
+#   인프라 전체:            docker compose --profile infra up -d
+#   인프라+관측:            docker compose --profile infra --profile o11y up -d
+#   전체(서비스 포함):       docker compose --profile all up -d --build
+#
+# 주의: 기존 단일 postgres 볼륨(postgres_data)에서 전환 시 docker compose down -v 로 볼륨 정리 필요.
+# 비밀번호 등 비밀값은 같은 폴더의 .env 에 둔다(레포엔 .env.example 만 커밋).
 # =====================================================================
 
 services:
   # ---------------------------------------------------------------
   # 1. INFRA (DB & Middleware)
   # ---------------------------------------------------------------
-  postgres:
-    image: postgres:15-alpine
-    profiles: ["infra", "all"]
-    container_name: 6pm-postgres
+  # ===== DB-per-service: 서비스마다 독립 PostgreSQL 인스턴스 (AWS RDS N개에 대응) =====
+  # auth/gateway는 DB를 쓰지 않으므로 인스턴스 없음.
+  # 개발 시에는 본인 도메인 profile만 띄운다. 예) docker compose --profile db-user --profile redis up -d
+  # 테이블은 각 서비스 JPA(ddl-auto=update)가 생성. aiops만 incident 테이블을 init 스크립트로 선반영.
+  postgres-user:
+    image: postgres:17-alpine
+    profiles: ["db-user", "infra", "all"]
+    container_name: 6pm-postgres-user
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: fandom_db
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: user_db
       TZ: Asia/Seoul
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./db-init:/docker-entrypoint-initdb.d
+      - postgres_user_data:/var/lib/postgresql/data
 
-  redis:
+  postgres-feed:
+    image: postgres:17-alpine
+    profiles: ["db-feed", "infra", "all"]
+    container_name: 6pm-postgres-feed
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: feed_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_feed_data:/var/lib/postgresql/data
+
+  postgres-ticketing:
+    image: postgres:17-alpine
+    profiles: ["db-ticketing", "infra", "all"]
+    container_name: 6pm-postgres-ticketing
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ticketing_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_ticketing_data:/var/lib/postgresql/data
+
+  postgres-order:
+    image: postgres:17-alpine
+    profiles: ["db-order", "infra", "all"]
+    container_name: 6pm-postgres-order
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: order_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_order_data:/var/lib/postgresql/data
+
+  postgres-notification:
+    image: postgres:17-alpine
+    profiles: ["db-notification", "infra", "all"]
+    container_name: 6pm-postgres-notification
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: notification_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_notification_data:/var/lib/postgresql/data
+
+  postgres-aiops:
+    image: postgres:17-alpine
+    profiles: ["db-aiops", "infra", "all"]
+    container_name: 6pm-postgres-aiops
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: aiops_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_aiops_data:/var/lib/postgresql/data
+      - ./db-init/aiops:/docker-entrypoint-initdb.d   # incident_alert_history 테이블 선반영
+
+  postgres-chat:
+    image: postgres:17-alpine
+    profiles: ["db-chat", "infra", "all"]
+    container_name: 6pm-postgres-chat
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: chat_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_chat_data:/var/lib/postgresql/data
+
+  postgres-cs:
+    image: pgvector/pgvector:pg17
+    profiles: ["db-cs", "infra", "all"]
+    container_name: 6pm-postgres-cs
+    ports:
+      - "5439:5432"
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-root}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: cs_db
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_cs_data:/var/lib/postgresql/data
+      - ./db-init/cs:/docker-entrypoint-initdb.d 
+
+  # ===== Redis 분리: 일반(세션/캐시/refresh/blacklist) vs 티켓팅(대기열/재고/분산락) =====
+  # 티켓 오픈 시 티켓팅 부하가 일반 Redis(인증 blacklist 등)를 잠식하지 않도록 물리 분리.
+  redis-general:
     image: redis:7-alpine
-    profiles: ["infra", "all"]
-    container_name: 6pm-redis
+    profiles: ["redis-general", "infra", "all"]
+    container_name: 6pm-redis-general
     ports:
       - "6379:6379"
-    command: redis-server --requirepass fandom_redis_pw
+    command: redis-server --requirepass ${REDIS_GENERAL_PASSWORD}
+
+  redis-ticketing:
+    image: redis:7-alpine
+    profiles: ["redis-ticketing", "infra", "all"]
+    container_name: 6pm-redis-ticketing
+    ports:
+      - "6380:6379"
+    command: redis-server --requirepass ${REDIS_TICKETING_PASSWORD}
 
   kafka:
     image: apache/kafka:3.7.0
@@ -51,11 +179,12 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # dual-listener: 컨테이너 내부는 INTERNAL(kafka:29092), 호스트는 EXTERNAL(localhost:9092)
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
@@ -72,7 +201,7 @@ services:
       - "8090:8080"
     environment:
       - KAFKA_CLUSTERS_0_NAME=6pm-local-cluster
-      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:29092
     depends_on:
       - kafka
 
@@ -80,6 +209,8 @@ services:
     image: openzipkin/zipkin:latest
     profiles: ["infra", "all"]
     container_name: 6pm-zipkin
+    environment:
+      JAVA_OPTS: "-Xmx512m"
     ports:
       - "9411:9411"
 
@@ -107,6 +238,7 @@ services:
         SERVICE: config-server
     profiles: ["core", "all"]
     container_name: 6pm-config
+    env_file: .env.docker
     ports:
       - "8888:8888"
 
@@ -118,6 +250,10 @@ services:
         SERVICE: gateway-service
     profiles: ["core", "all"]
     container_name: 6pm-gateway
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports:
       - "8080:8080"
     depends_on:
@@ -126,6 +262,20 @@ services:
   # ---------------------------------------------------------------
   # 3. APPS (비즈니스 마이크로서비스)
   # ---------------------------------------------------------------
+  auth-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: auth-service
+    profiles: ["apps", "all"]
+    container_name: 6pm-auth
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
+    ports: ["8087:8087"]                # ← develop 값으로 맞추세요
+
   user-service:
     build:
       context: .
@@ -134,6 +284,10 @@ services:
         SERVICE: user-service
     profiles: ["apps", "all"]
     container_name: 6pm-user
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8081:8081"]
 
   feed-service:
@@ -154,7 +308,16 @@ services:
         SERVICE: ticketing-service
     profiles: ["apps", "all"]
     container_name: 6pm-ticketing
+    env_file: .env.docker
     ports: ["8083:8083"]
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
+      # 대기열 스케줄러 주기(ms). 기본 60000(운영값). 로컬 .env에 QUEUE_SCHEDULER_DELAY=2000 등을 넣으면
+      # Postman 테스트 시 대기열 진입 후 빠르게 isReady=true로 전환되어 대기 시간을 줄일 수 있다.
+      # env에 QUEUE_SCHEDULER_DELAY=2000 넣어야 작동
+      # 시연용 임시 설정이므로 추후 제거
+      - QUEUE_SCHEDULER_DELAY=${QUEUE_SCHEDULER_DELAY:-60000}
 
   order-service:
     build:
@@ -164,6 +327,10 @@ services:
         SERVICE: order-service
     profiles: ["apps", "all"]
     container_name: 6pm-order
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8084:8084"]
 
   notification-service:
@@ -186,6 +353,30 @@ services:
     container_name: 6pm-aiops
     ports: ["8086:8086"]
 
+  chat-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: chat-service
+    profiles: [ "apps", "all" ]
+    container_name: 6pm-chat
+    ports: [ "8088:8088" ]
+
+  cs-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        SERVICE: cs-service
+    profiles: ["apps", "all"]
+    container_name: 6pm-cs
+    ports: ["8089:8089"]
+
+  # chat-service: 레포에 모듈이 있으면 위 auth-service 형식으로 복구(SERVICE/포트만 변경).
+  #   레포에 아직 없으면 compose에서 빼는 게 맞고, 리뷰어에는 "미구현 서비스라 제외"로 답변.
+  #   (develop 의 정의가 있으면 그걸 그대로 가져오는 게 가장 안전)
+
   # ---------------------------------------------------------------
   # 4. O11Y (관측성)
   # ---------------------------------------------------------------
@@ -200,6 +391,8 @@ services:
       - ./infra/alert-rules.yml:/etc/prometheus/alert-rules.yml
     depends_on:
       - alertmanager
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   alertmanager:
     image: prom/alertmanager:latest
@@ -209,6 +402,8 @@ services:
       - "9093:9093"
     volumes:
       - ./infra/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   loki:
     image: grafana/loki:latest
@@ -227,8 +422,7 @@ services:
     container_name: 6pm-promtail
     volumes:
       - ./infra/promtail-config.yml:/etc/promtail/config.yml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - .:/hostlogs:ro
     command: -config.file=/etc/promtail/config.yml
     depends_on:
       - loki
@@ -239,11 +433,49 @@ services:
     container_name: 6pm-grafana
     ports:
       - "3000:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
       - loki
+  
+  # ---------------------------------------------------------------
+  # 5. ai
+  # ---------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai", "all"]
+    container_name: 6pm-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+  ollama-init:
+    image: ollama/ollama:latest
+    profiles: ["ai", "all"]
+    container_name: 6pm-ollama-init
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh","-c"]
+    # 임베딩 + LLM 모델 - 용량 작으면 1.5b로 변경
+    command: >
+      "until ollama list >/dev/null 2>&1; do sleep 1; done;
+       ollama pull nomic-embed-text &&
+       ollama pull qwen2.5:3b"
+    restart: "no"
 
 volumes:
-  postgres_data:
+  postgres_user_data:
+  postgres_feed_data:
+  postgres_ticketing_data:
+  postgres_order_data:
+  postgres_notification_data:
+  postgres_aiops_data:
+  postgres_chat_data:
+  postgres_cs_data:
   kafka_data:
   loki_data:
+  ollama_data:

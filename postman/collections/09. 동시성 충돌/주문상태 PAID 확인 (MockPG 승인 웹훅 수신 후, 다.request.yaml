@@ -1,0 +1,11 @@
+$kind: http-request
+name: 주문상태 PAID 확인 (MockPG 승인 웹훅 수신 후, 다음 단계인 Kafka 수동 produce 전에 실행)
+url: "{{baseUrl}}/api/v1/orders/{{orderId}}"
+method: GET
+headers:
+  Authorization: Bearer {{userA_token}}
+scripts:
+  - type: afterResponse
+    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); pm.test("주문 상태는 PAID", function () { pm.expect(pm.response.json().data.status).to.eql("PAID"); });
+    language: text/javascript
+order: 4000

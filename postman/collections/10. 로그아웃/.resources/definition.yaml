@@ -1,0 +1,7 @@
+$kind: collection
+description: |-
+  A 로그아웃 → access 토큰을 담아서 내정보 변경 요청 → 요청 실패 확인
+
+  1. 로그아웃 시 레디스 확인해서 refresh token 삭제되고, access 토큰 블랙리스트 등록 잘 됐는지 확인
+      
+  2. 디바이스 토큰 삭제(hard), 알림 내역 삭제(soft) 확인

@@ -7,7 +7,24 @@ management:
     health:
       show-details: always
 
+# 로그에 traceId/spanId를 노출하기 위한 correlation 패턴.
+# tracing으로 전파된 traceId(traceparent)를 콘솔/파일 로그의 correlation 자리에 채운다.
+# 모든 서비스가 동일 포맷으로 남기도록 Config Server에서 중앙 관리한다.
+logging:
+  pattern:
+    correlation: "[%X{traceId:-},%X{spanId:-}] "
+  include-application-name: false
+
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
+
+# config-server/src/main/resources/config/application.yml
+
+# UserIdCard HMAC 서명 공유 키. Gateway가 서명하고 모든 도메인 서비스가 검증한다.
+# 모든 서비스가 동일한 키를 써야 하므로 Config Server에서 중앙 관리한다. (common-auth.md 참고)
+# TODO: 운영 시에는 환경변수/시크릿 매니저로 분리 (평문 금지)
+hmac:
+  secret-key: 6pm-fandom-sns-hmac-shared-secret-key-must-be-at-least-32-bytes-long

@@ -1,2 +1,4 @@
 com.fandom.common.config.CommonAutoConfiguration
 com.fandom.common.config.JpaAuditingConfig
+com.fandom.common.auth.config.CommonAuthAutoConfiguration
+com.fandom.common.logging.config.CommonLoggingAutoConfiguration

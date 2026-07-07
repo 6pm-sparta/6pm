@@ -1,0 +1,15 @@
+apiVersion: 1
+
+# Grafana 대시보드 자동 로드 provider.
+# /var/lib/grafana/dashboards 안의 *.json 을 시작 시 자동 등록한다.
+# (docker-compose grafana 에 ./infra/grafana/dashboards:/var/lib/grafana/dashboards 마운트 필요)
+providers:
+  - name: '6pm-dashboards'
+    orgId: 1
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true          # UI에서 수정도 가능(파일이 시작 시 기준)
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,13 +1,18 @@
 server:
   port: 8888
-
 spring:
   application:
     name: config-server
-  profiles:
-    active: native
   cloud:
     config:
       server:
-        native:
-          search-locations: classpath:/config/
+        git:
+          uri: https://github.com/6pm-sparta/6pm-config.git
+          default-label: main
+          username: ${CONFIG_GIT_USERNAME:}
+          password: ${CONFIG_GIT_TOKEN:}
+
+management:
+  tracing:
+    sampling:
+      probability: 0.1     # 100% → 10%. 부하 중 Zipkin 추적

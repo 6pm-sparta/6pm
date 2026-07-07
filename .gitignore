@@ -38,6 +38,8 @@ out/
 
 # 환경변수 파일
 .env
+.env.*
+!.env.docker.example
 setup-env.ps1
 
 # Docker Local Data Volumes
@@ -53,3 +55,30 @@ docker_data/
 
 # Local runtime artifacts
 *-bootrun.log
+
+## log
+**/logs/
+*.log
+
+## postman (워크스페이스 클라우드 연결 정보·바이너리 데이터셋·환경변수는 개인/로컬 전용)
+.postman/
+postman/datasets/
+postman/environments/
+
+## db backup
+backup/
+
+# Terraform
+.terraform/
+*.tfstate*
+terraform.tfvars
+*.tfstate.*
+.terraform.lock.hcl
+crash.log
+
+# k6 부하테스트 결과 (실행마다 생성 — 커밋 X)
+k6/result_*.json
+
+##eval
+**/.venv
+

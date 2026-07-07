@@ -1,0 +1,27 @@
+package com.fandom.order_service.kafka;
+
+/**
+ * order-service가 발행/수신하는 Kafka 토픽 모음. order-service 설계 문서 "4. Kafka 이벤트" 기준.
+ */
+public final class KafkaTopics {
+
+    /** 발행(Producer): order-service → ticketing-service */
+    public static final String PAYMENT_COMPLETED = "order.payment.completed";
+    public static final String PAYMENT_FAILED = "order.payment.failed";
+    public static final String PAYMENT_CANCELLED = "order.payment.cancelled";
+    public static final String HOLD_RELEASED = "order.hold.released";
+
+    /** 발행(Producer): order-service → notification-service */
+    public static final String NOTIFICATION_SEND = "notification.send";
+
+    /** 수신(Consumer): ticketing-service → order-service */
+    public static final String SEAT_BOOKED = "ticketing.seat.booked";
+    public static final String SEAT_BOOK_FAILED = "ticketing.seat.book.failed";
+
+//    /** DLQ: Consumer 재시도 소진 시 이동 대상 */
+//    public static final String SEAT_BOOKED_DLQ = SEAT_BOOKED + ".DLQ";
+//    public static final String SEAT_BOOK_FAILED_DLQ = SEAT_BOOK_FAILED + ".DLQ";
+
+    private KafkaTopics() {
+    }
+}

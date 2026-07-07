@@ -7,7 +7,7 @@ Closes #
 - [ ] feat (기능)  · [ ] fix (버그)  · [ ] refactor  · [ ] infra  · [ ] test  · [ ] docs/chore
 
 ## 관련 서비스/모듈
-<!-- 해당되는 것만: gateway / eureka / config / user / feed / ticketing / order / notification / aiops / common / infra -->
+<!-- 해당되는 것만: gateway / eureka / config / user / feed / ticketing / order / notification / aiops / common / infra / chat / cs -->
 
 ## 변경 내용
 <!-- 무엇을 왜 바꿨는지 핵심만 -->

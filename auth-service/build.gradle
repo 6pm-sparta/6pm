@@ -1,0 +1,37 @@
+// auth-service/build.gradle — 표준 와이어링 기반 (인프라 표준 참고)
+// 루트가 plugin/group/Java21/SpringCloud BOM/lombok/test 관리. 여기엔 의존성만 둔다.
+// auth-service는 자체 DB를 두지 않는다. 회원 정보는 user-service 내부 API로 조회한다.
+dependencies {
+	implementation project(':common')                                                   // ApiResponse, BaseEntity, 예외, 인증(UserIdCard)
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+
+	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client' // 서비스 등록/발견 (lb://)
+	implementation 'org.springframework.cloud:spring-cloud-starter-config'                // config-server 설정 수신
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'                // /actuator/health, prometheus
+
+	implementation 'io.micrometer:micrometer-tracing-bridge-brave'                        // 분산추적(Zipkin)
+	implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+	implementation 'io.micrometer:micrometer-registry-prometheus'                         // Prometheus 메트릭
+
+	// 요청 검증 (@Valid)
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	implementation 'org.springframework.kafka:spring-kafka'
+
+	// 서비스 간 동기 호출 (user-service 내부 회원 조회 API 호출용)
+	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+	// JWT (Access Token 발급/검증) - HS256
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly    'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly    'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+	// 비밀번호 검증용 BCrypt 인코더 (matches만 사용, 필터체인 없음)
+	implementation 'org.springframework.security:spring-security-crypto'
+
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers'
+
+	// === auth-service는 DB를 두지 않으므로 data-jpa / postgresql 미포함 ===
+}
