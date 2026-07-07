@@ -1,5 +1,6 @@
 package com.fandom.cs_service.application.service;
 
+import com.fandom.cs_service.application.dto.AnswerResult;
 import com.fandom.cs_service.application.port.CsAnswerPort;
 import com.fandom.cs_service.domain.entity.CsMessage;
 import com.fandom.cs_service.domain.entity.SenderRole;
@@ -39,6 +40,11 @@ public class CsMessageService {
 
         log.info("cs 문의 처리 user_id={}", userId);
         return answer;
+    }
+
+    // RAGAS 평가 전용
+    public AnswerResult evaluate(String question) {
+        return answerPort.generateAnswerDetailed(question, List.of());
     }
 
     // 커서
