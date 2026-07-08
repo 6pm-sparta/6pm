@@ -104,7 +104,7 @@ stateDiagram-v2
     CONFIRMED --> [*] : confirmSeat() / releaseSeat()
 ```
 
-**`Order.status`** (order-service 소유, PostgreSQL): `PENDING`/`PAYMENT_REQUESTED`/`PAID`/`CONFIRMED`/`COMPENSATING`/`REFUND_REQUESTED`/`CANCELLED`/`REFUNDED`/`FAILED`/`MANUAL_REVIEW_REQUIRED`. 전이 다이어그램·재설계안(#292)은 [order-service/architecture.md §3](../order-service/architecture.md#3-주문-상태-머신) 참고.
+**`Order.status`** (order-service 소유, PostgreSQL): `PENDING`/`CONFIRMING`/`CONFIRMED`/`CANCEL_REQUESTED`/`CANCELLED`/`FAILED`/`MANUAL_REVIEW_REQUIRED`. 전이 다이어그램은 [order-service/architecture.md §3](../order-service/architecture.md#3-주문-상태-머신) 참고.
 
 ---
 
@@ -134,9 +134,9 @@ flowchart TD
     F{좌석 Hold 요청 - 토큰 검증}
     G0[HELD - 선점만, 주문 없음]
     G1{체크아웃 요청}
-    G[주문 생성 - PENDING → CONFIRMED]
-    H[결제 요청]
-    I[PAID → CONFIRMED + 좌석 BOOKED]
+    G[주문 생성 - PENDING]
+    H[결제 요청 - CONFIRMING]
+    I[CONFIRMED + 좌석 BOOKED]
     J[FAILED + 좌석 해제]
 
     A --> B --> C --> E
