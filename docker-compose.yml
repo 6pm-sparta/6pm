@@ -205,6 +205,16 @@ services:
     depends_on:
       - kafka
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter
+    profiles: ["infra", "all"]
+    container_name: 6pm-kafka-exporter
+    command: ["--kafka.server=kafka:29092"]
+    ports:
+      - "9308:9308"
+    depends_on:
+      - kafka
+
   zipkin:
     image: openzipkin/zipkin:latest
     profiles: ["infra", "all"]
