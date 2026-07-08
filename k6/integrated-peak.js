@@ -26,6 +26,10 @@ const VU_NOTI      = parseInt(__ENV.VU_NOTI      || "80");
 const RAMP = __ENV.RAMP || "1m";     // 램프업
 const HOLD = __ENV.HOLD || "3m";     // 피크 유지(측정 구간)
 
+// 엔드포인트 경로(팀 스크립트와 일치. 다르면 -e로 교체)
+const FEED_PATH = __ENV.FEED_PATH || "/api/v1/feeds/posts/timeline"; // feed_timeline_read.js 기준
+const NOTI_PATH = __ENV.NOTI_PATH || "/api/v1/notifications";
+
 const JSON_HDR = { headers: { "Content-Type": "application/json" } };
 const errs = new Counter("errors_total");  // k6가 scenario 태그 자동 부착 → 시나리오별 분리 가능
 
@@ -88,9 +92,9 @@ export function ticketingFlow(data) {
     sleep(0.5);
 }
 
-// ── 시나리오 2: 피드 조회 ── (경로는 feed_read.js와 맞출 것)
+// ── 시나리오 2: 피드 타임라인 조회 ──
 export function feedRead(data) {
-    const r = http.get(`${BASE_URL}/api/v1/feeds`, bearer(pick(data.users).token));
+    const r = http.get(`${BASE_URL}${FEED_PATH}`, bearer(pick(data.users).token));
     if (!check(r, { "feed 2xx": (x) => x.status < 400 })) errs.add(1);
     sleep(0.5);
 }
@@ -103,9 +107,9 @@ export function loginFlow(data) {
     sleep(0.5);
 }
 
-// ── 시나리오 4: 알림 보관함 조회 ── (경로는 notification-loadtest.js와 맞출 것)
+// ── 시나리오 4: 알림 보관함 조회 ──
 export function notiRead(data) {
-    const r = http.get(`${BASE_URL}/api/v1/notifications`, bearer(pick(data.users).token));
+    const r = http.get(`${BASE_URL}${NOTI_PATH}`, bearer(pick(data.users).token));
     if (!check(r, { "noti 2xx": (x) => x.status < 400 })) errs.add(1);
     sleep(0.5);
 }
