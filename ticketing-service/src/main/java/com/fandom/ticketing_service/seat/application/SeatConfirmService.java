@@ -10,9 +10,11 @@ import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -23,7 +25,24 @@ public class SeatConfirmService {
     private static final String SEAT_KEY = "show:%s:seat:%s";
     private static final String OWNER_KEY = "show:%s:seat:%s:owner";
     private static final String INVENTORY_KEY = "inventory:%s";
-    private static final String PURCHASE_COUNT_KEY = "purchase-count:%s:%s";
+
+    // KEYS: 1=seatKey 2=ownerKey 3=inventoryKey  ARGV: 1=showId(purchase-count 키 조립용)
+    // GET->DELETE->INCR->DECR을 한 번에 원자적으로 처리해, 같은 orderId로 release가 중복 호출돼도
+    // (Kafka at-least-once 재전송 등) 재고/구매수 증감이 두 번 일어나지 않게 한다.
+    // owner가 이미 없으면(먼저 처리된 중복 호출) inventory/purchase-count 둘 다 손대지 않고 seat/owner 키 삭제만 멱등하게 수행한다.
+    private static final RedisScript<Long> RELEASE_SCRIPT = RedisScript.of("""
+            local owner = redis.call('GET', KEYS[2])
+            redis.call('DEL', KEYS[1])
+            redis.call('DEL', KEYS[2])
+            if owner then
+                redis.call('INCR', KEYS[3])
+                local sep = string.find(owner, ':')
+                local userId = string.sub(owner, 1, sep - 1)
+                redis.call('DECR', 'purchase-count:' .. userId .. ':' .. ARGV[1])
+                return 1
+            end
+            return 0
+            """, Long.class);
 
     private final ShowSeatRepository showSeatRepository;
     private final RedisTemplate<String, String> redisTemplate;
@@ -62,19 +81,15 @@ public class SeatConfirmService {
             String ownerKey = OWNER_KEY.formatted(seat.getShowId(), seat.getId());
             String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
 
-            // owner가 이미 없으면(releaseHold가 먼저 처리한 경우) purchase-count도 이미 감소했으므로 중복 감소하지 않는다
-            String owner = redisTemplate.opsForValue().get(ownerKey);
-
             seat.releaseOrder();
-            redisTemplate.delete(seatKey);
-            redisTemplate.delete(ownerKey);
-            redisTemplate.opsForValue().increment(inventoryKey);
-            if (owner != null) {
-                String userId = owner.substring(0, owner.indexOf(':'));
-                redisTemplate.opsForValue().decrement(PURCHASE_COUNT_KEY.formatted(userId, seat.getShowId()));
-            }
+            Long result = redisTemplate.execute(RELEASE_SCRIPT,
+                    List.of(seatKey, ownerKey, inventoryKey), seat.getShowId().toString());
 
-            log.info("좌석 해제 완료: orderId={}, seatId={}", orderId, seat.getId());
+            if (result != null && result == 1) {
+                log.info("좌석 해제 완료: orderId={}, seatId={}", orderId, seat.getId());
+            } else {
+                log.info("좌석 해제 스킵(이미 처리된 중복 호출): orderId={}, seatId={}", orderId, seat.getId());
+            }
         }, () -> log.warn("해제할 좌석 없음: orderId={}", orderId));
     }
 }

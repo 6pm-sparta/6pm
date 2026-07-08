@@ -17,12 +17,15 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -124,62 +127,41 @@ class SeatConfirmServiceTest {
     class ReleaseSeat {
 
         @Test
-        @DisplayName("결제 실패/취소 시 좌석이 AVAILABLE로 복원되고 Redis 재고가 복구된다")
-        void releaseSeat_success() {
+        @DisplayName("owner가 있으면(정상 해제) RELEASE_SCRIPT가 1을 반환하고 좌석 orderId가 비워진다")
+        void releaseSeat_ownerPresent_scriptReturnsOne() {
             // given
             UUID orderId = UUID.randomUUID();
             ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
             seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
-            given(redisTemplate.opsForValue()).willReturn(valueOperations);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(1L);
 
             // when
             seatConfirmService.releaseSeat(orderId);
 
             // then
             assertThat(seat.getOrderId()).isNull();
-            verify(redisTemplate, times(2)).delete(anyString());
-            verify(valueOperations).increment(anyString());
+            verify(redisTemplate).execute(any(RedisScript.class), anyList(), eq(seat.getShowId().toString()));
         }
 
         @Test
-        @DisplayName("owner 키가 남아있으면 해당 유저의 purchase-count도 감소한다")
-        void releaseSeat_ownerPresent_decrementsPurchaseCount() {
-            // given
-            UUID orderId = UUID.randomUUID();
-            UUID userId = UUID.randomUUID();
-            ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
-            seat.assignOrder(orderId);
-
-            given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
-            given(redisTemplate.opsForValue()).willReturn(valueOperations);
-            given(valueOperations.get(anyString())).willReturn(userId + ":PENDING");
-
-            // when
-            seatConfirmService.releaseSeat(orderId);
-
-            // then
-            verify(valueOperations).decrement("purchase-count:%s:%s".formatted(userId, seat.getShowId()));
-        }
-
-        @Test
-        @DisplayName("owner 키가 이미 없으면(수동 해제가 먼저 처리함) purchase-count를 중복 감소하지 않는다")
-        void releaseSeat_ownerAlreadyGone_doesNotDoubleDecrement() {
+        @DisplayName("owner가 이미 없으면(중복 호출) RELEASE_SCRIPT가 0을 반환하고 재고/구매수를 중복 처리하지 않는다")
+        void releaseSeat_ownerAlreadyGone_scriptReturnsZero() {
             // given
             UUID orderId = UUID.randomUUID();
             ShowSeat seat = ShowSeat.builder().showId(UUID.randomUUID()).seatName("A-1").grade("VIP").price(100000).build();
             seat.assignOrder(orderId);
 
             given(showSeatRepository.findByOrderId(orderId)).willReturn(Optional.of(seat));
-            given(redisTemplate.opsForValue()).willReturn(valueOperations);
-            given(valueOperations.get(anyString())).willReturn(null);
+            given(redisTemplate.execute(any(RedisScript.class), anyList(), any())).willReturn(0L);
 
             // when
             seatConfirmService.releaseSeat(orderId);
 
-            // then
-            verify(valueOperations, never()).decrement(anyString());
+            // then — 스크립트가 이미 원자적으로 중복을 걸렀다는 걸 확인. Java 쪽은 로그만 분기하고 추가 Redis 호출은 없다.
+            assertThat(seat.getOrderId()).isNull();
+            verify(redisTemplate, times(1)).execute(any(RedisScript.class), anyList(), any());
         }
 
         @Test
@@ -193,7 +175,7 @@ class SeatConfirmServiceTest {
             seatConfirmService.releaseSeat(orderId);
 
             // then
-            verify(redisTemplate, never()).delete(anyString());
+            verify(redisTemplate, never()).execute(any(RedisScript.class), anyList(), any());
             verify(seatEventProducer, never()).publishSeatBooked(any());
         }
     }
