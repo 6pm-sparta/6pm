@@ -1,5 +1,7 @@
 # ADR 008 — 환불 미완료 복구 배치
 
+> 📌 **상태명 변경 참고**: 이 문서는 (주문 상태 머신 재설계) 이전에 작성되어 `PAYMENT_REQUESTED`/`PAID`/`REFUND_REQUESTED`/`REFUNDED`/`COMPENSATING` 같은 옛 상태명을 그대로 쓴다. 결정 배경을 남긴 역사적 기록이라 원문은 유지하고, 현재 상태명 매핑은 [architecture.md](../architecture.md) 3번 섹션을 참고할 것.
+
 **날짜**: 2026-07  
 **상태**: 확정
 
@@ -59,11 +61,9 @@
 
 `OrderTimeoutScheduler`/`OrderTimeoutWriter` 패턴을 그대로 따랐다.
 
-```
-RefundRecoveryScheduler  →  폴링 + ID 목록 조회 (락 없이)
-                         →  건별 try-catch (한 건 실패가 배치 전체를 막지 않음)
-RefundRecoveryWriter     →  건당 독립 트랜잭션 + 비관적 락 + 상태 재검증
-```
+1. `RefundRecoveryScheduler`가 락 없이 폴링으로 후보 ID 목록만 조회
+2. 후보 건마다 `try-catch`로 감싸서 처리 (한 건의 실패가 배치 전체를 막지 않음)
+3. 실제 처리는 `RefundRecoveryWriter`가 건당 독립 트랜잭션 안에서 비관적 락을 잡고 상태를 재검증한 뒤 수행
 
 ---
 

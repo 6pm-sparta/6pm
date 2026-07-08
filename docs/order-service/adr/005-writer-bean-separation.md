@@ -1,5 +1,7 @@
 # ADR 005 — Writer 빈 분리 (트랜잭션 경계)
 
+> 📌 **상태명 변경 참고**: 이 문서는 (주문 상태 머신 재설계) 이전에 작성되어 `PAYMENT_REQUESTED`/`PAID`/`REFUND_REQUESTED`/`REFUNDED`/`COMPENSATING` 같은 옛 상태명을 그대로 쓴다. 결정 배경을 남긴 역사적 기록이라 원문은 유지하고, 현재 상태명 매핑은 [architecture.md](../architecture.md) 3번 섹션을 참고할 것.
+
 **날짜**: 2026-06  
 **상태**: 확정
 

@@ -1,5 +1,7 @@
 # ADR 001 — PG 웹훅을 Primary Completion Path로 채택
 
+> 📌 **상태명 변경 참고**: 이 문서는 (주문 상태 머신 재설계) 이전에 작성되어 `PAYMENT_REQUESTED`/`PAID`/`REFUND_REQUESTED`/`REFUNDED`/`COMPENSATING` 같은 옛 상태명을 그대로 쓴다. 결정 배경을 남긴 역사적 기록이라 원문은 유지하고, 현재 상태명 매핑은 [architecture.md](../architecture.md) 3번 섹션을 참고할 것.
+
 **날짜**: 2026-06  
 **상태**: 확정
 
@@ -49,3 +51,5 @@ Client → order-service → PG API (접수만)
 - 클라이언트가 결제 완료 시점을 동기 응답으로 알 수 없다. 알림(`notification.send`)으로 대체한다.
 - 웹훅 미수신 시 PAYMENT_REQUESTED 상태에서 stuck될 수 있다. 타임아웃 스케줄러(현재 미구현 상태)로 처리한다.
 - 웹훅 중복 수신에 대한 멱등성 처리가 필요하다. PG 트랜잭션 ID 기반 Redis SETNX 1차 차단 + 상태 전이 성공 여부 반환으로 Kafka 이벤트 중복 발행을 방지한다.
+
+> **현재 상태 (2026-07)**: 위 두 트레이드오프 모두 이후 구현됐다. 다만 타임아웃 스케줄러(`OrderTimeoutScheduler`)는 결제 시도 자체가 없는 `PENDING` 주문만 대상으로 하고, 웹훅이 안 온 채로 `payments.REQUESTED`에 멈춘 경우는 별도 배치(좀비 결제 정리, `flows.md` 8번 참고)가 담당한다 — "타임아웃 스케줄러 하나로 다 처리한다"는 원래 가정보다 실제로는 두 스케줄러로 역할이 나뉘었다.
