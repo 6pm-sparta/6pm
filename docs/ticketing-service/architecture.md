@@ -123,18 +123,7 @@ erDiagram
 
 ### ownerKey — 소유권 상태 (`{userId}:{status}`)
 
-`hold()`(선점)와 `checkout()`(주문 생성)이 분리된 2026-07-03 리팩토링 이후 3단계로 구성된다.
-
-```mermaid
-stateDiagram-v2
-    [*] --> HELD : hold() 성공
-    HELD --> PENDING : checkout() 진입(CHECKOUT_CLAIM_SCRIPT)
-    PENDING --> CONFIRMED : 주문 생성 성공
-    PENDING --> [*] : 주문 생성 실패 (선점 롤백)
-    HELD --> [*] : releaseHold() / TTL 만료
-    CONFIRMED --> [*] : confirmSeat() (결제 완료, ownerKey DELETE)
-    CONFIRMED --> [*] : releaseSeat() (결제 실패/취소)
-```
+`hold()`(선점)와 `checkout()`(주문 생성)이 분리된 2026-07-03 리팩토링 이후 3단계로 구성된다. 상태 전이 다이어그램은 [README §5 상태 전이](../ticketing-service/README.md#상태-전이) 참고.
 
 | 상태 | 의미 |
 |---|---|
@@ -152,7 +141,7 @@ stateDiagram-v2
 |---|---|---|---|
 | 소유 서비스 | ticketing-service | ticketing-service | order-service |
 | 저장 위치 | Redis `show:{showId}:seat:{seatId}` | Redis `show:{showId}:seat:{seatId}:owner` | PostgreSQL `orders.status` |
-| 값 | `AVAILABLE`/`HOLDING`/`BOOKED` | `HELD`/`PENDING`/`CONFIRMED` | `PENDING`/`PAYMENT_REQUESTED`/`PAID`/`CONFIRMED`/`COMPENSATING`/`REFUND_REQUESTED`/`CANCELLED`/`REFUNDED`/`FAILED`/`MANUAL_REVIEW_REQUIRED` |
+| 값 | `AVAILABLE`/`HOLDING`/`BOOKED` | `HELD`/`PENDING`/`CONFIRMED` | `PENDING`/`CONFIRMING`/`CONFIRMED`/`CANCEL_REQUESTED`/`CANCELLED`/`FAILED`/`MANUAL_REVIEW_REQUIRED` |
 | 무엇을 나타내나 | "남이 이 좌석을 잡을 수 있나" — 좌석 자체의 겉모습, 클라이언트에 노출 | "이 hold를 지금 풀어줘도 되나" — 동시성 제어용 내부 상태, 클라이언트 비노출 | 결제·환불까지 포함한 주문 전체 생명주기 |
 | 바꾸는 주체 | `SeatService`, `SeatConfirmService` | `SeatService`, `SeatConfirmService` | order-service의 각 Writer(`OrderCreationWriter`, `PaymentRequestWriter`, `OrderConfirmationWriter`, `OrderCompensationWriter` 등) |
 
@@ -171,7 +160,7 @@ stateDiagram-v2
 | 토픽 | Producer | Consumer | 용도 |
 |------|----------|----------|------|
 | `ticketing.seat.booked` | ticketing-service | order-service | 좌석 확정 → 주문 CONFIRMED |
-| `ticketing.seat.book.failed` | ticketing-service | order-service | 좌석 예매 실패 → SAGA 보상(COMPENSATING → REFUND_REQUESTED) 시작 |
+| `ticketing.seat.book.failed` | ticketing-service | order-service | 좌석 예매 실패 → SAGA 보상 시작(`CONFIRMING`/`CONFIRMED` → `CANCEL_REQUESTED` 단일 전이, 환불은 `Order`가 아닌 `Payment.paymentStatus`에서 별도 추적) |
 | `order.payment.completed` | order-service | ticketing-service | 결제 승인 → 좌석 BOOKED |
 | `order.payment.failed` | order-service | ticketing-service | 결제 실패 → 좌석 해제 |
 | `order.payment.cancelled` | order-service | ticketing-service | 결제 완료 후 취소/환불 → 좌석 해제 |

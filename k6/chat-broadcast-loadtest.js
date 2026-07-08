@@ -40,6 +40,7 @@ const bcastReceived = new Counter("stomp_broadcast_received"); // 팬들이 받�
 const connectTime   = new Trend("stomp_connect_ms", true);
 
 export const options = {
+    setupTimeout: __ENV.SETUP_TIMEOUT || "300s",
     scenarios: {
         // 팬: 먼저 램프업하여 구독
         fans: {

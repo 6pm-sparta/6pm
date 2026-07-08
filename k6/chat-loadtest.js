@@ -37,6 +37,7 @@ const msgReceived = new Counter("stomp_msg_received");
 const connectTime = new Trend("stomp_connect_ms", true);
 
 export const options = {
+    setupTimeout: __ENV.SETUP_TIMEOUT || "300s",
     scenarios: {
         chat: {
             executor: "ramping-vus",

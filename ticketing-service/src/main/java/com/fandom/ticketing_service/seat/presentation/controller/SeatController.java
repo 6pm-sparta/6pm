@@ -60,7 +60,6 @@ public class SeatController {
         return ResponseEntity.ok(ApiResponse.success());
     }
 
-    // TODO: api 엔드포인트 설계 괜찮은지 검토 필요
     @GetMapping("/purchase-limit")
     public ResponseEntity<ApiResponse<PurchaseLimitResponse>> getPurchaseLimit(
             @PathVariable UUID showId,

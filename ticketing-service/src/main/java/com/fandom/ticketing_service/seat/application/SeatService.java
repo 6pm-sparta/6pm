@@ -11,6 +11,8 @@ import com.fandom.ticketing_service.seat.domain.repository.ShowSeatRepository;
 import com.fandom.ticketing_service.seat.presentation.dto.HoldResponse;
 import com.fandom.ticketing_service.seat.presentation.dto.PurchaseLimitResponse;
 import com.fandom.ticketing_service.seat.presentation.dto.ShowSeatResponse;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -100,6 +102,7 @@ public class SeatService {
     private final OrderClient orderClient;
     private final OrderClientRetryWrapper orderClientRetryWrapper;
     private final PurchaseTokenService purchaseTokenService;
+    private final MeterRegistry meterRegistry;
 
     public List<ShowSeatResponse> getSeats(UUID showId) {
         List<ShowSeat> seats = showSeatRepository.findAllByShowId(showId);
@@ -139,10 +142,14 @@ public class SeatService {
 
         switch ((result != null ? result.intValue() : 0)) {
             case 1 -> { /* 선점 성공 */ }
-            case 0 -> throw new CustomException(TicketingErrorCode.SEAT_ALREADY_HELD);
+            case 0 -> {
+                // SLO-3: 동시 hold 경합으로 선점 실패한 횟수. 라벨에 seatId 넣지 말 것(카디널리티 폭발).
+                meterRegistry.counter("ticketing_overbooking_total").increment();
+                throw new CustomException(TicketingErrorCode.SEAT_ALREADY_HELD);
+            }
             case -1 -> throw new CustomException(TicketingErrorCode.NO_INVENTORY);
             case -2 -> throw new CustomException(TicketingErrorCode.PURCHASE_LIMIT_EXCEEDED);
-            default -> throw new CustomException(TicketingErrorCode.SEAT_ALREADY_HELD);
+            default -> throw new CustomException(TicketingErrorCode.SEAT_HOLD_UNKNOWN_RESULT);
         }
     }
 

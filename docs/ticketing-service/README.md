@@ -75,7 +75,36 @@ Orders               (주문 = 예약 + 확정 통합 단일 애그리게이트)
 | `show:{show_id}:seat:{show_seat_id}` | String | 600초 | 좌석 상태: `AVAILABLE` / `HOLDING` / `BOOKED` |
 | `show:{show_id}:seat:{show_seat_id}:owner` | String | 600초 (seatKey와 동일) | 선점한 `{userId}:{status}`. status는 `PENDING`(주문 생성 중) / `CONFIRMED`(주문 생성 완료) |
 | `inventory:{show_id}` | String (Counter) | - | 남은 좌석 수 |
-| `purchase-count:{userId}:{showId}` | String (Counter) | - | 사용자별 구매 한도 체크 |
+| `purchase-count:{userId}:{showId}` | String (Counter) | - | 사용자별 구매 한도 체크. 한도(`MAX_PER_USER`)는 4(`SeatService.java:36`, 2→4로 상향된 값) |
+
+### 상태 전이
+
+이 시스템엔 상태가 3군데 있다 — seatKey(좌석)·ownerKey(소유권)·`Order.status`(주문). 상세 비교는 [architecture.md §3](./architecture.md#3-좌석-상태-모델) 참고.
+
+**seatKey** (`show:{showId}:seat:{seatId}`, 클라이언트 노출):
+
+```mermaid
+stateDiagram-v2
+    [*] --> AVAILABLE : 기본값(키 없음)
+    AVAILABLE --> HOLDING : hold() 성공(TTL 600초)
+    HOLDING --> BOOKED : confirmSeat() (결제 완료, TTL 없음)
+    HOLDING --> AVAILABLE : releaseHold() / TTL 만료 / releaseSeat()(결제 실패·취소)
+    BOOKED --> AVAILABLE : releaseSeat() (결제 완료 후 취소·환불)
+```
+
+**ownerKey** (`show:{showId}:seat:{seatId}:owner`, 내부 동시성 제어용):
+
+```mermaid
+stateDiagram-v2
+    [*] --> HELD : hold() 성공
+    HELD --> PENDING : checkout() 진입
+    PENDING --> CONFIRMED : 주문 생성 성공
+    PENDING --> [*] : 주문 생성 실패(선점 롤백)
+    HELD --> [*] : releaseHold() / TTL 만료
+    CONFIRMED --> [*] : confirmSeat() / releaseSeat()
+```
+
+**`Order.status`** (order-service 소유, PostgreSQL): `PENDING`/`CONFIRMING`/`CONFIRMED`/`CANCEL_REQUESTED`/`CANCELLED`/`FAILED`/`MANUAL_REVIEW_REQUIRED`. 전이 다이어그램은 [order-service/architecture.md §3](../order-service/architecture.md#3-주문-상태-머신) 참고.
 
 ---
 
@@ -86,6 +115,7 @@ Orders               (주문 = 예약 + 확정 통합 단일 애그리게이트)
 | `order.payment.completed` | order-service | ticketing-service | 결제 승인 → 좌석 BOOKED |
 | `order.payment.failed` | order-service | ticketing-service | 결제 실패 → 좌석 해제 |
 | `order.payment.cancelled` | order-service | ticketing-service | 결제 취소 → 좌석 해제 |
+| `order.hold.released` | order-service | ticketing-service | 타임아웃 자동취소(#231) → 좌석 해제(`releaseSeat`, 멱등) |
 | `ticketing.seat.booked` | ticketing-service | order-service | 좌석 확정 → 주문 CONFIRMED |
 | `ticketing.seat.book.failed` | ticketing-service | order-service | 좌석 예매 실패 → SAGA 보상 시작 |
 
@@ -104,9 +134,9 @@ flowchart TD
     F{좌석 Hold 요청 - 토큰 검증}
     G0[HELD - 선점만, 주문 없음]
     G1{체크아웃 요청}
-    G[주문 생성 - PENDING → CONFIRMED]
-    H[결제 요청]
-    I[PAID → CONFIRMED + 좌석 BOOKED]
+    G[주문 생성 - PENDING]
+    H[결제 요청 - CONFIRMING]
+    I[CONFIRMED + 좌석 BOOKED]
     J[FAILED + 좌석 해제]
 
     A --> B --> C --> E
@@ -178,12 +208,12 @@ sequenceDiagram
 | 경로 | 트리거 | 처리 |
 |---|---|---|
 | 결제 실패/취소 | Kafka `order.payment.failed`, `order.payment.cancelled` | `SeatConfirmService.releaseSeat()` — DB `orderId` 해제, Redis seat/owner 키 삭제, 재고 복구 |
-| TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우) |
+| TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우). **owner가 `PENDING`(체크아웃 진행 중)이면 해제를 스킵**하고 경고 로그만 남김 (#326, 2026-07-07) |
 | 사용자 직접 취소 | `DELETE /api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | `SeatService.releaseHold()` — owner 본인 확인 후 Redis seat/owner 키 삭제, 재고 복구, DB `orderId` 해제 |
 
-**hold ↔ release ↔ checkout 동시 호출 레이스 방지 (2026-07-03 갱신):** owner 키 상태가 `HELD`(선점만, 주문 없음) → `PENDING`(체크아웃 진행 중, `orderClient.create` 외부 네트워크 호출) → `CONFIRMED`(주문 생성 완료) 3단계로 전이한다. `releaseHold()`는 `PENDING`인 동안(체크아웃이 주문 생성을 기다리는 중)만 `SEAT_HOLD_PROCESSING`(409)으로 거부하고, `HELD`나 `CONFIRMED` 상태에서는 해제를 허용한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다.
+**hold ↔ release ↔ checkout 동시 호출 레이스 방지 (2026-07-03 갱신, 2026-07-07 확장):** owner 키 상태가 `HELD`(선점만, 주문 없음) → `PENDING`(체크아웃 진행 중, `orderClient.create` 외부 네트워크 호출) → `CONFIRMED`(주문 생성 완료) 3단계로 전이한다. `releaseHold()`는 `PENDING`인 동안(체크아웃이 주문 생성을 기다리는 중)만 `SEAT_HOLD_PROCESSING`(409)으로 거부하고, `HELD`나 `CONFIRMED` 상태에서는 해제를 허용한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다. 이 가드는 `releaseHold()`뿐 아니라 `releaseExpiredHold()`(TTL 만료 경로)에도 동일하게 적용된다(#326).
 
-> **주문 취소 연동:** `releaseHold()`는 `OrderClient.cancel(orderId, requesterId)`로 order-service 주문도 함께 취소한다. order-service의 `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 2026-07-03 이전엔 실제로 존재하지 않아 항상 404였음(정합성 버그) — 2026-07-03에 수정 완료. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
+> **주문 취소 연동 (🔴 설계 미확정, [9. 미확정 항목](#9-미확정-항목) 참고):** `releaseHold()`에 `OrderClient.cancel(orderId, requesterId)` 호출 코드가 있으나 현재 주석 처리되어 있다. order-service의 `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 develop에 아직 없어 항상 404가 나기 때문. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
 
 ---
 
@@ -200,6 +230,7 @@ sequenceDiagram
 | POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점만(주문 없음, HELD 상태). 응답 바디 없음 |
 | POST | `/api/v1/tickets/shows/{showId}/seats/{seatId}/checkout` | 체크아웃 — 주문 생성(2026-07-03 신설). HELD 상태에서만 가능, 이미 CONFIRMED면 멱등 응답 |
 | DELETE | `/api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | 좌석 선점 해제 (본인 선점만 가능) |
+| GET | `/api/v1/tickets/shows/{showId}/purchase-limit` | 사용자별 구매 한도/남은 수량 조회 |
 
 ---
 
@@ -224,11 +255,6 @@ sequenceDiagram
 
 | 항목 | 현황 | 결정 필요 사항 |
 |---|---|---|
-| `holdId` | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 사용할지 |
-| `GET /purchase-limit` 엔드포인트 | 미문서화 | `SeatController.java:54-60`에 구현되어 있으나 섹션 6 API 명세에 누락. 코드에 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있어 설계 자체도 미확정 |
-| 구매 한도 값(`MAX_PER_USER`) | 미문서화 | 섹션 3 Redis 키 설계에 `purchase-count` 키는 있지만 실제 한도 값(현재 코드상 4)이 어디에도 명시돼 있지 않음. 2→4 변경 사실도 문서에 반영 안 됨 |
-| SSE `ENTERED` 이벤트 (문서/코드 불일치) | 미구현 | "260623 대기열 토큰.md"는 토큰 발급 시 SSE로 `ENTERED` 이벤트를 전송한다고 적혀 있으나, 실제 `QueueSseService.java:58,61`에서는 `READY`/`RANK` 이벤트만 전송하고 `ENTERED`는 코드 어디에도 없음 |
-| `SeatService.hold()` switch default 케이스 | 미확정 | 알 수 없는 결과값(-3 이하 등) 처리를 현재 `SEAT_ALREADY_HELD`로 하고 있는데, `INTERNAL_SERVER_ERROR`가 더 적절한지 결정 필요 (구 TODO.md 코드 품질 항목) |
 | `checkout()` 트랜잭션 커밋 지연 레이스 | 알려진 제약(낮은 우선순위) | `assignOrder` DB 저장과 owner 키 `CONFIRMED` Redis 갱신 사이, `@Transactional` 커밋 전 시점에 `releaseHold`가 끼어들면 이론상 레이스 재현 가능. 윈도우가 매우 작아(로컬 DB 커밋 지연 수준) 우선순위 낮으나 해결 여부 결정 필요 |
 | `QueueScheduler.findActiveShowIds()`의 `KEYS` 사용 | 알려진 제약(낮은 우선순위) | O(N) 전체 스캔이라 키 스페이스가 커지면 다른 Redis 명령(좌석 Hold 등)을 블로킹할 수 있음. 현재 동시 활성 공연 수가 적어 우선순위 낮으나 `SCAN` 커서 기반 전환 여부/시점 결정 필요 |
 | `releaseHold()` → order-service 주문 취소 연동 끊김 | 🔴 설계 미확정 | `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 develop `InternalOrderController`에 아직 없음 — 설계 미확정으로 임시 주석 처리함. `SeatService.releaseHold()`의 `orderClientRetryWrapper.cancel()` 호출을 아예 주석 처리해둠(항상 404 나는 호출을 굳이 시도 안 하게). order-service 쪽 주문 취소는 당분간 타임아웃 자동취소(#231)에만 의존. 설계 확정되고 엔드포인트 추가되면 주석 해제 |

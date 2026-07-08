@@ -1,5 +1,7 @@
 # ADR 002 — SAGA Choreography 패턴 채택
 
+> 📌 **상태명 변경 참고**: 이 문서는 주문 상태 머신 재설계 이전에 작성되어 옛 상태명(`REFUNDED`)을 쓴다. 현재는 `CANCELLED`로 통합됐다. 매핑은 [architecture.md](../architecture.md) 3번 섹션 참고.
+
 **날짜**: 2026-06  
 **상태**: 확정
 
