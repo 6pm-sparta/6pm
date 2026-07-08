@@ -4,6 +4,7 @@ import com.fandom.common.auth.UserIdCard;
 import com.fandom.common.auth.annotation.CurrentIdCard;
 import com.fandom.common.dto.ApiResponse;
 import com.fandom.feed.application.PostService;
+import com.fandom.feed.application.TimelineService;
 import com.fandom.feed.global.annotation.RequireRole;
 import com.fandom.feed.global.constant.UserRole;
 import com.fandom.feed.infra.s3.S3Service;
@@ -35,6 +36,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PostController {
     private final PostService postService;
+    private final TimelineService timelineService;
     private final S3Service s3Service;
 
     @RequireRole({UserRole.CREATOR})
@@ -44,7 +46,7 @@ public class PostController {
             @RequestBody @Valid PresignedUrlRequest request,
             @CurrentIdCard UserIdCard idCard
     ) {
-        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(request.imageNames());
+        List<PresignedUrlInfo> uploadUrls = s3Service.generatePresignedUrls(request.imageNames(), idCard.getUserId());
         return ApiResponse.success(PresignedUrlResponse.from(uploadUrls));
     }
 
@@ -80,6 +82,17 @@ public class PostController {
     ) {
         UUID userId = extractLikeableUserId(idCard);
         CursorPageResponse<PostResponse.Summary> response = postService.getPosts(cursor, authorId, keyword, userId);
+        return ApiResponse.success(response);
+    }
+
+    @RequireRole({UserRole.MEMBER, UserRole.CREATOR})
+    @GetMapping("/posts/timeline")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<CursorPageResponse<PostResponse.Summary>> getTimeline(
+            @RequestParam(required = false) UUID cursor,
+            @CurrentIdCard UserIdCard idCard
+    ) {
+        CursorPageResponse<PostResponse.Summary> response = timelineService.getTimeline(idCard.getUserId(), cursor);
         return ApiResponse.success(response);
     }
 

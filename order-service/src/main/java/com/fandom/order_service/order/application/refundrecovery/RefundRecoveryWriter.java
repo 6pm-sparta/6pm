@@ -28,6 +28,9 @@ import java.util.UUID;
  * - REFUNDED: 이미 PG에서는 끝난 건 → 재환불 요청 없이 우리 쪽 상태만 동기화(SYNCED)
  * - REFUND_FAILED/APPROVED: 아직 안 끝난 건 → 재시도 횟수 한도 내면 재환불 요청(RETRIED)
  * - 조회 결과 없음 또는 재시도 소진: 더 이상 자동으로 못 푸는 상태 → MANUAL_REVIEW_REQUIRED(EXHAUSTED)
+ *
+ * 좌석 해제 이벤트는 최초 CANCEL_REQUESTED 전이 시점(OrderCancelWriter/OrderCompensationWriter)에
+ * 이미 발행됐으므로, 이 클래스는 환불 결과 동기화와 알림만 책임진다.
  */
 @Slf4j
 @Component
@@ -48,11 +51,13 @@ public class RefundRecoveryWriter {
                 .orElse(null);
 
         if (order == null
-                || (order.getStatus() != OrderStatus.REFUND_REQUESTED && order.getStatus() != OrderStatus.FAILED)) {
+                || (order.getStatus() != OrderStatus.CANCEL_REQUESTED && order.getStatus() != OrderStatus.FAILED)) {
             return RefundRecoveryResult.SKIPPED; // 이미 다른 경로로 상태 변경됨 — 정상 경합
         }
 
-        Payment payment = paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED)
+        // 복구 대상 Payment는 REFUND_REQUESTED(환불 대기중) 또는 REFUND_FAILED(거절됨) 상태다.
+        Payment payment = paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_REQUESTED)
+                .or(() -> paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_FAILED))
                 .orElse(null);
 
         if (payment == null || payment.getPgTransactionId() == null) {
@@ -73,7 +78,7 @@ public class RefundRecoveryWriter {
             return syncToRefunded(order, payment);
         }
 
-        // REFUND_FAILED/APPROVED — 둘 다 "아직 환불이 안 끝난 상태"이므로 재시도 대상.
+        // REFUND_FAILED/REFUND_REQUESTED — 둘 다 "아직 환불이 안 끝난 상태"이므로 재시도 대상.
         if (payment.hasExhaustedRefundRetries(orderProperties.refundRecovery().maxRetries())) {
             return transitionToManualReview(order, "환불 자동 재시도 소진(" + payment.getRefundRetryCount() + "회)");
         }
@@ -86,8 +91,12 @@ public class RefundRecoveryWriter {
         // FAILED(환불 거절로 종료됐던 주문)에서 재시도하는 경우, 다시 "환불 처리 대기" 상태로 되돌린다.
         if (order.getStatus() == OrderStatus.FAILED) {
             OrderStatus before = order.getStatus();
-            order.markRefundRequested();
-            saveHistory(order.getId(), before, order.getStatus(), "환불 복구 배치: 재시도를 위해 환불 대기로 복귀");
+            order.markCancelRequested();
+            saveHistory(order.getId(), before, order.getStatus(), "[RETRY] 환불 복구 배치: 재시도를 위해 환불 대기로 복귀");
+        }
+
+        if (payment.getPaymentStatus() == PaymentStatus.REFUND_FAILED) {
+            payment.retryRefundRequest();
         }
 
         paymentGateway.requestRefundAsync(order.getId(), payment.getPgTransactionId(), payment.getAmount());
@@ -102,11 +111,10 @@ public class RefundRecoveryWriter {
     private RefundRecoveryResult syncToRefunded(Order order, Payment payment) {
 
         OrderStatus before = order.getStatus();
-        order.markRefunded();
+        order.markCancelCompleted();
         payment.refund();
-        saveHistory(order.getId(), before, order.getStatus(), "환불 복구 배치: 거래조회 결과 동기화(REFUNDED)");
+        saveHistory(order.getId(), before, order.getStatus(), "[RETRY] 환불 복구 배치: 거래조회 결과 동기화(REFUNDED)");
 
-        outboxAppender.appendPaymentCancelled(order.getId());
         outboxAppender.appendOrderCancelledNotification(order.getId(), order.getUserId());
 
         return RefundRecoveryResult.SYNCED;
@@ -116,7 +124,7 @@ public class RefundRecoveryWriter {
 
         OrderStatus before = order.getStatus();
         order.markManualReviewRequired();
-        saveHistory(order.getId(), before, order.getStatus(), "환불 복구 배치: " + reason);
+        saveHistory(order.getId(), before, order.getStatus(), "[RETRY] 환불 복구 배치: " + reason);
 
         log.error("[환불 복구] 수동 처리 필요. orderId={}, reason={}", order.getId(), reason);
 

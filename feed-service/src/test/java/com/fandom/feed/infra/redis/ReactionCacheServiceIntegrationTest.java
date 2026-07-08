@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -38,7 +38,7 @@ public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSup
     private LikeRepository likeRepository;
 
     @Autowired
-    private RedisTemplate<String, String> redisTemplate;
+    private StringRedisTemplate redisTemplate;
 
     @Autowired
     private ReactionCacheService reactionCacheService;
@@ -63,8 +63,8 @@ public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSup
             redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId1, "3");
             redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId2, "5");
 
-            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId1, userId.toString(), "other");
-            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId2, "other");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE + postId1, userId.toString(), "other");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE + postId2, "other");
 
             // When
             List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
@@ -89,7 +89,7 @@ public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSup
             // Given
             UUID postId = UUID.randomUUID();
             redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId, "2");
-            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE + postId, "someone");
 
             // When
             List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
@@ -110,7 +110,7 @@ public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSup
             UUID postId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
             redisTemplate.opsForValue().set(RedisKeyPrefix.COMMENT_COUNT + postId, "2");
-            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE_SET + postId, "someone");
+            redisTemplate.opsForSet().add(RedisKeyPrefix.LIKE + postId, "someone");
 
             // When
             List<ReactionInfoCache> results = reactionCacheService.getReactionInfoBatch(
@@ -140,7 +140,7 @@ public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSup
 
             // Then
             assertThat(count).isEqualTo(1);
-            assertThat(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + postId, userId.toString())).isTrue();
+            assertThat(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE + postId, userId.toString())).isTrue();
         }
 
         @Test
@@ -199,6 +199,6 @@ public class ReactionCacheServiceIntegrationTest extends RedisIntegrationTestSup
         assertThat(results.getFirst().likeCount()).isEqualTo(1L);
 
         assertThat(redisTemplate.opsForValue().get(RedisKeyPrefix.COMMENT_COUNT + postId)).isEqualTo("5");
-        assertThat(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE_SET + postId, likeUserId.toString())).isTrue();
+        assertThat(redisTemplate.opsForSet().isMember(RedisKeyPrefix.LIKE + postId, likeUserId.toString())).isTrue();
     }
 }

@@ -10,6 +10,6 @@ public interface CommentRepository extends BaseRepository<Comment, UUID> {
     List<Comment> findByCursorAndPostId(UUID cursor, ReactionSort sort, UUID postId);
     List<Comment> findByCursorAndAuthorId(UUID cursor, ReactionSort sort, UUID authorId);
 
-    void anonymizeByAuthorId(UUID authorId);
+    void anonymizeAllByAuthorId(UUID authorId);
     void softDeleteAllByPostIds(List<UUID> postIds, UUID userId);
 }

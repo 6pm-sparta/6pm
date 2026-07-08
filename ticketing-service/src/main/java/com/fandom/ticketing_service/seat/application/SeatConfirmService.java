@@ -23,6 +23,7 @@ public class SeatConfirmService {
     private static final String SEAT_KEY = "show:%s:seat:%s";
     private static final String OWNER_KEY = "show:%s:seat:%s:owner";
     private static final String INVENTORY_KEY = "inventory:%s";
+    private static final String PURCHASE_COUNT_KEY = "purchase-count:%s:%s";
 
     private final ShowSeatRepository showSeatRepository;
     private final RedisTemplate<String, String> redisTemplate;
@@ -61,10 +62,17 @@ public class SeatConfirmService {
             String ownerKey = OWNER_KEY.formatted(seat.getShowId(), seat.getId());
             String inventoryKey = INVENTORY_KEY.formatted(seat.getShowId());
 
+            // owner가 이미 없으면(releaseHold가 먼저 처리한 경우) purchase-count도 이미 감소했으므로 중복 감소하지 않는다
+            String owner = redisTemplate.opsForValue().get(ownerKey);
+
             seat.releaseOrder();
             redisTemplate.delete(seatKey);
             redisTemplate.delete(ownerKey);
             redisTemplate.opsForValue().increment(inventoryKey);
+            if (owner != null) {
+                String userId = owner.substring(0, owner.indexOf(':'));
+                redisTemplate.opsForValue().decrement(PURCHASE_COUNT_KEY.formatted(userId, seat.getShowId()));
+            }
 
             log.info("좌석 해제 완료: orderId={}, seatId={}", orderId, seat.getId());
         }, () -> log.warn("해제할 좌석 없음: orderId={}", orderId));

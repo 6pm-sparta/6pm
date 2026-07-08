@@ -1,6 +1,7 @@
 package com.fandom.feed.infra.s3;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.feed.global.util.IdGenerator;
 import com.fandom.feed.infra.s3.exception.S3ErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,13 +43,16 @@ class S3ServiceTest {
     @MockitoBean
     private S3Client s3Client;
 
+    @MockitoBean
+    private IdGenerator idGenerator;
+
     @Test
     @DisplayName("Presigned URL 발급 최종 실패 시 예외 발생")
     void generatePresignedUrlsFail() {
         given(s3Presigner.presignPutObject(any(PutObjectPresignRequest.class)))
                 .willThrow(SdkClientException.create("connection error"));
 
-        assertThatThrownBy(() -> s3Service.generatePresignedUrls(List.of("image1.jpg")))
+        assertThatThrownBy(() -> s3Service.generatePresignedUrls(List.of("image1.jpg"), UUID.randomUUID()))
                 .isInstanceOf(CustomException.class)
                 .satisfies(e -> assertThat(((CustomException) e).getErrorCode())
                         .isEqualTo(S3ErrorCode.PRESIGNED_URL_GENERATION_FAILED));

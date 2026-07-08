@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PostBroadcastHandlerTest {
     @Mock
-    private UserClientRetryWrapper userClientRetryWrapper;
+    private UserClientRetryWrapper userClient;
 
     @Mock
     private FanoutService fanoutService;
@@ -38,7 +38,6 @@ class PostBroadcastHandlerTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(handler, "fanoutThreshold", 10000L);
-        ReflectionTestUtils.setField(handler, "chunkSize", 500);
     }
 
     @Nested
@@ -52,8 +51,8 @@ class PostBroadcastHandlerTest {
             UUID authorId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(5000L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
+            given(userClient.countFollowers(authorId)).willReturn(5000L);
+            given(userClient.getFollowerIds(eq(authorId), isNull()))
                     .willReturn(CursorPageResponse.of(List.of(userId), null, false));
 
             // when
@@ -72,8 +71,8 @@ class PostBroadcastHandlerTest {
             UUID authorId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(10_001L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
+            given(userClient.countFollowers(authorId)).willReturn(10_001L);
+            given(userClient.getFollowerIds(eq(authorId), isNull()))
                     .willReturn(CursorPageResponse.of(List.of(userId), null, false));
 
             // when
@@ -94,17 +93,17 @@ class PostBroadcastHandlerTest {
             UUID secondUser = UUID.randomUUID();
             UUID midCursor = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(100L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
+            given(userClient.countFollowers(authorId)).willReturn(100L);
+            given(userClient.getFollowerIds(eq(authorId), isNull()))
                     .willReturn(CursorPageResponse.of(List.of(firstUser), midCursor, true));
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), eq(midCursor), anyInt()))
+            given(userClient.getFollowerIds(eq(authorId), eq(midCursor)))
                     .willReturn(CursorPageResponse.of(List.of(secondUser), null, false));
 
             // when
             handler.handlePostCreated(postId, authorId, "닉네임");
 
             // then
-            verify(userClientRetryWrapper, times(2)).getFollowerIds(eq(authorId), any(), anyInt());
+            verify(userClient, times(2)).getFollowerIds(eq(authorId), any());
             verify(fanoutService).insertChunk(postId, null, List.of(firstUser));
             verify(fanoutService).insertChunk(postId, midCursor, List.of(secondUser));
         }
@@ -116,13 +115,13 @@ class PostBroadcastHandlerTest {
             UUID postId = UUID.randomUUID();
             UUID authorId = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(0L);
+            given(userClient.countFollowers(authorId)).willReturn(0L);
 
             // when
             handler.handlePostCreated(postId, authorId, "닉네임");
 
             // then
-            verify(userClientRetryWrapper, never()).getFollowerIds(any(), any(), anyInt());
+            verify(userClient, never()).getFollowerIds(any(), any());
             verify(fanoutService, never()).insertChunk(any(), any(), any());
             verify(notificationPublisher, never()).publishChunk(any(), any(), any(), any());
         }
@@ -139,8 +138,8 @@ class PostBroadcastHandlerTest {
             UUID authorId = UUID.randomUUID();
             UUID userId = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(5000L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
+            given(userClient.countFollowers(authorId)).willReturn(5000L);
+            given(userClient.getFollowerIds(eq(authorId), isNull()))
                     .willReturn(CursorPageResponse.of(List.of(userId), null, false));
 
             // when
@@ -157,13 +156,13 @@ class PostBroadcastHandlerTest {
             UUID postId = UUID.randomUUID();
             UUID authorId = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(10_001L);
+            given(userClient.countFollowers(authorId)).willReturn(10_001L);
 
             // when
             handler.handlePostDeleted(postId, authorId);
 
             // then
-            verify(userClientRetryWrapper, never()).getFollowerIds(any(), any(), anyInt());
+            verify(userClient, never()).getFollowerIds(any(), any());
             verify(fanoutService, never()).removeChunk(any(), any(), any());
         }
 
@@ -177,10 +176,10 @@ class PostBroadcastHandlerTest {
             UUID secondUser = UUID.randomUUID();
             UUID midCursor = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(100L);
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), isNull(), anyInt()))
+            given(userClient.countFollowers(authorId)).willReturn(100L);
+            given(userClient.getFollowerIds(eq(authorId), isNull()))
                     .willReturn(CursorPageResponse.of(List.of(firstUser), midCursor, true));
-            given(userClientRetryWrapper.getFollowerIds(eq(authorId), eq(midCursor), anyInt()))
+            given(userClient.getFollowerIds(eq(authorId), eq(midCursor)))
                     .willReturn(CursorPageResponse.of(List.of(secondUser), null, false));
 
             // when
@@ -198,13 +197,13 @@ class PostBroadcastHandlerTest {
             UUID postId = UUID.randomUUID();
             UUID authorId = UUID.randomUUID();
 
-            given(userClientRetryWrapper.countFollowers(authorId)).willReturn(0L);
+            given(userClient.countFollowers(authorId)).willReturn(0L);
 
             // when
             handler.handlePostDeleted(postId, authorId);
 
             // then
-            verify(userClientRetryWrapper, never()).getFollowerIds(any(), any(), anyInt());
+            verify(userClient, never()).getFollowerIds(any(), any());
             verify(fanoutService, never()).removeChunk(any(), any(), any());
         }
     }

@@ -23,12 +23,8 @@ public interface JpaPostRepository extends JpaRepository<Post, UUID> {
                             @Param("keyword") String keyword,
                             Pageable pageable);
 
-    @Query("""
-        SELECT p FROM Post p
-        WHERE (:authorId IS NULL OR p.authorId = :authorId)
-        ORDER BY p.id DESC
-    """)
-    List<Post> findByCursorForWarm(@Param("authorId") UUID authorId, Pageable pageable);
+    @Query("SELECT p FROM Post p WHERE (:authorId IS NULL OR p.authorId = :authorId) ORDER BY p.id DESC")
+    List<Post> findByAuthorIdForWarm(@Param("authorId") UUID authorId, Pageable pageable);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE Post p SET p.commentCount = p.commentCount + 1 WHERE p.id = :postId")
@@ -44,4 +40,27 @@ public interface JpaPostRepository extends JpaRepository<Post, UUID> {
 
     @Query("SELECT p.id FROM Post p WHERE p.authorId = :authorId")
     List<UUID> findAllIdsByAuthorId(@Param("authorId") UUID authorId);
+
+    @Query("""
+        SELECT p FROM Post p
+        WHERE (:cursor IS NULL OR p.id < :cursor)
+          AND p.authorId IN :authorIds
+        ORDER BY p.id DESC
+    """)
+    List<Post> findByCursorAndAuthorIdIn(@Param("cursor") UUID cursor,
+                                         @Param("authorIds") List<UUID> authorIds,
+                                         Pageable pageable);
+
+    @Query("""
+        SELECT p.id FROM Post p
+        WHERE (:cursor IS NULL OR p.id < :cursor)
+          AND p.authorId IN :authorIds
+        ORDER BY p.id DESC
+    """)
+    List<UUID> findIdsByCursorAndAuthorIdIn(@Param("cursor") UUID cursor,
+                                            @Param("authorIds") List<UUID> authorIds,
+                                            Pageable pageable);
+
+    @Query("SELECT p FROM Post p WHERE p.authorId IN :authorIds ORDER BY p.id DESC")
+    List<Post> findByAuthorIdInForWarm(@Param("authorIds") List<UUID> authorIds, Pageable pageable);
 }

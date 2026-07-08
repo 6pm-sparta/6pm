@@ -18,7 +18,8 @@ public enum TicketingErrorCode implements ErrorCode {
     PURCHASE_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "구매 한도를 초과했습니다."),
     PURCHASE_TOKEN_NOT_FOUND(HttpStatus.FORBIDDEN, "구매 토큰이 없습니다. 대기열에 다시 진입해주세요."),
     ORDER_CREATE_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "주문 생성에 실패했습니다."),
-    SEAT_CONFIRM_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "좌석 확정에 실패했습니다.");
+    SEAT_CONFIRM_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "좌석 확정에 실패했습니다."),
+    SEAT_HOLD_UNKNOWN_RESULT(HttpStatus.INTERNAL_SERVER_ERROR, "좌석 선점 처리 중 알 수 없는 오류가 발생했습니다.");
 
     private final HttpStatus status;
     private final String message;

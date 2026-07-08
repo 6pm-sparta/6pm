@@ -1,6 +1,7 @@
 package com.fandom.order_service.order.application;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.application.compensation.OrderCompensationResult;
 import com.fandom.order_service.order.application.compensation.OrderCompensationWriter;
 import com.fandom.order_service.order.domain.entity.Order;
@@ -33,6 +34,10 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+/**
+ * issue #292 — COMPENSATING 제거로 2단계 전이(PAID→COMPENSATING→REFUND_REQUESTED)가
+ * 1단계(CONFIRMING/CONFIRMED→CANCEL_REQUESTED)로 축소됐다.
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("OrderCompensationWriter 단위 테스트")
 class OrderCompensationWriterTest {
@@ -46,6 +51,9 @@ class OrderCompensationWriterTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private OutboxAppender outboxAppender;
+
     private OrderCompensationWriter orderCompensationWriter;
 
     private UUID orderId;
@@ -53,16 +61,16 @@ class OrderCompensationWriterTest {
 
     @BeforeEach
     void setUp() {
-        orderCompensationWriter = new OrderCompensationWriter(orderRepository, orderStatusHistoryRepository, paymentRepository);
+        orderCompensationWriter = new OrderCompensationWriter(
+                orderRepository, orderStatusHistoryRepository, paymentRepository, outboxAppender);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
     }
 
-    private Order paidOrder() {
+    private Order confirmingOrder() {
         Order order = Order.createPending(UUID.randomUUID(), userId, 50_000L, LocalDateTime.now().plusMinutes(10));
         ReflectionTestUtils.setField(order, "id", orderId);
-        order.markPaymentRequested();
-        order.markPaid();
+        order.markConfirming();
         return order;
     }
 
@@ -80,10 +88,10 @@ class OrderCompensationWriterTest {
     }
 
     @Test
-    @DisplayName("PAID 주문은 COMPENSATING을 거쳐 REFUND_REQUESTED까지 한 트랜잭션에서 전이되고 환불 대상 결제를 함께 반환한다")
-    void startCompensation_paid_transitionsToRefundRequested() {
+    @DisplayName("CONFIRMING 주문은 한 트랜잭션에서 CANCEL_REQUESTED로 전이되고 payment도 REFUND_REQUESTED로 전이된다")
+    void startCompensation_confirming_transitionsToCancelRequested() {
         // given
-        Order order = paidOrder();
+        Order order = confirmingOrder();
         Payment payment = approvedPayment();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
         given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
@@ -96,17 +104,19 @@ class OrderCompensationWriterTest {
         assertThat(result.type()).isEqualTo(OrderCompensationResult.Type.REFUND_REQUESTED_STARTED);
         assertThat(result.userId()).isEqualTo(userId);
         assertThat(result.paymentToRefund()).isEqualTo(payment);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED);
-        // PAID→COMPENSATING, COMPENSATING→REFUND_REQUESTED 두 단계 모두 이력에 남는다
-        verify(orderStatusHistoryRepository, times(2)).save(any());
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED); // issue #292 신규
+        // issue #292 — COMPENSATING 경유 2단계 history가 1단계로 축소됨
+        verify(orderStatusHistoryRepository, times(1)).save(any());
+        verify(outboxAppender).appendPaymentCancelled(orderId); // 환불 결과 무관, 취소 확정 즉시 좌석 해제
     }
 
     @Test
-    @DisplayName("이미 COMPENSATING/REFUND_REQUESTED 등으로 처리 중인 주문은 ALREADY_HANDLED로 응답하고 변경하지 않는다")
+    @DisplayName("이미 CANCEL_REQUESTED 등으로 처리 중인 주문은 ALREADY_HANDLED로 응답하고 변경하지 않는다")
     void startCompensation_alreadyHandled_isIdempotent() {
         // given
-        Order order = paidOrder();
-        order.markRefundRequested(); // 유저 직접 취소가 먼저 들어온 상황을 흉내
+        Order order = confirmingOrder();
+        order.markCancelRequested(); // 유저 직접 취소가 먼저 들어온 상황을 흉내
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
@@ -114,9 +124,10 @@ class OrderCompensationWriterTest {
 
         // then
         assertThat(result.type()).isEqualTo(OrderCompensationResult.Type.ALREADY_HANDLED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED); // 변경 없음
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED); // 변경 없음
         verify(orderStatusHistoryRepository, never()).save(any());
         verify(paymentRepository, never()).findByOrderIdAndPaymentStatus(any(), any());
+        verify(outboxAppender, never()).appendPaymentCancelled(any());
     }
 
     @Test
@@ -149,10 +160,10 @@ class OrderCompensationWriterTest {
     }
 
     @Test
-    @DisplayName("PG_ERROR가 아니라 환불 대상 결제가 없으면 PAYMENT_NOT_FOUND 예외가 발생한다")
+    @DisplayName("환불 대상 결제가 없으면 PAYMENT_NOT_FOUND 예외가 발생한다")
     void startCompensation_noApprovedPayment_throwsPaymentNotFound() {
         // given
-        Order order = paidOrder();
+        Order order = confirmingOrder();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
         given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
                 .willReturn(Optional.empty());

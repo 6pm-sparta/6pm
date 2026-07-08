@@ -5,7 +5,7 @@
 -- "부분(partial) UNIQUE 인덱스"는 만들어주지 않는다. JPA 표준 @Index/@UniqueConstraint
 -- 애노테이션도 WHERE절을 지원하지 않으므로, 이 인덱스는 별도 SQL로 정의해야 한다.
 --
--- 목적: 동일 seatId로 "진행중"(PENDING/PAYMENT_REQUESTED/PAID) 주문이 동시에 2건 이상
+-- 목적: 동일 seatId로 "진행중"(PENDING/CONFIRMING) 주문이 동시에 2건 이상
 -- 생성되는 것을 DB 레벨에서 최종적으로 막는다 (Redis 멱등성 1차 방어가 뚫렸을 때의 최후 방어선).
 -- seatId 단독 UNIQUE는 불가능하다 — 취소/환불 후 같은 좌석을 다시 파는 흐름과 충돌하기 때문.
 --
@@ -17,6 +17,8 @@
 -- DB 레벨 최종 방어선의 기준이 어긋난다.
 -- =====================================================================
 
+DROP INDEX IF EXISTS uq_orders_seat_active;
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_orders_seat_active
     ON orders (seat_id)
-    WHERE status IN ('PENDING', 'PAYMENT_REQUESTED', 'PAID');
+    WHERE status IN ('PENDING', 'CONFIRMING');

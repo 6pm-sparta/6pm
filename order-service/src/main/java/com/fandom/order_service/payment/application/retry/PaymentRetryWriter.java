@@ -43,7 +43,7 @@ public class PaymentRetryWriter {
 
         Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
 
-        if (order == null || order.getStatus() != OrderStatus.PAYMENT_REQUESTED) {
+        if (order == null || order.getStatus() != OrderStatus.PENDING) {
             return PaymentRetryResult.SKIPPED;
         }
 
@@ -75,8 +75,8 @@ public class PaymentRetryWriter {
         long totalAttempts = paymentRepository.countByOrderId(orderId);
         if (totalAttempts >= orderProperties.paymentRetry().maxAttempts()) {
             order.markFailed();
-            saveHistory(orderId, OrderStatus.PAYMENT_REQUESTED, OrderStatus.FAILED,
-                    "결제 재시도 횟수 초과(" + totalAttempts + "회)");
+            saveHistory(orderId, OrderStatus.PENDING, OrderStatus.FAILED,
+                    "[RETRY] 결제 재시도 횟수 초과(" + totalAttempts + "회)");
             outboxAppender.appendPaymentFailed(orderId);
             log.warn("[결제 재시도] 횟수 초과 — FAILED 전이. orderId={}, attempts={}", orderId, totalAttempts);
             return PaymentRetryResult.EXHAUSTED;
@@ -95,8 +95,8 @@ public class PaymentRetryWriter {
         Payment saved = paymentRepository.save(retryPayment);
         order.updateLatestPayment(saved.getId());
 
-        saveHistory(orderId, OrderStatus.PAYMENT_REQUESTED, OrderStatus.PAYMENT_REQUESTED,
-                "결제 재시도 " + totalAttempts + "회차");
+        saveHistory(orderId, OrderStatus.PENDING, OrderStatus.PENDING,
+                "[RETRY] 결제 재시도 " + totalAttempts + "회차");
 
         log.info("[결제 재시도] 새 Payment 생성. orderId={}, paymentId={}, attempt={}",
                 orderId, saved.getId(), totalAttempts);

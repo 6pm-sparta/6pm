@@ -6,12 +6,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
@@ -27,6 +30,12 @@ class QueueSchedulerTest {
 
     @Mock
     private ZSetOperations<String, String> zSetOperations;
+
+    @Mock
+    private RedissonClient redissonClient;
+
+    @Mock
+    private RLock lock;
 
     @Mock
     private QueueSseService queueSseService;
@@ -104,5 +113,36 @@ class QueueSchedulerTest {
 
         // then
         org.assertj.core.api.Assertions.assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("분산락을 획득하면 대기열을 처리하고 락을 해제한다")
+    void processQueue_lockAcquired_processesAndUnlocks() throws InterruptedException {
+        // given
+        given(redissonClient.getLock("lock:queue-scheduler")).willReturn(lock);
+        given(lock.tryLock(0, TimeUnit.SECONDS)).willReturn(true);
+        given(lock.isHeldByCurrentThread()).willReturn(true);
+        given(redisTemplate.keys("waiting_queue:*")).willReturn(Set.of());
+
+        // when
+        queueScheduler.processQueue();
+
+        // then
+        verify(lock).unlock();
+    }
+
+    @Test
+    @DisplayName("다른 인스턴스가 이미 락을 잡고 있으면 이번 주기는 처리하지 않고 스킵한다")
+    void processQueue_lockNotAcquired_skips() throws InterruptedException {
+        // given
+        given(redissonClient.getLock("lock:queue-scheduler")).willReturn(lock);
+        given(lock.tryLock(0, TimeUnit.SECONDS)).willReturn(false);
+
+        // when
+        queueScheduler.processQueue();
+
+        // then
+        verify(redisTemplate, never()).keys(anyString());
+        verify(lock, never()).unlock();
     }
 }

@@ -1,5 +1,6 @@
 package com.fandom.order_service.payment.domain.repository;
 
+import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.payment.domain.entity.Payment;
 import com.fandom.order_service.payment.domain.entity.PaymentStatus;
 import org.springframework.data.domain.Limit;
@@ -8,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,6 +39,12 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     Optional<Payment> findByOrderIdAndPaymentStatus(UUID orderId, PaymentStatus paymentStatus);
 
     /**
+     * 진행중(REQUESTED) 결제 존재 여부.
+     * PaymentRequestWriter.markPaymentRequestedAndSave에서 동시 결제 요청 차단에 사용한다.
+     */
+    boolean existsByOrderIdAndPaymentStatus(UUID orderId, PaymentStatus paymentStatus);
+
+    /**
      * PG 콜백(webhook)이 들고 오는 pgTransactionId로 결제 시도를 찾는다.
      */
     Optional<Payment> findByPgTransactionId(String pgTransactionId);
@@ -56,4 +64,24 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
     @Modifying
     @Query("update Payment p set p.retryable = false where p.orderId = :orderId and p.retryable = true")
     void clearRetryableFlagByOrderId(@Param("orderId") UUID orderId);
+
+    /**
+     * 좀비 결제 후보 조회. REQUESTED로 멈춘 Payment 중 연관 Order가 PENDING이고 expired_at이 지난 것.
+     * 락 없이 orderId만 가져오고, 실제 처리는 건마다 ZombiePaymentRecoveryWriter가 비관적 락으로 처리한다.
+     */
+    @Query("""
+            select p.orderId from Payment p
+            where p.paymentStatus = :requested
+              and exists (
+                  select 1 from Order o
+                  where o.id = p.orderId
+                    and o.status = :pending
+                    and o.expiredAt < :now
+              )
+            """)
+    List<UUID> findZombiePaymentOrderIds(
+            @Param("requested") PaymentStatus requested,
+            @Param("pending") OrderStatus pending,
+            @Param("now") LocalDateTime now,
+            Limit limit);
 }

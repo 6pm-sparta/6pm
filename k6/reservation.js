@@ -54,7 +54,7 @@ export function setup() {
         const email = `loadtest_${stamp}_${i}@test.com`;
         // 회원가입 (POST /api/v1/members) — 이미 있으면 무시
         http.post(`${BASE_URL}/api/v1/members`, JSON.stringify({
-            email, password: PASSWORD, nickname: `lt${i}`,
+            email, password: PASSWORD, nickname: `lt${stamp}_${i}`,
             zipCode: '12345', address1: '서울시 강남구', address2: '101호',
         }), JSON_HDR);
         // 로그인 (POST /api/v1/auth/login) → data.accessToken

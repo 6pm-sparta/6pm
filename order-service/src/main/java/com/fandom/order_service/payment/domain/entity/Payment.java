@@ -139,16 +139,54 @@ public class Payment extends BaseEntity {
     }
 
     /**
-     * APPROVED → REFUNDED. PG 환불 성공 응답을 받은 직후 호출한다. 전액 환불만 지원한다(MVP, 부분 환불 없음).
+     * APPROVED → REFUND_REQUESTED. PG 환불 API 호출 "전"에 먼저 반영한다.
+     * order.markCancelRequested()와 같은 트랜잭션에서 호출해야 한다.
      */
-    public void refund() {
+    public void requestRefund() {
 
         if (this.paymentStatus != PaymentStatus.APPROVED) {
             throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
         }
 
+        this.paymentStatus = PaymentStatus.REFUND_REQUESTED;
+    }
+
+    /**
+     * REFUND_REQUESTED → REFUNDED. PG 환불 성공 응답을 받은 직후 호출한다. 전액 환불만 지원한다(MVP, 부분 환불 없음).
+     */
+    public void refund() {
+
+        if (this.paymentStatus != PaymentStatus.REFUND_REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
         this.paymentStatus = PaymentStatus.REFUNDED;
         this.refundAmount = this.amount;
+    }
+
+    /**
+     * REFUND_REQUESTED → REFUND_FAILED. PG 환불 거절/오류 응답을 받은 직후 호출한다.
+     */
+    public void refundFail(String failureReason) {
+
+        if (this.paymentStatus != PaymentStatus.REFUND_REQUESTED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.paymentStatus = PaymentStatus.REFUND_FAILED;
+        this.failureReason = failureReason;
+    }
+
+    /**
+     * REFUND_FAILED → REFUND_REQUESTED. 환불 복구 배치가 거절됐던 환불을 재시도할 때 호출한다.
+     */
+    public void retryRefundRequest() {
+
+        if (this.paymentStatus != PaymentStatus.REFUND_FAILED) {
+            throw new CustomException(CommonErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        this.paymentStatus = PaymentStatus.REFUND_REQUESTED;
     }
 
     /** 재환불 시도마다 호출. */

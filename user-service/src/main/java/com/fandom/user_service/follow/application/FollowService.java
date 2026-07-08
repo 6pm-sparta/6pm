@@ -17,14 +17,14 @@ import com.fandom.user_service.follow.presentation.dto.response.FollowingRespons
 import com.fandom.user_service.follow.presentation.dto.response.PageResponse;
 import com.fandom.user_service.follow.presentation.dto.response.CursorPageResponse;
 import com.fandom.user_service.follow.domain.repository.projection.FollowCursorRow;
+import com.fandom.user_service.follow.domain.repository.projection.FollowingCursorRow;
+import com.fandom.user_service.follow.presentation.dto.response.InternalFollowingResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Map;
@@ -57,7 +57,8 @@ public class FollowService {
         increaseFollowingCount(followerId);
         increaseFollowerCount(creatorId);
         Profile followerProfile = findProfileByUserId(followerId);
-        publishFollowedEventAfterCommit(follow.getId(), followerId, creatorId, followerProfile.getNickname());
+        // Outbox 적재는 도메인 변경과 같은 트랜잭션이어야 원자성이 보장된다(커밋 후 호출 금지).
+        followEventPublisher.publishFollowed(follow.getId(), followerId, creatorId, followerProfile.getNickname());
 
         return follow;
     }
@@ -75,7 +76,8 @@ public class FollowService {
 
         decreaseFollowingCount(followerId);
         decreaseFollowerCount(creatorId);
-        publishUnfollowedEventAfterCommit(follow.getId(), followerId, creatorId);
+        // Outbox 적재는 도메인 변경과 같은 트랜잭션이어야 원자성이 보장된다(커밋 후 호출 금지).
+        followEventPublisher.publishUnfollowed(follow.getId(), followerId, creatorId);
     }
 
     public PageResponse<FollowerResponse> getFollowers(UUID creatorId, Pageable pageable) {
@@ -145,6 +147,49 @@ public class FollowService {
                 : pageRows.get(pageRows.size() - 1).followId();
 
         return CursorPageResponse.of(followerIds, hasNext ? nextCursor : null, hasNext);
+    }
+
+    /**
+     * 팔로잉 목록을 커서 페이징으로 조회하고, 각 대상의 대형 크리에이터 여부(isLarge)를 함께 반환한다. (Feed 타임라인 조회용)
+     * isLarge는 팔로잉 대상(followee)의 Profile.followerCount > minFollowerCount 로 판단한다.
+     * limit+1개를 조회해 hasNext를 판단하고, 다음 커서는 마지막 반환 요소의 followId로 설정한다.
+     */
+    public CursorPageResponse<InternalFollowingResponse> getFollowingIds(UUID userId, UUID cursor, int size, long minFollowerCount) {
+        validatePageSize(size);
+        List<FollowingCursorRow> rows = followRepository.findFollowingRowsByFollowerId(userId, cursor, size + 1);
+
+        boolean hasNext = rows.size() > size;
+        List<FollowingCursorRow> pageRows = hasNext ? rows.subList(0, size) : rows;
+
+        List<InternalFollowingResponse> content = pageRows.stream()
+                .map(row -> InternalFollowingResponse.of(row, minFollowerCount))
+                .toList();
+        UUID nextCursor = pageRows.isEmpty()
+                ? null
+                : pageRows.get(pageRows.size() - 1).followId();
+
+        return CursorPageResponse.of(content, hasNext ? nextCursor : null, hasNext);
+    }
+
+    /**
+     * 팔로잉 목록 중 대형 크리에이터(followerCount > minFollowerCount)만 커서 페이징으로 조회한다. (Feed 타임라인 조회용)
+     * 필터링을 DB에서 수행하므로 size가 정확하게 맞춰진다. authorId(UUID)만 반환한다.
+     */
+    public CursorPageResponse<UUID> getLargeFollowingIds(UUID userId, UUID cursor, int size, long minFollowerCount) {
+        validatePageSize(size);
+        List<FollowingCursorRow> rows = followRepository.findLargeFollowingRowsByFollowerId(userId, minFollowerCount, cursor, size + 1);
+
+        boolean hasNext = rows.size() > size;
+        List<FollowingCursorRow> pageRows = hasNext ? rows.subList(0, size) : rows;
+
+        List<UUID> authorIds = pageRows.stream()
+                .map(FollowingCursorRow::followeeId)
+                .toList();
+        UUID nextCursor = pageRows.isEmpty()
+                ? null
+                : pageRows.get(pageRows.size() - 1).followId();
+
+        return CursorPageResponse.of(authorIds, hasNext ? nextCursor : null, hasNext);
     }
 
     private void validateFollowable(User follower, User followee) {
@@ -229,31 +274,5 @@ public class FollowService {
         if (updatedCount == 0) {
             throw new CustomException(ProfileErrorCode.PROFILE_NOT_FOUND);
         }
-    }
-
-    private void publishFollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId, String nickname) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                followEventPublisher.publishFollowed(followId, followerId, followeeId, nickname);
-            }
-        });
-    }
-
-    private void publishUnfollowedEventAfterCommit(UUID followId, UUID followerId, UUID followeeId) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            followEventPublisher.publishUnfollowed(followId, followerId, followeeId);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                followEventPublisher.publishUnfollowed(followId, followerId, followeeId);
-            }
-        });
     }
 }

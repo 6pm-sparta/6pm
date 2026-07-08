@@ -1,20 +1,15 @@
-# =====================================================================
-# 보안 그룹: ALB → ECS → (RDS / Redis / Kafka)
-# =====================================================================
-resource "aws_security_group" "alb" {
-  name_prefix = "${var.project}-alb-"
-  description = "ALB: internet inbound"
-  vpc_id      = aws_vpc.main.id
+# security.tf — 보안그룹 (ALB→ECS→데이터계층. 데이터계층은 외부 차단)
 
+resource "aws_security_group" "alb" {
+  name_prefix = "${local.name_prefix}-alb-"
+  vpc_id      = aws_vpc.main.id
   ingress {
-    description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
-    description = "HTTPS"
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -26,27 +21,23 @@ resource "aws_security_group" "alb" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  tags = { Name = "${var.project}-alb-sg" }
+  tags = { Name = "${local.name_prefix}-sg-alb" }
 }
 
 resource "aws_security_group" "ecs" {
-  name_prefix = "${var.project}-ecs-"
-  description = "ECS tasks: from ALB + service-to-service"
+  name_prefix = "${local.name_prefix}-ecs-"
   vpc_id      = aws_vpc.main.id
-
   ingress {
-    description     = "from ALB"
     from_port       = 0
     to_port         = 65535
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
   ingress {
-    description = "service-to-service"
-    from_port   = 0
-    to_port     = 65535
-    protocol    = "tcp"
-    self        = true
+    from_port = 0
+    to_port   = 65535
+    protocol  = "tcp"
+    self      = true
   }
   egress {
     from_port   = 0
@@ -54,53 +45,25 @@ resource "aws_security_group" "ecs" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  tags = { Name = "${var.project}-ecs-sg" }
+  tags = { Name = "${local.name_prefix}-sg-ecs" }
 }
 
-# 데이터 계층: ECS에서만 접근
-resource "aws_security_group" "rds" {
-  name_prefix = "${var.project}-rds-"
+resource "aws_security_group" "data" {
+  name_prefix = "${local.name_prefix}-data-"
   vpc_id      = aws_vpc.main.id
   ingress {
-    description     = "PostgreSQL from ECS"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs.id]
   }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = { Name = "${var.project}-rds-sg" }
-}
-
-resource "aws_security_group" "redis" {
-  name_prefix = "${var.project}-redis-"
-  vpc_id      = aws_vpc.main.id
   ingress {
-    description     = "Redis from ECS"
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
     security_groups = [aws_security_group.ecs.id]
   }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = { Name = "${var.project}-redis-sg" }
-}
-
-resource "aws_security_group" "kafka" {
-  name_prefix = "${var.project}-kafka-"
-  vpc_id      = aws_vpc.main.id
   ingress {
-    description     = "Kafka from ECS"
     from_port       = 9092
     to_port         = 9098
     protocol        = "tcp"
@@ -112,5 +75,12 @@ resource "aws_security_group" "kafka" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  tags = { Name = "${var.project}-kafka-sg" }
+  tags = { Name = "${local.name_prefix}-sg-data" }
+
+  ingress {
+    from_port = 5432
+    to_port   = 5432
+    protocol  = "tcp"
+    self      = true # 같은 data SG의 Kafka EC2 → RDS 접속(DB 8개 생성용)
+  }
 }

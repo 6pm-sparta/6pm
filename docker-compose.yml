@@ -137,7 +137,7 @@ services:
       - postgres_chat_data:/var/lib/postgresql/data
 
   postgres-cs:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     profiles: ["db-cs", "infra", "all"]
     container_name: 6pm-postgres-cs
     ports:
@@ -149,6 +149,7 @@ services:
       TZ: Asia/Seoul
     volumes:
       - postgres_cs_data:/var/lib/postgresql/data
+      - ./db-init/cs:/docker-entrypoint-initdb.d 
 
   # ===== Redis 분리: 일반(세션/캐시/refresh/blacklist) vs 티켓팅(대기열/재고/분산락) =====
   # 티켓 오픈 시 티켓팅 부하가 일반 Redis(인증 blacklist 등)를 잠식하지 않도록 물리 분리.
@@ -158,7 +159,7 @@ services:
     container_name: 6pm-redis-general
     ports:
       - "6379:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_GENERAL_PASSWORD}
 
   redis-ticketing:
     image: redis:7-alpine
@@ -166,7 +167,7 @@ services:
     container_name: 6pm-redis-ticketing
     ports:
       - "6380:6379"
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_TICKETING_PASSWORD}
 
   kafka:
     image: apache/kafka:3.7.0
@@ -237,6 +238,7 @@ services:
         SERVICE: config-server
     profiles: ["core", "all"]
     container_name: 6pm-config
+    env_file: .env.docker
     ports:
       - "8888:8888"
 
@@ -248,6 +250,10 @@ services:
         SERVICE: gateway-service
     profiles: ["core", "all"]
     container_name: 6pm-gateway
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports:
       - "8080:8080"
     depends_on:
@@ -264,6 +270,10 @@ services:
         SERVICE: auth-service
     profiles: ["apps", "all"]
     container_name: 6pm-auth
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8087:8087"]                # ← develop 값으로 맞추세요
 
   user-service:
@@ -274,6 +284,10 @@ services:
         SERVICE: user-service
     profiles: ["apps", "all"]
     container_name: 6pm-user
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8081:8081"]
 
   feed-service:
@@ -294,8 +308,11 @@ services:
         SERVICE: ticketing-service
     profiles: ["apps", "all"]
     container_name: 6pm-ticketing
+    env_file: .env.docker
     ports: ["8083:8083"]
     environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
       # 대기열 스케줄러 주기(ms). 기본 60000(운영값). 로컬 .env에 QUEUE_SCHEDULER_DELAY=2000 등을 넣으면
       # Postman 테스트 시 대기열 진입 후 빠르게 isReady=true로 전환되어 대기 시간을 줄일 수 있다.
       # env에 QUEUE_SCHEDULER_DELAY=2000 넣어야 작동
@@ -310,6 +327,10 @@ services:
         SERVICE: order-service
     profiles: ["apps", "all"]
     container_name: 6pm-order
+    env_file: .env.docker
+    environment:
+      - SPRING_CONFIG_IMPORT=optional:configserver:http://config-server:8888
+      - EUREKA_URI=http://eureka-server:8761/eureka/
     ports: ["8084:8084"]
 
   notification-service:
@@ -418,6 +439,33 @@ services:
     depends_on:
       - prometheus
       - loki
+  
+  # ---------------------------------------------------------------
+  # 5. ai
+  # ---------------------------------------------------------------
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ai", "all"]
+    container_name: 6pm-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+  ollama-init:
+    image: ollama/ollama:latest
+    profiles: ["ai", "all"]
+    container_name: 6pm-ollama-init
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh","-c"]
+    # 임베딩 + LLM 모델 - 용량 작으면 1.5b로 변경
+    command: >
+      "until ollama list >/dev/null 2>&1; do sleep 1; done;
+       ollama pull nomic-embed-text &&
+       ollama pull qwen2.5:3b"
+    restart: "no"
 
 volumes:
   postgres_user_data:
@@ -430,3 +478,4 @@ volumes:
   postgres_cs_data:
   kafka_data:
   loki_data:
+  ollama_data:

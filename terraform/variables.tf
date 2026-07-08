@@ -1,70 +1,64 @@
-variable "project" {
-  description = "프로젝트 prefix"
-  type        = string
-  default     = "6pm"
+# variables.tf (terraform/variables.tf)
+variable "region" {
+  type    = string
+  default = "ap-northeast-2"
 }
 
 variable "env" {
-  description = "환경(dev/prod 등)"
-  type        = string
-  default     = "prod"
-}
-
-variable "aws_region" {
-  description = "AWS 리전 (서울)"
-  type        = string
-  default     = "ap-northeast-2"
-}
-
-variable "azs" {
-  description = "사용할 가용영역 (멀티 AZ)"
-  type        = list(string)
-  default     = ["ap-northeast-2a", "ap-northeast-2c"]
+  type    = string
+  default = "prod"
 }
 
 variable "vpc_cidr" {
-  description = "VPC CIDR"
-  type        = string
-  default     = "10.0.0.0/16"
+  type    = string
+  default = "10.0.0.0/16"
 }
 
-# --- DB 자격증명: 평문 금지. tfvars / 환경변수(TF_VAR_db_password) / Secrets Manager로 주입 ---
+# 이미지 태그 (GitHub Actions가 ECR에 push한 태그). 배포 시 최신 값으로.
+variable "image_tag" {
+  type    = string
+  default = "latest"
+}
+
+# RDS
 variable "db_username" {
   type    = string
   default = "root"
 }
-
 variable "db_password" {
+  type      = string
+  sensitive = true # tfvars/환경변수로 주입 (커밋 금지)
+}
+variable "db_instance_class" {
+  type    = string
+  default = "db.t3.micro" # 데모용 최소
+}
+
+# config-server가 Private config 레포를 읽기 위한 값
+variable "config_git_username" {
+  type = string
+}
+variable "config_git_token" {
   type      = string
   sensitive = true
 }
 
-# --- MSA 서비스 목록(컨테이너 포트). ECR/ECS 가 이 map을 for_each로 순회 ---
-variable "services" {
-  description = "서비스명 => 컨테이너 포트"
-  type = map(object({
-    port = number
-  }))
-  default = {
-    gateway-service      = { port = 8080 } # 외부 진입(ALB 연결)
-    user-service         = { port = 8081 }
-    feed-service         = { port = 8082 }
-    ticketing-service    = { port = 8083 }
-    order-service        = { port = 8084 }
-    notification-service = { port = 8085 }
-    aiops-service        = { port = 8086 }
-    auth-service         = { port = 8087 }
-    chat-service         = { port = 8088 }
-  }
-  # 참고: eureka/config는 운영에서 AWS Cloud Map(서비스디스커버리)/Parameter Store로 대체 가능
+# 공유 시크릿
+variable "jwt_secret" {
+  type      = string
+  sensitive = true
 }
-
-variable "container_cpu" {
-  type    = number
-  default = 256 # 0.25 vCPU
+variable "hmac_secret" {
+  type      = string
+  sensitive = true
 }
-
-variable "container_memory" {
-  type    = number
-  default = 512 # MB
+variable "gemini_api_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+variable "slack_webhook_url" {
+  type      = string
+  sensitive = true
+  default   = ""
 }

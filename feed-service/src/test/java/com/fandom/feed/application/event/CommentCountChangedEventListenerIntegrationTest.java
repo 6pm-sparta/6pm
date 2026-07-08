@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.UUID;
 
@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import(CommentCountChangedEventListener.class)
 class CommentCountChangedEventListenerIntegrationTest extends RedisIntegrationTestSupport {
     @Autowired
-    private RedisTemplate<String, String> redisTemplate;
+    private StringRedisTemplate redisTemplate;
 
     @Autowired
     private CommentCountChangedEventListener listener;

@@ -44,7 +44,7 @@ export function setup() {
     for (let i = 0; i < USER_COUNT; i++) {
         const email = `stress_${stamp}_${i}@test.com`;
         http.post(`${BASE_URL}/api/v1/members`, JSON.stringify({
-            email, password: PASSWORD, nickname: `st${i}`,
+            email, password: PASSWORD, nickname: `st${stamp}_${i}`,
             zipCode: '12345', address1: '서울시 강남구', address2: '101호',
         }), JSON_HDR);
         const res = http.post(`${BASE_URL}/api/v1/auth/login`, JSON.stringify({

@@ -25,11 +25,15 @@ import java.util.UUID;
  * 다른 빈으로 분리해야 한다).
  *
  * decide: 비관적 락 안에서 상태를 판단하고, 가능하면 즉시 전이까지 끝내는 짧은 트랜잭션.
- * - PENDING → CANCELLED까지 여기서 끝남(PG 호출 없음)
- * - PAID/CONFIRMED(취소 가능 시간 내) → REFUND_REQUESTED까지만 전이. 실제 PG 환불은 락 밖(Service)에서
- *   비동기로 요청하며, 환불 완료/거절 결과는 PG 웹훅으로 비동기 반영된다(RefundResultWriter 참고).
- *   이 클래스는 REFUND_REQUESTED 전이까지만 책임진다.
- * - CANCELLED/REFUNDED → 변경 없음, 멱등 응답용 현재 상태만 반환
+ * - PENDING(결제 시도 없음) → CANCELLED까지 여기서 끝남(PG 호출 없음)
+ * - PENDING(결제 시도 진행중) → 409. — PAYMENT_REQUESTED가 PENDING에 흡수되면서
+ *   생긴 케이스. PG 승인/거절 webhook이 오는 중에 취소를 허용하면 "취소됐는데 결제는 승인됨" 같은
+ *   레이스가 생긴다. payments에 REQUESTED row가 있으면 웹훅 결과를 먼저 기다리게 한다.
+ * - CONFIRMING/CONFIRMED(취소 가능 시간 내) → CANCEL_REQUESTED까지만 전이. 좌석 해제 이벤트는
+ *   환불 성공/실패와 무관하게 이 전이 시점에 바로 발행한다(환불이 REFUND_FAILED/MANUAL_REVIEW_REQUIRED로
+ *   빠져도 좌석이 영구 잠기지 않게 하기 위함). 실제 PG 환불은 락 밖(Service)에서 비동기로 요청하며,
+ *   환불 완료/거절 결과는 PG 웹훅으로 비동기 반영된다(RefundResultWriter 참고, 알림만 담당).
+ * - CANCELLED → 변경 없음, 멱등 응답용 현재 상태만 반환
  */
 @Component
 @RequiredArgsConstructor
@@ -56,20 +60,30 @@ public class OrderCancelWriter {
         return switch (before) {
 
             case PENDING -> {
+                // 결제 시도가 진행중(REQUESTED)이면 웹훅 결과를 기다린다.
+                // 여기서 그냥 취소해버리면 직후 승인 webhook이 도착했을 때 "취소된 주문인데
+                // 결제는 승인됨"이라는 정합성 버그가 생긴다.
+                if (paymentRepository.existsByOrderIdAndPaymentStatus(orderId, PaymentStatus.REQUESTED)) {
+                    throw new CustomException(OrderErrorCode.INVALID_ORDER_STATUS);
+                }
+
                 order.markCancelled();
-                saveHistory(order.getId(), before, order.getStatus(), "유저 직접 취소(결제 전)");
+                saveHistory(order.getId(), before, order.getStatus(), "[USER] 유저 직접 취소(결제 전)");
                 outboxAppender.appendHoldReleased(order.getId());
                 yield OrderCancelDecision.cancelled(order.getId(), order.getStatus(), order.getStatusUpdatedAt());
             }
 
-            case CANCELLED, REFUNDED ->
+            case CANCELLED ->
                 // 멱등 응답: 이미 종료 지점에 도달한 주문에 대한 재요청. 변경 없이 현재 상태 그대로 반환.
                     OrderCancelDecision.idempotent(order.getId(), order.getStatus(), order.getStatusUpdatedAt());
 
-            case PAID -> {
+            case CONFIRMING -> {
                 Payment payment = findApprovedPayment(order.getId());
-                order.markRefundRequested();
-                saveHistory(order.getId(), before, order.getStatus(), "유저 직접 취소(결제 후)");
+                payment.requestRefund();
+                order.markCancelRequested();
+                saveHistory(order.getId(), before, order.getStatus(), "[USER] 유저 직접 취소(결제 후)");
+                // 환불 성공/실패와 무관하게 취소 요청 확정 시점에 좌석부터 바로 해제한다.
+                outboxAppender.appendPaymentCancelled(order.getId());
                 yield OrderCancelDecision.refundNeeded(order.getId(), payment, order.getStatusUpdatedAt());
             }
 
@@ -78,12 +92,14 @@ public class OrderCancelWriter {
                     throw new CustomException(OrderErrorCode.CANCELLATION_WINDOW_EXPIRED);
                 }
                 Payment payment = findApprovedPayment(order.getId());
-                order.markRefundRequested();
-                saveHistory(order.getId(), before, order.getStatus(), "유저 직접 취소(확정 후, 취소 가능 시간 내)");
+                payment.requestRefund();
+                order.markCancelRequested();
+                saveHistory(order.getId(), before, order.getStatus(), "[USER] 유저 직접 취소(확정 후, 취소 가능 시간 내)");
+                outboxAppender.appendPaymentCancelled(order.getId());
                 yield OrderCancelDecision.refundNeeded(order.getId(), payment, order.getStatusUpdatedAt());
             }
 
-            // PAYMENT_REQUESTED, COMPENSATING, REFUND_REQUESTED, FAILED
+            // CANCEL_REQUESTED, FAILED, MANUAL_REVIEW_REQUIRED
             default -> throw new CustomException(OrderErrorCode.INVALID_ORDER_STATUS);
         };
     }

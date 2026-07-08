@@ -55,19 +55,19 @@ class OrderConfirmationWriterTest {
         seatId = UUID.randomUUID();
     }
 
-    private Order paidOrder() {
+    // issue #292 — PENDING → PAYMENT_REQUESTED → PAID 2단계였던 걸 PENDING → CONFIRMING 1단계로 축소.
+    private Order confirmingOrder() {
         Order order = Order.createPending(seatId, userId, 50_000L, LocalDateTime.now().plusMinutes(10));
         ReflectionTestUtils.setField(order, "id", orderId);
-        order.markPaymentRequested();
-        order.markPaid();
+        order.markConfirming();
         return order;
     }
 
     @Test
-    @DisplayName("PAID 주문은 CONFIRMED로 전이되고 이력이 남는다")
-    void confirm_paid_transitionsToConfirmed() {
+    @DisplayName("CONFIRMING 주문은 CONFIRMED로 전이되고 이력이 남는다")
+    void confirm_confirming_transitionsToConfirmed() {
         // given
-        Order order = paidOrder();
+        Order order = confirmingOrder();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
@@ -85,7 +85,7 @@ class OrderConfirmationWriterTest {
     @DisplayName("이미 CONFIRMED인 주문은 변경 없이 ALREADY_CONFIRMED로 응답한다(중복 이벤트 멱등 처리)")
     void confirm_alreadyConfirmed_returnsIdempotent() {
         // given
-        Order order = paidOrder();
+        Order order = confirmingOrder();
         order.markConfirmed();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
@@ -100,11 +100,11 @@ class OrderConfirmationWriterTest {
     }
 
     @Test
-    @DisplayName("PAID가 아닌 다른 상태(예: REFUND_REQUESTED)면 SKIPPED_INVALID_STATE로 응답하고 예외를 던지지 않는다")
-    void confirm_notPaid_returnsSkipped() {
+    @DisplayName("CONFIRMING이 아닌 다른 상태(예: CANCEL_REQUESTED)면 SKIPPED_INVALID_STATE로 응답하고 예외를 던지지 않는다")
+    void confirm_notConfirming_returnsSkipped() {
         // given
-        Order order = paidOrder();
-        order.markRefundRequested();
+        Order order = confirmingOrder();
+        order.markCancelRequested();
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
 
         // when
@@ -112,7 +112,7 @@ class OrderConfirmationWriterTest {
 
         // then
         assertThat(result.type()).isEqualTo(OrderConfirmationResult.Type.SKIPPED_INVALID_STATE);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED); // 변경 없음
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED); // 변경 없음
         verify(orderStatusHistoryRepository, never()).save(any());
     }
 

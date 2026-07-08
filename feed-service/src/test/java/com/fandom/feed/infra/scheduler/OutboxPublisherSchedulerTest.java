@@ -2,10 +2,10 @@ package com.fandom.feed.infra.scheduler;
 
 import com.fandom.feed.application.event.Event;
 import com.fandom.feed.application.event.PostBroadcastHandler;
-import com.fandom.feed.infra.kafka.outbox.OutboxEvent;
-import com.fandom.feed.infra.kafka.outbox.OutboxEventRepository;
-import com.fandom.feed.infra.kafka.outbox.OutboxEventType;
-import com.fandom.feed.infra.kafka.outbox.OutboxStatus;
+import com.fandom.feed.infra.outbox.OutboxEvent;
+import com.fandom.feed.infra.outbox.OutboxEventRepository;
+import com.fandom.feed.infra.outbox.OutboxEventType;
+import com.fandom.feed.infra.outbox.OutboxStatus;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -67,6 +68,7 @@ class OutboxPublisherSchedulerTest {
         // given
         String invalidJson = "invalid";
         OutboxEvent event = OutboxEvent.of(UUID.randomUUID(), OutboxEventType.POST_CREATED, invalidJson);
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
 
         given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING)).willReturn(List.of(event));
         given(objectMapper.readValue(invalidJson, Event.PostCreated.class)).willThrow(new JsonProcessingException("파싱 실패") {});
@@ -90,6 +92,7 @@ class OutboxPublisherSchedulerTest {
         String json = "{\"postId\":\"...\"}";
 
         OutboxEvent event = OutboxEvent.of(postId, OutboxEventType.POST_CREATED, json);
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
         Event.PostCreated payload = new Event.PostCreated(postId, authorId, "닉네임");
 
         given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING)).willReturn(List.of(event));
@@ -113,6 +116,7 @@ class OutboxPublisherSchedulerTest {
         // given
         String invalidJson = "invalid";
         OutboxEvent event = OutboxEvent.of(UUID.randomUUID(), OutboxEventType.POST_CREATED, invalidJson);
+        ReflectionTestUtils.setField(event, "id", UUID.randomUUID());
 
         given(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING)).willReturn(List.of(event));
         given(objectMapper.readValue(invalidJson, Event.PostCreated.class)).willThrow(new JsonProcessingException("파싱 실패") {});

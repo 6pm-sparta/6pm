@@ -21,16 +21,12 @@ public class ImageService {
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ImageUrlConverter imageUrlConverter;
 
-    /**
-     * 게시글 ID로 이미지 목록을 조회하는 메서드
-     */
+    /** 게시글 ID로 이미지 목록을 조회하는 메서드 */
     public List<String> findAllByPostId(UUID postId) {
         return imageRepository.findAllByPostIdOrderByOrderIndexAsc(postId).stream().map(Image::getImageKey).toList();
     }
 
-    /**
-     * 게시글 ID 목록으로 이미지 목록을 조회한 후, URL로 변환해 Map으로 반환하는 메서드
-     */
+    /** 게시글 ID 목록으로 이미지 목록을 조회한 후, URL로 변환해 Map으로 반환하는 메서드 */
     public Map<UUID, List<String>> findAllByPostIds(List<UUID> postIds) {
         return imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)
                 .stream()
@@ -43,17 +39,13 @@ public class ImageService {
                 ));
     }
 
-    /**
-     * 게시글 ID 목록으로 이미지 목록을 조회한 후, 이미지 키를 반환하는 메서드
-     */
+    /** 게시글 ID 목록으로 이미지 목록을 조회한 후, 이미지 키를 반환하는 메서드 */
     public List<String> findAllKeysByPostIds(List<UUID> postIds) {
         return imageRepository.findAllByPostIdInOrderByOrderIndexAsc(postIds)
                 .stream().map(Image::getImageKey).toList();
     }
 
-    /**
-     * Image 객체를 생성한 후, 저장하는 메서드
-     */
+    /** Image 객체를 생성한 후, 저장하는 메서드 */
     public void saveImages(UUID postId, List<String> imageKeys) {
         if (imageKeys.isEmpty()) return;
 
@@ -89,23 +81,17 @@ public class ImageService {
         return newImageKeys;
     }
 
-    /**
-     * 게시글 ID로 이미지 목록을 삭제하는 메서드
-     */
+    /** 게시글 ID로 이미지 목록을 삭제하는 메서드 */
     public void deleteAllByPostId(UUID postId) {
         deleteAllByPostIds(List.of(postId));
     }
 
-    /**
-     * 게시글 ID 목록으로 이미지 목록을 삭제하는 메서드
-     */
+    /** 게시글 ID 목록으로 이미지 목록을 삭제하는 메서드 */
     public void deleteAllByPostIds(List<UUID> postIds) {
         imageRepository.deleteAllByPostIdIn(postIds);
     }
 
-    /**
-     * S3 삭제 이벤트를 발행하는 메서드
-     */
+    /** S3 삭제 이벤트를 발행하는 메서드 */
     public void publishS3DeleteEvent(List<String> ImageKeysToDelete) {
         if (!ImageKeysToDelete.isEmpty())
             applicationEventPublisher.publishEvent(new Event.S3ImageDelete(ImageKeysToDelete));

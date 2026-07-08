@@ -5,8 +5,10 @@ import com.fandom.common.auth.config.CommonAuthAutoConfiguration;
 import com.fandom.common.auth.filter.IdCardVerificationFilter;
 import com.fandom.common.config.CommonAutoConfiguration;
 import com.fandom.feed.application.PostService;
+import com.fandom.feed.application.TimelineService;
 import com.fandom.feed.global.aspect.AuthorizationAspect;
 import com.fandom.feed.global.constant.UserRole;
+import com.fandom.feed.global.util.IdGenerator;
 import com.fandom.feed.infra.s3.S3Service;
 import com.fandom.feed.presentation.dto.request.PostRequest;
 import com.fandom.feed.presentation.dto.request.PresignedUrlRequest;
@@ -49,7 +51,13 @@ class PostControllerTest {
     private PostService postService;
 
     @MockitoBean
+    private TimelineService timelineService;
+
+    @MockitoBean
     private S3Service s3Service;
+
+    @MockitoBean
+    private IdGenerator idGenerator;
 
     private UserIdCard creatorIdCard;
 
@@ -70,7 +78,7 @@ class PostControllerTest {
         void generatePresignedUrlsSuccess() throws Exception {
             // given
             PresignedUrlRequest request = new PresignedUrlRequest(List.of("image1.jpg", "image2.png"));
-            when(s3Service.generatePresignedUrls(anyList())).thenReturn(anyList());
+            when(s3Service.generatePresignedUrls(anyList(), any(UUID.class))).thenReturn(List.of());
 
             // when & then
             mockMvc.perform(withIdCard(post("/api/v1/feeds/posts/presigned-url")
@@ -128,8 +136,8 @@ class PostControllerTest {
         @DisplayName("정상 요청 - 201 반환")
         void createPostSuccess() throws Exception {
             // given
-            String key1 = "posts/20240101/" + UUID.randomUUID() + ".jpg";
-            String key2 = "posts/20240101/" + UUID.randomUUID() + ".jpg";
+            String key1 = "posts/" + UUID.randomUUID() + "/" + UUID.randomUUID() + ".jpg";
+            String key2 = "posts/" + UUID.randomUUID() + "/" + UUID.randomUUID() + ".jpg";
 
             PostRequest request = new PostRequest("내용", List.of(key1, key2));
             when(postService.createPost(any(), any(), any())).thenReturn(mock(PostResponse.Create.class));

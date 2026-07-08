@@ -31,6 +31,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+/**
+ * issue #292 — REFUND_REQUESTED→CANCEL_REQUESTED, REFUNDED(order)→CANCELLED 리네이밍.
+ * 복구 대상 Payment 조회 기준이 APPROVED에서 REFUND_REQUESTED/REFUND_FAILED로 바뀌었다
+ * (환불 요청 시점에 payment도 REFUND_REQUESTED로 전이해두므로 더 이상 APPROVED로 못 찾는다).
+ */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RefundRecoveryWriter 단위 테스트")
 class RefundRecoveryWriterTest {
@@ -64,13 +69,20 @@ class RefundRecoveryWriterTest {
         return order;
     }
 
-    private Payment approvedPaymentWithRetryCount(UUID orderId, long retryCount) {
+    private Payment refundRequestedPaymentWithRetryCount(UUID orderId, long retryCount) {
         Payment payment = Payment.builder()
                 .orderId(orderId).amount(50_000L)
                 .paymentStatus(PaymentStatus.APPROVED).paymentMethod(PaymentMethod.CARD)
                 .pgTransactionId(PG_TX_ID).idempotencyKey(UUID.randomUUID().toString())
                 .build();
+        payment.requestRefund(); // APPROVED → REFUND_REQUESTED
         ReflectionTestUtils.setField(payment, "refundRetryCount", retryCount);
+        return payment;
+    }
+
+    private Payment refundFailedPaymentWithRetryCount(UUID orderId, long retryCount) {
+        Payment payment = refundRequestedPaymentWithRetryCount(orderId, retryCount);
+        payment.refundFail("이전 시도 거절");
         return payment;
     }
 
@@ -81,15 +93,15 @@ class RefundRecoveryWriterTest {
     // --- 정상 분기 ---
 
     @Test
-    @DisplayName("거래조회 결과 REFUNDED — 재환불 없이 우리 쪽 상태만 동기화(SYNCED)")
+    @DisplayName("거래조회 결과 REFUNDED — 재환불 없이 우리 쪽 상태만 동기화(SYNCED), 좌석 해제는 이미 CANCEL_REQUESTED 전이 시점에 발행됨")
     void recover_pgRefunded_syncsWithoutRetry() {
         // given
-        Order order = orderWithStatus(OrderStatus.REFUND_REQUESTED);
+        Order order = orderWithStatus(OrderStatus.CANCEL_REQUESTED);
         UUID orderId = order.getId();
-        Payment payment = approvedPaymentWithRetryCount(orderId, 0);
+        Payment payment = refundRequestedPaymentWithRetryCount(orderId, 0);
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_REQUESTED))
                 .willReturn(Optional.of(payment));
         given(paymentGateway.inquireTransaction(PG_TX_ID)).willReturn(Optional.of(pgStatus(PgTransactionResult.REFUNDED)));
 
@@ -98,9 +110,10 @@ class RefundRecoveryWriterTest {
 
         // then
         assertThat(result).isEqualTo(RefundRecoveryResult.SYNCED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUNDED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
         verify(paymentGateway, never()).requestRefundAsync(any(), any(), any());
-        verify(outboxAppender).appendPaymentCancelled(orderId);
+        verify(outboxAppender, never()).appendPaymentCancelled(any());
         verify(outboxAppender).appendOrderCancelledNotification(any(), any());
     }
 
@@ -108,12 +121,12 @@ class RefundRecoveryWriterTest {
     @DisplayName("거래조회 결과 REFUND_FAILED, 재시도 횟수 미소진 — 재환불 요청(RETRIED)")
     void recover_pgRefundFailed_retriesWhenNotExhausted() {
         // given
-        Order order = orderWithStatus(OrderStatus.REFUND_REQUESTED);
+        Order order = orderWithStatus(OrderStatus.CANCEL_REQUESTED);
         UUID orderId = order.getId();
-        Payment payment = approvedPaymentWithRetryCount(orderId, 1); // 1회 시도, 아직 미소진
+        Payment payment = refundRequestedPaymentWithRetryCount(orderId, 1); // 1회 시도, 아직 미소진
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_REQUESTED))
                 .willReturn(Optional.of(payment));
         given(paymentGateway.inquireTransaction(PG_TX_ID)).willReturn(Optional.of(pgStatus(PgTransactionResult.REFUND_FAILED)));
 
@@ -123,20 +136,23 @@ class RefundRecoveryWriterTest {
         // then
         assertThat(result).isEqualTo(RefundRecoveryResult.RETRIED);
         assertThat(payment.getRefundRetryCount()).isEqualTo(2L); // increaseRefundRetryCount 호출됨
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED); // 로컬 상태는 그대로
         verify(paymentGateway).requestRefundAsync(orderId, PG_TX_ID, 50_000L);
         verify(outboxAppender, never()).appendPaymentCancelled(any());
     }
 
     @Test
-    @DisplayName("주문이 FAILED 상태에서 재시도 — REFUND_REQUESTED로 복귀 후 재환불 요청(RETRIED)")
-    void recover_failedOrder_transitionsBackToRefundRequestedThenRetries() {
+    @DisplayName("주문이 FAILED 상태에서 재시도 — CANCEL_REQUESTED로 복귀, payment도 REFUND_REQUESTED로 복귀 후 재환불 요청(RETRIED)")
+    void recover_failedOrder_transitionsBackToCancelRequestedThenRetries() {
         // given
         Order order = orderWithStatus(OrderStatus.FAILED);
         UUID orderId = order.getId();
-        Payment payment = approvedPaymentWithRetryCount(orderId, 0);
+        Payment payment = refundFailedPaymentWithRetryCount(orderId, 0); // 직전 시도에서 거절됨(REFUND_FAILED)
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_REQUESTED))
+                .willReturn(Optional.empty());
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_FAILED))
                 .willReturn(Optional.of(payment));
         given(paymentGateway.inquireTransaction(PG_TX_ID)).willReturn(Optional.of(pgStatus(PgTransactionResult.REFUND_FAILED)));
 
@@ -145,7 +161,8 @@ class RefundRecoveryWriterTest {
 
         // then
         assertThat(result).isEqualTo(RefundRecoveryResult.RETRIED);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.REFUND_REQUESTED); // FAILED → REFUND_REQUESTED 복귀
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED); // FAILED → CANCEL_REQUESTED 복귀
+        assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED); // REFUND_FAILED → REFUND_REQUESTED 복귀
         verify(paymentGateway).requestRefundAsync(orderId, PG_TX_ID, 50_000L);
     }
 
@@ -153,12 +170,12 @@ class RefundRecoveryWriterTest {
     @DisplayName("재시도 횟수 소진 — MANUAL_REVIEW_REQUIRED 전환(EXHAUSTED)")
     void recover_retriesExhausted_transitionsToManualReview() {
         // given
-        Order order = orderWithStatus(OrderStatus.REFUND_REQUESTED);
+        Order order = orderWithStatus(OrderStatus.CANCEL_REQUESTED);
         UUID orderId = order.getId();
-        Payment payment = approvedPaymentWithRetryCount(orderId, MAX_RETRIES); // 소진
+        Payment payment = refundRequestedPaymentWithRetryCount(orderId, MAX_RETRIES); // 소진
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_REQUESTED))
                 .willReturn(Optional.of(payment));
         given(paymentGateway.inquireTransaction(PG_TX_ID)).willReturn(Optional.of(pgStatus(PgTransactionResult.REFUND_FAILED)));
 
@@ -175,12 +192,12 @@ class RefundRecoveryWriterTest {
     @DisplayName("거래조회 결과 없음 — 즉시 MANUAL_REVIEW_REQUIRED 전환(EXHAUSTED)")
     void recover_noTransactionFound_transitionsToManualReview() {
         // given
-        Order order = orderWithStatus(OrderStatus.REFUND_REQUESTED);
+        Order order = orderWithStatus(OrderStatus.CANCEL_REQUESTED);
         UUID orderId = order.getId();
-        Payment payment = approvedPaymentWithRetryCount(orderId, 0);
+        Payment payment = refundRequestedPaymentWithRetryCount(orderId, 0);
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_REQUESTED))
                 .willReturn(Optional.of(payment));
         given(paymentGateway.inquireTransaction(PG_TX_ID)).willReturn(Optional.empty());
 
@@ -198,7 +215,7 @@ class RefundRecoveryWriterTest {
     @DisplayName("처리 시점에 이미 다른 경로로 상태 변경 — SKIPPED")
     void recover_alreadyProcessed_returnsSkipped() {
         // given
-        Order order = orderWithStatus(OrderStatus.REFUNDED); // 이미 처리됨
+        Order order = orderWithStatus(OrderStatus.CANCELLED); // 이미 처리됨
         given(orderRepository.findByIdForUpdate(order.getId())).willReturn(Optional.of(order));
 
         // when
@@ -224,14 +241,16 @@ class RefundRecoveryWriterTest {
     }
 
     @Test
-    @DisplayName("APPROVED Payment가 없는 데이터 불일치 — 즉시 MANUAL_REVIEW_REQUIRED(EXHAUSTED)")
-    void recover_noApprovedPayment_transitionsToManualReview() {
+    @DisplayName("REFUND_REQUESTED/REFUND_FAILED Payment가 둘 다 없는 데이터 불일치 — 즉시 MANUAL_REVIEW_REQUIRED(EXHAUSTED)")
+    void recover_noRefundPayment_transitionsToManualReview() {
         // given
-        Order order = orderWithStatus(OrderStatus.REFUND_REQUESTED);
+        Order order = orderWithStatus(OrderStatus.CANCEL_REQUESTED);
         UUID orderId = order.getId();
 
         given(orderRepository.findByIdForUpdate(orderId)).willReturn(Optional.of(order));
-        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.APPROVED))
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_REQUESTED))
+                .willReturn(Optional.empty());
+        given(paymentRepository.findByOrderIdAndPaymentStatus(orderId, PaymentStatus.REFUND_FAILED))
                 .willReturn(Optional.empty());
 
         // when

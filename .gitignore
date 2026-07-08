@@ -38,6 +38,8 @@ out/
 
 # 환경변수 파일
 .env
+.env.*
+!.env.docker.example
 setup-env.ps1
 
 # Docker Local Data Volumes
@@ -67,7 +69,16 @@ postman/environments/
 backup/
 
 # Terraform
-**/.terraform/*
-*.tfstate
+.terraform/
+*.tfstate*
+terraform.tfvars
 *.tfstate.*
+.terraform.lock.hcl
 crash.log
+
+# k6 부하테스트 결과 (실행마다 생성 — 커밋 X)
+k6/result_*.json
+
+##eval
+**/.venv
+

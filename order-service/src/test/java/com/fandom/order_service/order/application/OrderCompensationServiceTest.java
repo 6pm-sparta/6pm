@@ -63,7 +63,7 @@ class OrderCompensationServiceTest {
     void compensate_alreadyHandled_doesNotCallPg() {
         // given
         given(orderCompensationWriter.startCompensation(orderId, "좌석 매진"))
-                .willReturn(OrderCompensationResult.alreadyHandled(orderId, OrderStatus.REFUND_REQUESTED));
+                .willReturn(OrderCompensationResult.alreadyHandled(orderId, OrderStatus.CANCEL_REQUESTED));
 
         // when
         orderCompensationService.compensate(orderId, "좌석 매진");
@@ -73,7 +73,7 @@ class OrderCompensationServiceTest {
     }
 
     @Test
-    @DisplayName("COMPENSATING으로 전이할 수 없는 상태(SKIPPED_INVALID_STATE)면 PG를 호출하지 않는다")
+    @DisplayName("CANCEL_REQUESTED로 전이할 수 없는 상태(SKIPPED_INVALID_STATE)면 PG를 호출하지 않는다")
     void compensate_skippedInvalidState_doesNotCallPg() {
         // given
         given(orderCompensationWriter.startCompensation(orderId, "좌석 매진"))
