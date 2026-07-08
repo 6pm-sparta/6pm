@@ -25,6 +25,7 @@ dependencies {
 	implementation 'software.amazon.awssdk:s3:2.46.14'
 	implementation 'org.springframework.retry:spring-retry'
 	implementation 'org.springframework:spring-aspects'
+	implementation 'org.apache.commons:commons-pool2'
 
 	testImplementation 'com.h2database:h2'
 	testImplementation 'org.testcontainers:testcontainers:2.0.5'
