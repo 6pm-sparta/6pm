@@ -15,6 +15,8 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 @Slf4j
@@ -103,6 +106,7 @@ public class SeatService {
     private final OrderClientRetryWrapper orderClientRetryWrapper;
     private final PurchaseTokenService purchaseTokenService;
     private final MeterRegistry meterRegistry;
+    private final RedissonClient redissonClient;
 
     public List<ShowSeatResponse> getSeats(UUID showId) {
         List<ShowSeat> seats = showSeatRepository.findAllByShowId(showId);
@@ -237,15 +241,34 @@ public class SeatService {
     }
 
     // inventory 키는 쇼/좌석 생성 시점에 초기화되는 곳이 없어서, hold 시점에 없으면 DB 기준으로 lazy 초기화한다.
-    // SETNX라서 동시 요청이 몰려도 한 번만 세팅된다.
+    // 최종 값은 SETNX라 한 번만 세팅되지만, 그 이전에 값이 없는 동안 동시 요청 전부가 DB 조회를
+    // 각자 날려버려 커넥션 풀을 순간적으로 소진시킬 수 있어(#부하테스트에서 5xx로 확인) 분산락으로 DB 조회 자체를 1건으로 제한한다.
     private void ensureInventoryInitialized(UUID showId, String inventoryKey) {
         if (Boolean.TRUE.equals(redisTemplate.hasKey(inventoryKey))) {
             return;
         }
-        long availableCount = showSeatRepository.findAllByShowId(showId).stream()
-                .filter(seat -> seat.getOrderId() == null)
-                .count();
-        redisTemplate.opsForValue().setIfAbsent(inventoryKey, String.valueOf(availableCount));
+
+        RLock lock = redissonClient.getLock("lock:inventory-init:%s".formatted(showId));
+        try {
+            if (!lock.tryLock(2, 3, TimeUnit.SECONDS)) {
+                return; // 락 대기 중 다른 요청이 초기화 완료했을 가능성이 높음 — HOLD_SCRIPT가 이후 재확인
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+
+        try {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(inventoryKey))) {
+                return; // 락 대기하는 동안 다른 스레드가 이미 초기화함
+            }
+            long availableCount = showSeatRepository.findAllByShowId(showId).stream()
+                    .filter(seat -> seat.getOrderId() == null)
+                    .count();
+            redisTemplate.opsForValue().setIfAbsent(inventoryKey, String.valueOf(availableCount));
+        } finally {
+            lock.unlock();
+        }
     }
 
     public PurchaseLimitResponse getPurchaseLimit(UUID showId, UUID userId) {
