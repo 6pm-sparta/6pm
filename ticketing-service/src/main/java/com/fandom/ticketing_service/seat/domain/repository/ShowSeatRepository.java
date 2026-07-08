@@ -12,4 +12,6 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, UUID> {
     List<ShowSeat> findAllByShowId(UUID showId);
 
     Optional<ShowSeat> findByOrderId(UUID orderId);
+
+    long countByShowIdAndOrderIdIsNull(UUID showId);
 }

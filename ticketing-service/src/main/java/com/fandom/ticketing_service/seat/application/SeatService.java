@@ -255,6 +255,7 @@ public class SeatService {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            log.warn("inventory 초기화 락 대기 중 인터럽트 발생: showId={}", showId);
             return;
         }
 
@@ -262,9 +263,7 @@ public class SeatService {
             if (Boolean.TRUE.equals(redisTemplate.hasKey(inventoryKey))) {
                 return; // 락 대기하는 동안 다른 스레드가 이미 초기화함
             }
-            long availableCount = showSeatRepository.findAllByShowId(showId).stream()
-                    .filter(seat -> seat.getOrderId() == null)
-                    .count();
+            long availableCount = showSeatRepository.countByShowIdAndOrderIdIsNull(showId);
             redisTemplate.opsForValue().setIfAbsent(inventoryKey, String.valueOf(availableCount));
         } finally {
             lock.unlock();
