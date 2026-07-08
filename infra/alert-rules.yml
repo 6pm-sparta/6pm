@@ -64,3 +64,64 @@ groups:
         annotations:
           summary: "{{ $labels.job }} DB 커넥션 풀 대기 발생"
           description: "대기 중 커넥션 {{ $value }}개. 풀 사이즈/슬로우쿼리 의심."
+
+  # ===================================================================
+  # notification / chat / cs 커스텀 지표 (코드에 심은 Micrometer 지표)
+  # 임계값 확정(baseline 실측 2026-07-07):
+  #   - CsAnswerFallbackRate 0.2  (폴백율 baseline ~9.5%)
+  #   - ChatMessageBlockedSpike 0.5 (정상 트래픽 차단율 ≈0)
+  #   - NotificationPushFailRate 0.05 : 로컬은 스텁 발송이라 실측 불가 → 실서비스 FCM 기준 고정
+  #   - ChatWsSessionsDrop : 50% 급감(비율 기반, baseline 불필요)
+  # ===================================================================
+  - name: custom-notification-chat-cs
+    rules:
+      # 5) 알림 발송 실패율 > 5% — notification_push_result_total{result}
+      - alert: NotificationPushFailRate
+        expr: |
+          sum(rate(notification_push_result_total{result="fail"}[5m]))
+          /
+          sum(rate(notification_push_result_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "알림 발송 실패율 5% 초과"
+          description: "최근 5분 FCM 발송 실패율 {{ $value | humanizePercentage }} (FCM 장애 의심)."
+
+      # 6) 채팅 전송 제한 위반(도배/슬로우) 급증 — chat_message_blocked_total
+      - alert: ChatMessageBlockedSpike
+        expr: sum(rate(chat_message_blocked_total{reason=~"slow|dup"}[5m])) > 0.5  # 정상 트래픽 차단율≈0, 지속 차단은 매크로/도배 의심 (smoke 5VU 스팸≈0.5/s)
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "채팅 전송 제한 위반 급증(도배/슬로우)"
+          description: "slow/dup 차단율 {{ $value }}/s (매크로·도배 의심)."
+
+      # 7) CS 폴백("상담원 연결") 응답 비율 급증 — cs_answer_fallback_total / 문의수
+      - alert: CsAnswerFallbackRate
+        expr: |
+          sum(rate(cs_answer_fallback_total[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count{uri=~".*cs/inquiries", method="POST"}[5m]))
+          > 0.2  # baseline 폴백율 ~9.5%(2/21) 대비 여유 2배
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CS 무근거·폴백 응답 비율 급증"
+          description: "폴백 응답 비율 {{ $value | humanizePercentage }} (검색 품질 저하 의심)."
+
+      # 8) 채팅 WebSocket 동시연결 급감 — chat_ws_active_sessions
+      - alert: ChatWsSessionsDrop
+        expr: |
+          (chat_ws_active_sessions offset 5m) > 0
+          and
+          chat_ws_active_sessions / (chat_ws_active_sessions offset 5m) < 0.5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "채팅 WS 동시연결 5분 내 50%+ 급감"
+          description: "현재 세션 {{ $value }}. 게이트웨이/네트워크 이슈 의심."

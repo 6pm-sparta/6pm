@@ -13,7 +13,7 @@ locals {
 resource "aws_secretsmanager_secret" "s" {
   for_each                = local.secret_map
   name                    = "${local.name_prefix}/${each.key}"
-  recovery_window_in_days = 0   # 데모: 즉시 삭제 가능
+  recovery_window_in_days = 0 # 데모: 즉시 삭제 가능
 }
 
 resource "aws_secretsmanager_secret_version" "v" {
