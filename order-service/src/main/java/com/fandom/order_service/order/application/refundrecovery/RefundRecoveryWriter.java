@@ -28,6 +28,9 @@ import java.util.UUID;
  * - REFUNDED: 이미 PG에서는 끝난 건 → 재환불 요청 없이 우리 쪽 상태만 동기화(SYNCED)
  * - REFUND_FAILED/APPROVED: 아직 안 끝난 건 → 재시도 횟수 한도 내면 재환불 요청(RETRIED)
  * - 조회 결과 없음 또는 재시도 소진: 더 이상 자동으로 못 푸는 상태 → MANUAL_REVIEW_REQUIRED(EXHAUSTED)
+ *
+ * 좌석 해제 이벤트는 최초 CANCEL_REQUESTED 전이 시점(OrderCancelWriter/OrderCompensationWriter)에
+ * 이미 발행됐으므로, 이 클래스는 환불 결과 동기화와 알림만 책임진다.
  */
 @Slf4j
 @Component
@@ -112,7 +115,6 @@ public class RefundRecoveryWriter {
         payment.refund();
         saveHistory(order.getId(), before, order.getStatus(), "[RETRY] 환불 복구 배치: 거래조회 결과 동기화(REFUNDED)");
 
-        outboxAppender.appendPaymentCancelled(order.getId());
         outboxAppender.appendOrderCancelledNotification(order.getId(), order.getUserId());
 
         return RefundRecoveryResult.SYNCED;
