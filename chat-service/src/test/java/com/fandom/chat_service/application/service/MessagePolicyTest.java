@@ -4,6 +4,7 @@ import com.fandom.chat_service.application.port.MessageRateLimitPort;
 import com.fandom.chat_service.domain.entity.ChatRoom;
 import com.fandom.chat_service.domain.exception.ChatErrorCode;
 import com.fandom.common.exception.CustomException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class MessagePolicyTest {
 
     @BeforeEach
     void setUp() {
-        policy = new MessagePolicy(rateLimit, MAX_LENGTH);
+        policy = new MessagePolicy(rateLimit, new SimpleMeterRegistry(), MAX_LENGTH);
     }
 
     private ChatRoom room() {

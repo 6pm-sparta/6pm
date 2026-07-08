@@ -5,7 +5,7 @@
 resource "aws_ecr_repository" "svc" {
   for_each     = local.services
   name         = "6pm/${each.key}"
-  force_delete = true   # 데모: destroy 시 이미지째 삭제
+  force_delete = true # 데모: destroy 시 이미지째 삭제
 }
 
 # ── RDS PostgreSQL 1개 (안에 DB 8개) ──
@@ -15,16 +15,16 @@ resource "aws_db_subnet_group" "rds" {
 }
 
 resource "aws_db_instance" "postgres" {
-  identifier             = "db-${local.name_prefix}"        # RDS 식별자는 글자로 시작해야 함 → db-6pm-dev
+  identifier             = "db-${local.name_prefix}" # RDS 식별자는 글자로 시작해야 함 → db-6pm-dev
   engine                 = "postgres"
-  engine_version         = "17.9"           # 리전에서 사용 가능한 버전으로 조정
+  engine_version         = "17.9" # 리전에서 사용 가능한 버전으로 조정
   instance_class         = var.db_instance_class
   allocated_storage      = 20
-  db_name                = "postgres"        # 기본 DB. 나머지 8개는 db-init로 생성(README 참고)
+  db_name                = "postgres" # 기본 DB. 나머지 8개는 db-init로 생성(README 참고)
   username               = var.db_username
   password               = var.db_password
   db_subnet_group_name   = aws_db_subnet_group.rds.name
-  vpc_security_group_ids  = [aws_security_group.data.id]
+  vpc_security_group_ids = [aws_security_group.data.id]
   publicly_accessible    = false
   skip_final_snapshot    = true
   deletion_protection    = false
@@ -39,7 +39,7 @@ resource "aws_elasticache_subnet_group" "redis" {
 
 resource "aws_elasticache_cluster" "redis" {
   for_each             = toset(["general", "ticketing"])
-  cluster_id           = "redis-${local.name_prefix}-${each.key}"   # 글자로 시작 → redis-6pm-dev-general
+  cluster_id           = "redis-${local.name_prefix}-${each.key}" # 글자로 시작 → redis-6pm-dev-general
   engine               = "redis"
   node_type            = "cache.t3.micro"
   num_cache_nodes      = 1

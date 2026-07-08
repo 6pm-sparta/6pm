@@ -93,7 +93,7 @@ class RefundRecoveryWriterTest {
     // --- 정상 분기 ---
 
     @Test
-    @DisplayName("거래조회 결과 REFUNDED — 재환불 없이 우리 쪽 상태만 동기화(SYNCED)")
+    @DisplayName("거래조회 결과 REFUNDED — 재환불 없이 우리 쪽 상태만 동기화(SYNCED), 좌석 해제는 이미 CANCEL_REQUESTED 전이 시점에 발행됨")
     void recover_pgRefunded_syncsWithoutRetry() {
         // given
         Order order = orderWithStatus(OrderStatus.CANCEL_REQUESTED);
@@ -113,7 +113,7 @@ class RefundRecoveryWriterTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
         verify(paymentGateway, never()).requestRefundAsync(any(), any(), any());
-        verify(outboxAppender).appendPaymentCancelled(orderId);
+        verify(outboxAppender, never()).appendPaymentCancelled(any());
         verify(outboxAppender).appendOrderCancelledNotification(any(), any());
     }
 

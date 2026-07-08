@@ -81,6 +81,6 @@ resource "aws_security_group" "data" {
     from_port = 5432
     to_port   = 5432
     protocol  = "tcp"
-    self      = true   # 같은 data SG의 Kafka EC2 → RDS 접속(DB 8개 생성용)
+    self      = true # 같은 data SG의 Kafka EC2 → RDS 접속(DB 8개 생성용)
   }
 }

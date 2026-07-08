@@ -27,16 +27,16 @@ variable "db_username" {
 }
 variable "db_password" {
   type      = string
-  sensitive = true   # tfvars/환경변수로 주입 (커밋 금지)
+  sensitive = true # tfvars/환경변수로 주입 (커밋 금지)
 }
 variable "db_instance_class" {
   type    = string
-  default = "db.t3.micro"   # 데모용 최소
+  default = "db.t3.micro" # 데모용 최소
 }
 
 # config-server가 Private config 레포를 읽기 위한 값
 variable "config_git_username" {
-  type    = string
+  type = string
 }
 variable "config_git_token" {
   type      = string

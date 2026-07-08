@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
-import static java.util.Map.entry;
+import static com.fandom.feed.infra.util.LogContext.entry;
 
 @Service
 @RequiredArgsConstructor

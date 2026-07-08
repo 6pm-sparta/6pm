@@ -92,7 +92,7 @@ public class PostController {
             @RequestParam(required = false) UUID cursor,
             @CurrentIdCard UserIdCard idCard
     ) {
-        CursorPageResponse<PostResponse.Summary> response = timelineService.getTimeline(cursor, idCard.getUserId());
+        CursorPageResponse<PostResponse.Summary> response = timelineService.getTimeline(idCard.getUserId(), cursor);
         return ApiResponse.success(response);
     }
 
