@@ -1,6 +1,7 @@
 package com.fandom.order_service.order.application.compensation;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.domain.entity.Order;
 import com.fandom.order_service.order.domain.entity.OrderStatus;
 import com.fandom.order_service.order.domain.entity.OrderStatusHistory;
@@ -21,7 +22,7 @@ import java.util.UUID;
  * 좌석 예매 실패(ticketing.seat.book.failed) 시 SAGA 보상 트랜잭션의 1단계 처리.
  *
  * startCompensation: 비관적 락 안에서 CONFIRMING/CONFIRMED → CANCEL_REQUESTED로 전이하고,
- * 환불 대상 결제를 함께 반환한다.
+ * 같은 트랜잭션에서 좌석 해제 이벤트를 발행한 뒤(환불 성공/실패와 무관), 환불 대상 결제를 함께 반환한다.
  * (이전엔 COMPENSATING을 거쳐 REFUND_REQUESTED로 갔지만, COMPENSATING은 애초에
  * orders 테이블에 persist되지 않는 transient 상태였다 — 같은 트랜잭션 안에서 바로 다음 상태로
  * 넘어가 history 테이블에만 두 행으로 남았다. 이번에 한 단계로 합치고, "SAGA 경로였다"는 사실은
@@ -37,6 +38,7 @@ public class OrderCompensationWriter {
     private final OrderRepository orderRepository;
     private final OrderStatusHistoryRepository orderStatusHistoryRepository;
     private final PaymentRepository paymentRepository;
+    private final OutboxAppender outboxAppender;
 
     @Transactional
     public OrderCompensationResult startCompensation(UUID orderId, String reason) {
@@ -55,6 +57,8 @@ public class OrderCompensationWriter {
                 order.markCancelRequested();
                 saveHistory(order.getId(), before, order.getStatus(),
                         "[SAGA] 좌석 예매 실패로 보상 시작 및 환불 요청: " + reason);
+                // 환불 성공/실패와 무관하게 취소 요청 확정 시점에 좌석부터 바로 해제한다.
+                outboxAppender.appendPaymentCancelled(order.getId());
 
                 yield OrderCompensationResult.refundRequestedStarted(order.getId(), payment, order.getUserId());
             }

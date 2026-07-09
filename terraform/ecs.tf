@@ -21,6 +21,10 @@ resource "aws_service_discovery_service" "svc" {
 
 resource "aws_ecs_cluster" "main" {
   name = "${local.name_prefix}-cluster"
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
+  }
 }
 
 resource "aws_cloudwatch_log_group" "svc" {
@@ -44,6 +48,7 @@ locals {
         DB_USERNAME             = var.db_username
         CONFIG_GIT_USERNAME     = var.config_git_username
         ZIPKIN_URI              = "http://zipkin.6pm.local:9411/api/v2/spans"
+        TRACING_SAMPLING        = "0"   # ★추가: AWS엔 zipkin 미배포 → 트레이싱 export 끔
         REDIS_PASSWORD          = ""
 
         EUREKA_INSTANCE_HOSTNAME          = "${name}.6pm.local"

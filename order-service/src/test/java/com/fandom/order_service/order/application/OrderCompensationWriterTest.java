@@ -1,6 +1,7 @@
 package com.fandom.order_service.order.application;
 
 import com.fandom.common.exception.CustomException;
+import com.fandom.order_service.kafka.outbox.application.OutboxAppender;
 import com.fandom.order_service.order.application.compensation.OrderCompensationResult;
 import com.fandom.order_service.order.application.compensation.OrderCompensationWriter;
 import com.fandom.order_service.order.domain.entity.Order;
@@ -50,6 +51,9 @@ class OrderCompensationWriterTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private OutboxAppender outboxAppender;
+
     private OrderCompensationWriter orderCompensationWriter;
 
     private UUID orderId;
@@ -57,7 +61,8 @@ class OrderCompensationWriterTest {
 
     @BeforeEach
     void setUp() {
-        orderCompensationWriter = new OrderCompensationWriter(orderRepository, orderStatusHistoryRepository, paymentRepository);
+        orderCompensationWriter = new OrderCompensationWriter(
+                orderRepository, orderStatusHistoryRepository, paymentRepository, outboxAppender);
         orderId = UUID.randomUUID();
         userId = UUID.randomUUID();
     }
@@ -103,6 +108,7 @@ class OrderCompensationWriterTest {
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUND_REQUESTED); // issue #292 신규
         // issue #292 — COMPENSATING 경유 2단계 history가 1단계로 축소됨
         verify(orderStatusHistoryRepository, times(1)).save(any());
+        verify(outboxAppender).appendPaymentCancelled(orderId); // 환불 결과 무관, 취소 확정 즉시 좌석 해제
     }
 
     @Test
@@ -121,6 +127,7 @@ class OrderCompensationWriterTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED); // 변경 없음
         verify(orderStatusHistoryRepository, never()).save(any());
         verify(paymentRepository, never()).findByOrderIdAndPaymentStatus(any(), any());
+        verify(outboxAppender, never()).appendPaymentCancelled(any());
     }
 
     @Test

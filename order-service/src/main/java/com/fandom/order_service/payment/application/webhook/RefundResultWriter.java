@@ -22,7 +22,8 @@ import java.util.UUID;
  *
  * 유저 직접 취소({@code OrderCancelWriter})와 SAGA 보상({@code OrderCompensationWriter})은 둘 다
  * PG에 환불을 요청하기 "전"에 이미 order는 CANCEL_REQUESTED로, payment는 REFUND_REQUESTED로
- * 전이해둔다.
+ * 전이해두며, 좌석 해제 이벤트도 그 시점에 이미 발행했다. 이 클래스는 환불 결과 자체만 반영하고,
+ * 좌석 상태에는 관여하지 않는다(성공 시 알림만 발행).
  */
 @Component
 @RequiredArgsConstructor
@@ -35,7 +36,8 @@ public class RefundResultWriter {
 
     /**
      * 환불 성공(REFUNDED) webhook을 반영한다.
-     * 전이 시 같은 트랜잭션에서 좌석 반환/환불 알림 이벤트를 Outbox에 적재. 중복 수신은 no-op.
+     * 좌석은 CANCEL_REQUESTED 전이 시점에 이미 해제됐으므로, 같은 트랜잭션에서는 환불 완료
+     * 알림 이벤트만 Outbox에 적재한다. 중복 수신은 no-op.
      */
     @Transactional
     public void applyRefundSuccess(UUID orderId, UUID paymentId) {
@@ -55,7 +57,6 @@ public class RefundResultWriter {
         payment.refund();
         saveHistory(order.getId(), before, order.getStatus(), "[USER] 환불 완료(PG 웹훅)");
 
-        outboxAppender.appendPaymentCancelled(order.getId());
         outboxAppender.appendOrderCancelledNotification(order.getId(), order.getUserId());
     }
 

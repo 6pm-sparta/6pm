@@ -29,7 +29,7 @@ resource "aws_iam_instance_profile" "kafka" {
 
 resource "aws_instance" "kafka" {
   ami                         = data.aws_ami.al2023.id
-  instance_type               = "t3.small"
+  instance_type               = "t3.medium"
   subnet_id                   = aws_subnet.private[0].id
   vpc_security_group_ids      = [aws_security_group.data.id]
   associate_public_ip_address = false
@@ -64,4 +64,7 @@ resource "aws_instance" "kafka" {
   EOF
 
   tags = { Name = "${local.name_prefix}-kafka" }
+  lifecycle {
+    ignore_changes = [ami]           # ★추가: apply마다 새 AMI로 인스턴스가 통째로 교체되는 것 방지
+  }
 }

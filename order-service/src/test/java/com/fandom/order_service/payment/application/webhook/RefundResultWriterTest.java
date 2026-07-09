@@ -87,7 +87,7 @@ class RefundResultWriterTest {
     }
 
     @Test
-    @DisplayName("applyRefundSuccess: CANCEL_REQUESTED 주문은 CANCELLED로, 결제는 REFUNDED로 전이하고 좌석반환/환불알림 이벤트를 Outbox에 적재한다")
+    @DisplayName("applyRefundSuccess: CANCEL_REQUESTED 주문은 CANCELLED로, 결제는 REFUNDED로 전이하고 환불 완료 알림 이벤트를 Outbox에 적재한다(좌석 해제는 CANCEL_REQUESTED 전이 시점에 이미 발행됨)")
     void applyRefundSuccess_transitionsToCancelled() {
         // given
         Order order = cancelRequestedOrder();
@@ -103,7 +103,7 @@ class RefundResultWriterTest {
         assertThat(payment.getPaymentStatus()).isEqualTo(PaymentStatus.REFUNDED);
         assertThat(payment.getRefundAmount()).isEqualTo(50_000L);
         verify(orderStatusHistoryRepository).save(any());
-        verify(outboxAppender).appendPaymentCancelled(orderId);
+        verify(outboxAppender, never()).appendPaymentCancelled(any());
         verify(outboxAppender).appendOrderCancelledNotification(orderId, userId);
     }
 
