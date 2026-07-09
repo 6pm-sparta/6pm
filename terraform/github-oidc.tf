@@ -2,6 +2,9 @@
 # github-oidc.tf — GitHub Actions ↔ AWS OIDC 연동 (장기 액세스키 없이 역할 위임)
 # 파일명: terraform/github-oidc.tf
 # 적용 후 output "github_actions_role_arn" 값을 GitHub Secret(AWS_DEPLOY_ROLE_ARN)에 넣는다.
+# ★ 수정(2026-07): deploy.yml 의 SHA-핀 배포 스크립트가 describe/register-task-definition 을
+#    호출하는데 그 권한이 없어 배포 스텝이 조용히 실패(continue-on-error)했었음.
+#    → ecs:DescribeTaskDefinition, ecs:RegisterTaskDefinition 추가.
 # =====================================================================
 
 # 배포를 허용할 레포 (owner/repo). 예: "6pm-sparta/6pm"
@@ -56,7 +59,18 @@ resource "aws_iam_role_policy" "github_actions" {
         ],
         Resource = [for r in aws_ecr_repository.svc : r.arn]
       },
-      { Effect = "Allow", Action = ["ecs:UpdateService", "ecs:DescribeServices"], Resource = "*" },
+      # ★ ECS 배포: SHA-핀 스크립트가 쓰는 4개 액션 모두 필요.
+      #   Describe/RegisterTaskDefinition 은 리소스 단위 제한이 안 돼 Resource="*".
+      {
+        Effect = "Allow",
+        Action = [
+          "ecs:UpdateService",
+          "ecs:DescribeServices",
+          "ecs:DescribeTaskDefinition",
+          "ecs:RegisterTaskDefinition",
+        ],
+        Resource = "*"
+      },
       { Effect = "Allow", Action = ["iam:PassRole"], Resource = [aws_iam_role.ecs_exec.arn, aws_iam_role.ecs_task.arn] },
     ]
   })
