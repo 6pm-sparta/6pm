@@ -384,9 +384,9 @@ class SeatServiceTest {
         }
 
         @Test
-        // TODO: order-service에 DELETE /internal/v1/orders/{orderId} 엔드포인트가 생기면
-        // SeatService.releaseHold()의 주문 취소 호출 주석을 풀고 이 테스트도 cancel() 호출 검증으로 되돌릴 것.
-        @DisplayName("선점 해제 시 연결된 주문이 있어도 주문 취소 호출은 하지 않는다 (order-service 엔드포인트 없음, 임시)")
+        // (2026-07-09) order-service 자체 취소 경로의 self-heal로 충분하다고 결론나서 의도적으로 미호출.
+        // orderClientRetryWrapper는 현재 아무도 안 씀 — 재도입 논의 시 이 테스트도 같이 갱신할 것.
+        @DisplayName("선점 해제 시 연결된 주문이 있어도 주문 취소 호출은 하지 않는다 (의도적 미연동)")
         void releaseHold_success_doesNotCancelOrder() {
             // given
             UUID seatId = UUID.randomUUID();

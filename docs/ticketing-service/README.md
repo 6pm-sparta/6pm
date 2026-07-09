@@ -207,13 +207,15 @@ sequenceDiagram
 
 | 경로 | 트리거 | 처리 |
 |---|---|---|
-| 결제 실패/취소 | Kafka `order.payment.failed`, `order.payment.cancelled` | `SeatConfirmService.releaseSeat()` — DB `orderId` 해제, Redis seat/owner 키 삭제, 재고 복구 |
+| 결제 실패/취소 | Kafka `order.payment.failed`, `order.payment.cancelled` | `SeatConfirmService.releaseSeat()` — DB `orderId` 해제, Redis seat/owner 키 삭제, 재고 복구. Redis Lua 스크립트(`RELEASE_SCRIPT`)로 GET→DELETE→INCR→DECR을 원자적으로 처리해 Kafka at-least-once 재전송 등으로 같은 orderId가 중복 호출돼도 재고/구매수가 두 번 증감하지 않음(#365, 2026-07-08) |
 | TTL 자연 만료 | Redis keyspace notification (`__keyevent@__:expired`) | `SeatHoldExpirationListener` → `SeatService.releaseExpiredHold()` — DB `orderId` 해제, 재고 복구 (사용자가 직접 해제/결제하지 않고 600초 동안 방치한 경우). **owner가 `PENDING`(체크아웃 진행 중)이면 해제를 스킵**하고 경고 로그만 남김 (#326, 2026-07-07) |
 | 사용자 직접 취소 | `DELETE /api/v1/tickets/shows/{showId}/seats/{seatId}/hold` | `SeatService.releaseHold()` — owner 본인 확인 후 Redis seat/owner 키 삭제, 재고 복구, DB `orderId` 해제 |
 
 **hold ↔ release ↔ checkout 동시 호출 레이스 방지 (2026-07-03 갱신, 2026-07-07 확장):** owner 키 상태가 `HELD`(선점만, 주문 없음) → `PENDING`(체크아웃 진행 중, `orderClient.create` 외부 네트워크 호출) → `CONFIRMED`(주문 생성 완료) 3단계로 전이한다. `releaseHold()`는 `PENDING`인 동안(체크아웃이 주문 생성을 기다리는 중)만 `SEAT_HOLD_PROCESSING`(409)으로 거부하고, `HELD`나 `CONFIRMED` 상태에서는 해제를 허용한다. 이게 없으면 "Redis는 풀렸는데 DB에는 뒤늦게 orderId가 박히는" 더블부킹 레이스가 생길 수 있다. 이 가드는 `releaseHold()`뿐 아니라 `releaseExpiredHold()`(TTL 만료 경로)에도 동일하게 적용된다(#326).
 
-> **주문 취소 연동 (🔴 설계 미확정, [9. 미확정 항목](#9-미확정-항목) 참고):** `releaseHold()`에 `OrderClient.cancel(orderId, requesterId)` 호출 코드가 있으나 현재 주석 처리되어 있다. order-service의 `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 develop에 아직 없어 항상 404가 나기 때문. order-service 쪽 타임아웃 자동취소(#231)는 `order.hold.released` 이벤트를 발행하고, ticketing `PaymentEventConsumer.onHoldReleased()`가 이를 구독해 `SeatConfirmService.releaseSeat()`로 좌석을 해제한다(멱등 처리).
+**inventory 최초 초기화 동시 DB 조회 경합 방지 (#362, 2026-07-08):** `inventory:{showId}` 키는 쇼/좌석 생성 시점에 세팅되지 않고 첫 hold 요청 시 DB 기준으로 lazy 초기화된다. 기존엔 SETNX라 최종 값은 한 번만 세팅됐지만, 값이 없는 짧은 구간 동안 몰린 동시 요청 전부가 각자 DB 조회를 날려 커넥션 풀을 순간 소진시킬 수 있었다(부하테스트에서 5xx로 확인). `ensureInventoryInitialized()`에 Redisson 분산락(`lock:inventory-init:{showId}`)을 추가해 DB 조회 자체를 1건으로 제한한다.
+
+> **주문 취소 연동 (🟢 의도적으로 미연동, [9. 미확정 항목](#9-미확정-항목) 참고):** `releaseHold()`는 order-service에 취소를 요청하지 않는다 — order-service 자체 취소 경로(타임아웃 자동취소 #231, 또는 사용자 직접 `DELETE /api/v1/orders/{id}`)가 이미 `order.hold.released`를 발행해 좌석을 멱등하게 정리해준다(self-heal).
 
 ---
 
@@ -257,4 +259,6 @@ sequenceDiagram
 |---|---|---|
 | `checkout()` 트랜잭션 커밋 지연 레이스 | 알려진 제약(낮은 우선순위) | `assignOrder` DB 저장과 owner 키 `CONFIRMED` Redis 갱신 사이, `@Transactional` 커밋 전 시점에 `releaseHold`가 끼어들면 이론상 레이스 재현 가능. 윈도우가 매우 작아(로컬 DB 커밋 지연 수준) 우선순위 낮으나 해결 여부 결정 필요 |
 | `QueueScheduler.findActiveShowIds()`의 `KEYS` 사용 | 알려진 제약(낮은 우선순위) | O(N) 전체 스캔이라 키 스페이스가 커지면 다른 Redis 명령(좌석 Hold 등)을 블로킹할 수 있음. 현재 동시 활성 공연 수가 적어 우선순위 낮으나 `SCAN` 커서 기반 전환 여부/시점 결정 필요 |
-| `releaseHold()` → order-service 주문 취소 연동 끊김 | 🔴 설계 미확정 | `DELETE /internal/v1/orders/{orderId}` 엔드포인트가 develop `InternalOrderController`에 아직 없음 — 설계 미확정으로 임시 주석 처리함. `SeatService.releaseHold()`의 `orderClientRetryWrapper.cancel()` 호출을 아예 주석 처리해둠(항상 404 나는 호출을 굳이 시도 안 하게). order-service 쪽 주문 취소는 당분간 타임아웃 자동취소(#231)에만 의존. 설계 확정되고 엔드포인트 추가되면 주석 해제 |
+| `releaseHold()` → order-service 주문 취소 연동 | 🟢 의도적 미연동 | order-service 자체 취소 경로(#231 타임아웃, 직접 취소 API)의 self-heal로 충분. "즉시 취소" 요구사항 확정 시 재논의 |
+| `inventory:{show_id}` 재고 카운터 Redis 핫키 | 현재 트래픽 수준(50~60 TPS)에서는 문제 아님 | 공연 규모가 수십만 석 또는 멀티 리전으로 확장되면 `inventory:{show_id}:{shard_no}` 로컬 카운터 분할 검토. 단, 샤딩+주기적 합산은 현재 Lua 스크립트 기반 원자적 재고확인+선점의 정합성 보장을 깨는 트레이드오프이므로 도입 시 초과판매 방지 설계 재검토 필요 |
+| 좌석 배치도 등 읽기 집중 키 부하 | 트리거 시 검토 | 반복 조회로 병목이 관측되면 Redis Replica 읽기 분산 또는 애플리케이션 레벨 짧은 TTL(1~2초) 로컬 캐시 검토. 현재는 선제적 대비일 뿐 실측 병목 없음 |

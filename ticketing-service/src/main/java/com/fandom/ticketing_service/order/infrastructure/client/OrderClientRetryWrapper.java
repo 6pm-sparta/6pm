@@ -21,8 +21,7 @@ public class OrderClientRetryWrapper {
 
     private final OrderClient orderClient;
 
-    // TODO: order-service에 DELETE /internal/v1/orders/{orderId} 엔드포인트가 아직 없음 —
-    // 설계 미확정으로 임시 주석 처리함. 설계 확정되면 이 호출 사용 재개.
+    // 현재 releaseHold()는 이 메서드를 호출하지 않음(self-heal로 충분, 클래스 주석 참고).
     @Retry(name = "orderClient", fallbackMethod = "cancelFallback")
     @CircuitBreaker(name = "orderClient")
     public void cancel(UUID orderId, UUID requesterId) {
