@@ -4,7 +4,6 @@ import com.fandom.common.dto.ApiResponse;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.infrastructure.client.OrderClient;
-import com.fandom.ticketing_service.order.infrastructure.client.OrderClientRetryWrapper;
 import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderResponse;
 import com.fandom.ticketing_service.queue.application.PurchaseTokenService;
@@ -51,9 +50,6 @@ class SeatServiceTest {
 
     @Mock
     private OrderClient orderClient;
-
-    @Mock
-    private OrderClientRetryWrapper orderClientRetryWrapper;
 
     @Mock
     private PurchaseTokenService purchaseTokenService;
@@ -384,9 +380,9 @@ class SeatServiceTest {
         }
 
         @Test
-        // (2026-07-09) order-service 자체 취소 경로의 self-heal로 충분하다고 결론나서 의도적으로 미호출.
-        // orderClientRetryWrapper는 현재 아무도 안 씀 — 재도입 논의 시 이 테스트도 같이 갱신할 것.
-        @DisplayName("선점 해제 시 연결된 주문이 있어도 주문 취소 호출은 하지 않는다 (의도적 미연동)")
+        // (2026-07-09, ADR 011) order-service 자체 취소 경로의 self-heal로 충분하다고 결론나서
+        // releaseHold()는 order-service를 아예 호출하지 않는다.
+        @DisplayName("선점 해제 시 연결된 주문이 있어도 order-service를 호출하지 않는다 (의도적 미연동)")
         void releaseHold_success_doesNotCancelOrder() {
             // given
             UUID seatId = UUID.randomUUID();
@@ -402,7 +398,7 @@ class SeatServiceTest {
             seatService.releaseHold(seatId, userId);
 
             // then
-            verifyNoInteractions(orderClientRetryWrapper);
+            verifyNoInteractions(orderClient);
         }
 
         @Test

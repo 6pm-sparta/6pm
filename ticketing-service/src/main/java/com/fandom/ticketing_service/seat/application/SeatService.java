@@ -3,7 +3,6 @@ package com.fandom.ticketing_service.seat.application;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.infrastructure.client.OrderClient;
-import com.fandom.ticketing_service.order.infrastructure.client.OrderClientRetryWrapper;
 import com.fandom.ticketing_service.queue.application.PurchaseTokenService;
 import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
@@ -103,7 +102,6 @@ public class SeatService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ShowSeatRepository showSeatRepository;
     private final OrderClient orderClient;
-    private final OrderClientRetryWrapper orderClientRetryWrapper;
     private final PurchaseTokenService purchaseTokenService;
     private final MeterRegistry meterRegistry;
     private final RedissonClient redissonClient;
