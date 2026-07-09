@@ -174,6 +174,8 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 
 **수신측 멱등성**: `PaymentEventConsumer`의 4개 리스너(`onPaymentCompleted`/`onPaymentFailed`/`onPaymentCancelled`/`onHoldReleased`) 전부 `SeatConfirmService.releaseSeat()` 또는 `confirmSeat()`를 호출하는데, 두 메서드 다 "해당 `orderId`로 좌석을 못 찾으면 조용히 스킵/로그"하는 방식으로 재수신에 안전하다(멱등). 별도 이벤트 소비 이력 테이블은 없다.
 
+**수신측 DLQ**: `KafkaConsumerConfig`의 `DefaultErrorHandler`가 역직렬화 실패 등으로 리스너가 예외를 던지면 `FixedBackOff`(1초, 2회)로 재시도한 뒤, 소진되면 `DeadLetterPublishingRecoverer`가 `{topic}.DLQ`로 옮긴다 — 처리 못 하는 메시지 하나가 해당 파티션을 영구히 막는 걸 막는다(order-service `KafkaConsumerConfig`와 동일 패턴).
+
 ---
 
 ## 5. 동시성 제어 전략
@@ -204,7 +206,6 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 
 | 항목 | 현황 | 내용 |
 |------|------|------|
-| `holdId` 전용 테이블 분리 여부 | 미확정 | 별도 `SeatHolds` 테이블로 분리할지, `Orders.id`를 그대로 holdId로 쓸지 |
 | 대기열 스케줄러 분산 락 | 완료(2026-07-05) | Redisson `RLock`으로 `processQueue()`를 감싸 인스턴스당 한 번만 실행되도록 수정 |
 | Kafka 발행 신뢰성(Outbox 미적용) | 미검토 | §4 참고. DB 커밋 후 Kafka 발행 실패 시 이벤트 유실 가능 |
 | `GET /purchase-limit` 엔드포인트 설계 | 미확정 | 코드(`SeatController.java:64`)엔 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있음 |
