@@ -1,7 +1,7 @@
 # 티켓팅 시스템 설계 문서
 
-> **[주의]** 이 문서의 Order Service 관련 설계는 임의로 작성해둔 것이며 확정된 사항이 아닙니다.
-> 자세한 내용은 [Order/Payment 서비스 설계 문서](docs/)를 참고해주세요.
+> **[주의]** 이 문서의 Order Service 관련 설명은 최신화가 되지 않을 수 있습니다.
+> 자세한 내용은 [Order/Payment 서비스 문서](../order-service/README.md)를 참고해주세요.
 
 ## 0. 요약 및 문서 읽는 법
 
@@ -14,8 +14,6 @@
 | Redis 키 구조가 궁금하다 | → [3. Redis 키 설계](#3-redis-키-설계) |
 | Kafka 토픽 목록이 필요하다 | → [4. Kafka 토픽](#4-kafka-토픽) |
 | 미확정 항목을 확인하고 싶다 | → [9. 미확정 항목](#9-미확정-항목) |
-
-**문서 목록 (order-service 문서 구조와 동일하게 분리, 2026-07-03)**
 
 | 문서 | 내용 |
 |------|------|
@@ -32,7 +30,7 @@
 | [adr/009-order-cancel-integration.md](./adr/009-order-cancel-integration.md) | 주문 취소 연동 (#155) |
 | [adr/010-hold-id-ephemeral-uuid.md](./adr/010-hold-id-ephemeral-uuid.md) | holdId를 별도 테이블 없이 휘발성 UUID로 유지 |
 | [adr/011-hold-release-no-order-cancel-call.md](./adr/011-hold-release-no-order-cancel-call.md) | releaseHold()는 order-service에 취소를 요청하지 않음(self-heal) |
-| [adr/012-outbox-pattern-draft.md](./adr/012-outbox-pattern-draft.md) | 🚧 초안 — Kafka 발행 Outbox 패턴 도입 |
+| [adr/012-outbox-pattern-draft.md](./adr/012-outbox-pattern-draft.md) | Kafka 발행 Outbox 패턴 도입 |
 | [redis-keys.md](./redis-keys.md) | ticketing-service Redis 키 설계 (Lua 스크립트, TTL, 알려진 버그) |
 
 이 README는 요약/네비게이션 용도로 유지하고, 상세 설계는 위 문서들을 최신 상태로 관리한다.
@@ -64,8 +62,6 @@ Orders               (주문 = 예약 + 확정 통합 단일 애그리게이트)
 ```
 
 > **설계 포인트:** `ShowSeats`에 `status` 컬럼을 두지 않는다. 좌석 상태는 Redis에서만 관리하여 DB 경합을 제거한다.
-
-**패키지 구조 (#222):** 위 ERD 바운더리에 맞춰 `venue`(Venue/VenueSeat), `show`(Performance/Show)를 분리하고, `seat`(ShowSeat + hold/confirm 전체 흐름), `queue`, `order`(infrastructure)는 각각 `presentation/application/domain/infrastructure` 4계층으로 재정리했다.
 
 ---
 

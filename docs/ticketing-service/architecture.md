@@ -8,7 +8,7 @@
 | Cache / 상태 관리 | Redis (RDB 영속성) |
 | 메시지 큐 | Kafka |
 | 대기열 실시간 안내 | SSE (Server-Sent Events) |
-| 서비스 간 통신 | FeignClient(`OrderClient`, 동기) — order-service 주문 생성/취소 |
+| 서비스 간 통신 | FeignClient(`OrderClient`, 동기) — order-service 주문 생성만(취소 연동은 [ADR 011](./adr/011-hold-release-no-order-cancel-call.md)로 의도적 미연동) |
 
 ---
 
@@ -176,6 +176,8 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 
 **수신측 DLQ**: `KafkaConsumerConfig`의 `DefaultErrorHandler`가 역직렬화 실패 등으로 리스너가 예외를 던지면 `FixedBackOff`(1초, 2회)로 재시도한 뒤, 소진되면 `DeadLetterPublishingRecoverer`가 `{topic}.DLQ`로 옮긴다 — 처리 못 하는 메시지 하나가 해당 파티션을 영구히 막는 걸 막는다(order-service `KafkaConsumerConfig`와 동일 패턴).
 
+**같은 orderId에 대한 confirm/release 이벤트 동시 발행 가능성 (2026-07-09 order-service 코드로 검증)**: `ticketing.seat.booked`를 트리거하는 결제 승인과, `order.hold.released`/`order.payment.failed`를 트리거하는 타임아웃/결제실패가 이론상 경합할 수 있어 보이지만, order-service 쪽 세 지점(`PaymentRequestWriter.applyApproval()`/`applyFailure()`, `OrderTimeoutWriter.expireIfStillPending()`)이 전부 `OrderRepository.findByIdForUpdate()`(`@Lock(PESSIMISTIC_WRITE)`, 실제 Postgres `SELECT FOR UPDATE`)로 조회 후 `order.status == PENDING`일 때만 진행하는 동일 패턴이라, 한 주문에 대해 이 셋 중 실제로 이벤트 발행까지 도달하는 경로는 항상 하나뿐이다. DB row lock이라 order-service가 멀티 인스턴스로 떠도 유효하다. 따라서 ticketing이 confirm/release 이벤트를 같은 orderId에 대해 동시에 받는 상황 자체가 발생하지 않는다 — `SeatConfirmService`에 별도 CAS 방어를 추가할 필요는 낮은 우선순위. (미검증: "이미 다른 경로로 종결됨" ERROR 로그가 실제 운영에서 찍힌 이력이 있는지는 order 파트 확인 필요 — 찍힌 적 있다면 이 결론을 재검토해야 함.)
+
 ---
 
 ## 5. 동시성 제어 전략
@@ -204,12 +206,13 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 
 ## 6. 미확정 항목
 
-| 항목 | 현황 | 내용 |
-|------|------|------|
-| 대기열 스케줄러 분산 락 | 완료(2026-07-05) | Redisson `RLock`으로 `processQueue()`를 감싸 인스턴스당 한 번만 실행되도록 수정 |
+| 항목 | 현황                                               | 내용 |
+|------|--------------------------------------------------|------|
+| 대기열 스케줄러 분산 락 | 완료(2026-07-05)                                   | Redisson `RLock`으로 `processQueue()`를 감싸 인스턴스당 한 번만 실행되도록 수정 |
 | Kafka 발행 신뢰성(Outbox 미적용) | 초안, [ADR 012](./adr/012-outbox-pattern-draft.md) | §4 참고. DB 커밋 후 Kafka 발행 실패 시 이벤트 유실 가능 |
-| `GET /purchase-limit` 엔드포인트 설계 | 미확정 | 코드(`SeatController.java:64`)엔 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있음 |
-| Venue/Performance/Show 관리 API | 미구현 | 엔티티만 존재, 컨트롤러 없음. 시드 데이터로만 채워짐 |
-| CONFIRMED 취소(공연 확정 후 환불) 시 좌석 처리 | order-service 미확정 항목과 연동 | 취소 가능 시간 기준(공연 시작 vs 확정 시각)이 order-service 쪽에서도 미정 — [order-service/architecture.md §6](../order-service/architecture.md#6-미확정-항목) 참고 |
-| 다중예매(N좌석 묶음) | 결정 대기 | A(1좌석=1주문 유지) / A'(batchId만 부여) / B(N좌석=주문 1개) 트레이드오프 검토 중 — [SA-260703.md §11](../SA-260703.md#다중예매-옵션-결정-대기--담당자-확인-중) 참고 |
-| 좌석 생성 API 부재 → inventory lazy 초기화 | 알려진 제약 | 좌석/쇼 생성 API가 없어 `inventory:{showId}`가 첫 hold 요청 시 DB 기준으로 lazy 초기화된다([redis-keys.md §5](./redis-keys.md#5-inventoryshowid--잔여-재고-카운터))는 게 사실상 유일한 초기화 경로. 좌석 생성 API가 추가되면 생성 시점에 미리 세팅하는 방식으로 바꿀지 검토 |
+| Venue/Performance/Show 관리 API | 미구현                                              | 엔티티만 존재, 컨트롤러 없음. 시드 데이터로만 채워짐 |
+| CONFIRMED 취소(공연 확정 후 환불) 시 좌석 처리 | 정책 변경                                            | 취소 가능 시간 기준(공연 시작 vs 확정 시각)이 order-service 쪽에서도 미정 — [order-service/architecture.md §6](../order-service/architecture.md#6-미확정-항목) 참고 |
+| 다중예매(N좌석 묶음) | v2                                               | A(1좌석=1주문 유지) / A'(batchId만 부여) / B(N좌석=주문 1개) 트레이드오프 검토 — [SA-260703.md §11](../SA-260703.md#다중예매-옵션-결정-대기--담당자-확인-중) 참고 |
+| 좌석 생성 API 부재 → inventory lazy 초기화 | 알려진 제약                                           | 좌석/쇼 생성 API가 없어 `inventory:{showId}`가 첫 hold 요청 시 DB 기준으로 lazy 초기화된다([redis-keys.md §5](./redis-keys.md#5-inventoryshowid--잔여-재고-카운터))는 게 사실상 유일한 초기화 경로. 좌석 생성 API가 추가되면 생성 시점에 미리 세팅하는 방식으로 바꿀지 검토 |
+| 대기열 단계 사용자 이탈 감지 수단 없음 (2026-07-09 발견) | 미착수                                              | `waiting_queue:{showId}` ZSET엔 TTL이 없고, `QueueSseService`의 `emitter.onCompletion()`/`onTimeout()`([QueueSseService.java:32-33](../../ticketing-service/src/main/java/com/fandom/ticketing_service/queue/application/QueueSseService.java))은 이 서버 인스턴스의 in-memory emitter Map만 정리함 — SSE 연결이 끊겨도 ZSET 순번이나 이후 발급될 purchase-token엔 영향 없음. 이탈한 유저 자리를 스케줄러가 그대로 소비함. 좌석 선점 단계(TTL 600초)와 달리 대기열 단계엔 안전망 자체가 없음 |
+| Redis 장애 복구(ADR 007) 미구현 (2026-07-09 재확인) | 결정만 있고 실행 안 됨 | [ADR 007](./adr/007-redis-backup-strategy.md)이 "RDB 영속성 + 장애 시 PostgreSQL 기준 재적재"로 확정돼있으나: (1) 그 재적재를 수행하는 코드가 없음(`CommandLineRunner`/`ApplicationRunner`/`@PostConstruct` 전무, grep으로 확인) (2) 인프라도 안 맞음 — [terraform/datastores.tf:40-50](../../terraform/datastores.tf)의 ElastiCache 클러스터에 `snapshot_retention_limit`가 없어(기본값 0, 자동 백업 비활성) RDB 스냅샷 자체가 안 찍히고, `num_cache_nodes = 1`이라 복제본도 없음. `BOOKED`(확정) 좌석은 원본이 `orders` 테이블에 있어 이론상 복구 가능하지만 지금은 수동 복구 방법도 없음 — 노드 하나 죽으면 좌석 상태 전체 유실 |
