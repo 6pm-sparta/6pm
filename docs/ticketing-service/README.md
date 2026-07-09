@@ -32,6 +32,7 @@
 | [adr/009-order-cancel-integration.md](./adr/009-order-cancel-integration.md) | 주문 취소 연동 (#155) |
 | [adr/010-hold-id-ephemeral-uuid.md](./adr/010-hold-id-ephemeral-uuid.md) | holdId를 별도 테이블 없이 휘발성 UUID로 유지 |
 | [adr/011-hold-release-no-order-cancel-call.md](./adr/011-hold-release-no-order-cancel-call.md) | releaseHold()는 order-service에 취소를 요청하지 않음(self-heal) |
+| [adr/012-outbox-pattern-draft.md](./adr/012-outbox-pattern-draft.md) | 🚧 초안 — Kafka 발행 Outbox 패턴 도입 |
 | [redis-keys.md](./redis-keys.md) | ticketing-service Redis 키 설계 (Lua 스크립트, TTL, 알려진 버그) |
 
 이 README는 요약/네비게이션 용도로 유지하고, 상세 설계는 위 문서들을 최신 상태로 관리한다.

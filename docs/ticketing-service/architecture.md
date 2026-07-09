@@ -207,8 +207,9 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 | 항목 | 현황 | 내용 |
 |------|------|------|
 | 대기열 스케줄러 분산 락 | 완료(2026-07-05) | Redisson `RLock`으로 `processQueue()`를 감싸 인스턴스당 한 번만 실행되도록 수정 |
-| Kafka 발행 신뢰성(Outbox 미적용) | 미검토 | §4 참고. DB 커밋 후 Kafka 발행 실패 시 이벤트 유실 가능 |
+| Kafka 발행 신뢰성(Outbox 미적용) | 초안, [ADR 012](./adr/012-outbox-pattern-draft.md) | §4 참고. DB 커밋 후 Kafka 발행 실패 시 이벤트 유실 가능 |
 | `GET /purchase-limit` 엔드포인트 설계 | 미확정 | 코드(`SeatController.java:64`)엔 `// TODO: api 엔드포인트 설계 괜찮은지 검토 필요` 주석 있음 |
 | Venue/Performance/Show 관리 API | 미구현 | 엔티티만 존재, 컨트롤러 없음. 시드 데이터로만 채워짐 |
 | CONFIRMED 취소(공연 확정 후 환불) 시 좌석 처리 | order-service 미확정 항목과 연동 | 취소 가능 시간 기준(공연 시작 vs 확정 시각)이 order-service 쪽에서도 미정 — [order-service/architecture.md §6](../order-service/architecture.md#6-미확정-항목) 참고 |
 | 다중예매(N좌석 묶음) | 결정 대기 | A(1좌석=1주문 유지) / A'(batchId만 부여) / B(N좌석=주문 1개) 트레이드오프 검토 중 — [SA-260703.md §11](../SA-260703.md#다중예매-옵션-결정-대기--담당자-확인-중) 참고 |
+| 좌석 생성 API 부재 → inventory lazy 초기화 | 알려진 제약 | 좌석/쇼 생성 API가 없어 `inventory:{showId}`가 첫 hold 요청 시 DB 기준으로 lazy 초기화된다([redis-keys.md §5](./redis-keys.md#5-inventoryshowid--잔여-재고-카운터))는 게 사실상 유일한 초기화 경로. 좌석 생성 API가 추가되면 생성 시점에 미리 세팅하는 방식으로 바꿀지 검토 |
