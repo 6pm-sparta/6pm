@@ -9,11 +9,9 @@
 
 사용자가 `DELETE .../seats/{seatId}/hold`(좌석 선점 직접 해제)를 호출했을 때, 이미 체크아웃까지 진행돼 order-service에 주문(PENDING)이 생성돼 있다면 그 주문도 취소돼야 한다. 이 연동을 어떻게 구현할지를 두고 세 번 오갔다:
 
-1. `OrderClient.cancel()` Feign 동기 호출 (커밋 #155) → order-service에 대응 엔드포인트가 없어 항상 404, 주석 처리
-2. order-service에 `DELETE /internal/v1/orders/{orderId}` 신설해서 동기 호출 재개 시도 (2026-07-09) → order-service 오너십은 ticketing 담당이 아니라는 지적으로 되돌림
-3. `ticketing.seat.hold.released` Kafka 이벤트로 비동기 전환 시도 (2026-07-09) → "이미 있는 `order.hold.released` 경로로 해결되는 거 아니냐"는 지적으로 되돌림
-
-세 번째 지적을 파고들다 보니 애초에 ticketing이 order-service에 취소를 "요청"할 필요 자체가 없다는 결론에 도달했다.
+1. `OrderClient.cancel()` Feign 동기 호출 (커밋 #155) — order-service에 대응 엔드포인트가 없어 항상 404, 주석 처리됨
+2. order-service에 `DELETE /internal/v1/orders/{orderId}` 신설 후 동기 호출 재개 시도 (2026-07-09) — ticketing이 order-service에 주는 좌석 해제 트리거는 Kafka로 관리하기로 결정되어 있어 반려됨
+3. `ticketing.seat.hold.released` Kafka 이벤트로 비동기 전환 시도 (2026-07-09) — 기존 `order.hold.released` 경로로 이미 해결되는 것으로 확인되어 반려됨
 
 ---
 
