@@ -1,22 +1,25 @@
 # =====================================================================
 # .github/workflows/deploy.yml
-# main 머지 → 12개 이미지 빌드·ECR push → ECS 강제 재배포 (OIDC, 장기키 없음)
-# 사전: terraform으로 github-oidc.tf 적용 → 나온 role ARN을
-#       GitHub 레포 Settings > Secrets > Actions 에 AWS_DEPLOY_ROLE_ARN 로 등록
+# main 머지 → 12개 이미지 빌드·ECR push(:latest + :SHA) → 태스크 정의를
+# "그 SHA로 핀"한 새 리비전 등록 → ECS 배포. (OIDC, 장기키 없음)
+# ★ 변경점: 이미지에 커밋 SHA 태그를 붙이고 task def가 SHA를 가리키게 하여
+#           "이전 리비전으로 롤백"이 실제로 동작하게 함(기존 :latest는 롤백 불가).
+# 사전: github-oidc.tf 적용 → role ARN을 Secret AWS_DEPLOY_ROLE_ARN 로 등록.
 # =====================================================================
 name: Deploy to AWS (ECR + ECS)
 
 on:
   push:
-    branches: [main]        # main 머지 시 자동 배포
-  workflow_dispatch: {}     # Actions 탭에서 수동 실행 버튼
+    branches: [main]
+  workflow_dispatch: {}
 
 env:
   AWS_REGION: ap-northeast-2
   CLUSTER: 6pm-dev-cluster
+  NAME_PREFIX: 6pm-dev        # terraform local.name_prefix (task def family 접두어)
 
 permissions:
-  id-token: write           # OIDC 토큰 발급(필수)
+  id-token: write
   contents: read
 
 jobs:
@@ -55,6 +58,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # ★ :latest 와 :SHA 둘 다 태깅 → 과거 버전 이미지가 ECR에 남아 롤백 가능
       - name: Build & push image
         uses: docker/build-push-action@v6
         with:
@@ -62,16 +66,38 @@ jobs:
           file: docker/Dockerfile
           build-args: SERVICE=${{ matrix.service }}
           push: true
-          tags: ${{ steps.ecr.outputs.registry }}/6pm/${{ matrix.service }}:latest
-          cache-from: type=gha,scope=${{ matrix.service }}   # 레이어 캐시로 재빌드 가속
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/6pm/${{ matrix.service }}:latest
+            ${{ steps.ecr.outputs.registry }}/6pm/${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-      # ECS가 살아있을 때만 재배포. (destroy 상태면 이 스텝은 실패 → continue-on-error로 무시)
-      - name: Force ECS new deployment
+      # ★ 현재 task def를 가져와 이미지만 이번 SHA로 바꿔 "새 리비전"으로 등록 → 그 리비전으로 배포
+      #   (이렇게 해야 리비전마다 다른 이미지를 가리켜서, 이전 리비전 롤백이 실제로 동작함)
+      #   ECS/클러스터가 destroy 상태면 실패할 수 있어 continue-on-error 로 무시.
+      - name: Deploy to ECS (pin image by SHA)
         continue-on-error: true
         run: |
-          aws ecs update-service \
-            --cluster "$CLUSTER" \
-            --service "${{ matrix.service }}" \
-            --force-new-deployment \
-            --region "$AWS_REGION"
+          set -euo pipefail
+          SVC="${{ matrix.service }}"
+          FAMILY="${NAME_PREFIX}-${SVC}"
+          IMAGE="${{ steps.ecr.outputs.registry }}/6pm/${SVC}:${{ github.sha }}"
+
+          # 1) 현재 task def 조회 → 이미지만 SHA로 교체 → 등록 불가 필드 제거
+          TASKDEF=$(aws ecs describe-task-definition --task-definition "$FAMILY" \
+            --region "$AWS_REGION" --query 'taskDefinition')
+
+          NEWDEF=$(echo "$TASKDEF" | jq --arg IMG "$IMAGE" --arg SVC "$SVC" '
+            .containerDefinitions |= map(if .name==$SVC then .image=$IMG else . end)
+            | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                  .compatibilities, .registeredAt, .registeredBy)
+          ')
+
+          # 2) 새 리비전 등록
+          NEW_ARN=$(aws ecs register-task-definition --cli-input-json "$NEWDEF" \
+            --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "registered: $NEW_ARN"
+
+          # 3) 서비스가 그 리비전으로 배포
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+            --task-definition "$NEW_ARN" --region "$AWS_REGION"
