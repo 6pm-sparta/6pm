@@ -27,7 +27,7 @@ resource "aws_security_group_rule" "ecs_from_k6" {
   protocol                 = "tcp"
   security_group_id        = aws_security_group.ecs.id       # 대상: 서비스들이 속한 SG
   source_security_group_id = aws_security_group.k6.id        # 출처: k6 러너
-  description              = "k6 부하 러너 → 내부 서비스 직접 호출 허용(부하테스트용)"
+  description              = "Allow k6 load runner to reach internal services (load test)"
 }
 
 # SSM 접속용 IAM

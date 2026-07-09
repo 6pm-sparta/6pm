@@ -10,6 +10,7 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { Counter } from "k6/metrics";
 import { makeTokens } from "./common.js";
+import { textSummary } from "https://jslib.k6.io/k6-summary/0.0.2/index.js";
 
 const BASE_URL = __ENV.BASE_URL || "http://localhost:8080";
 const SHOW_ID  = __ENV.SHOW_ID  || "PUT-SEEDED-SHOW-UUID";
@@ -60,5 +61,5 @@ export function handleSummary(data) {
     console.log(`같은 좌석 hold 성공: ${ok} (정상 = 1)`);
     console.log(`hold 거부: ${rej}`);
     console.log(verdict);
-    return { stdout: "" };
+    return { stdout: textSummary(data, { indent: " ", enableColors: true }) };
 }

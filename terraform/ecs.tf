@@ -107,6 +107,9 @@ resource "aws_ecs_task_definition" "svc" {
       }
     }
   }])
+  lifecycle {
+    ignore_changes = [container_definitions]   # 이미지는 CD가 관리 → terraform이 안 덮어씀
+  }
 }
 
 resource "aws_ecs_service" "svc" {
