@@ -692,8 +692,8 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | 좌석 Hold 해제 (본인 확인, TTL 자연만료, 결제실패/취소 연동) | ✅ |
 | 구매 한도 체크 | ✅ (엔드포인트 설계는 [TODO]) |
 | Venue/Performance/Show 관리 API | ❌ 미구현 (엔티티만 존재) |
-| 스케줄러 분산 락 (`QueueScheduler`) | ❌ |
-| `holdId` 별도 테이블 분리 여부 | ❌ 미확정 |
+| 스케줄러 분산 락 (`QueueScheduler`) | ✅ (2026-07-05 완료, Redisson RLock) |
+| `holdId` 별도 테이블 분리 여부 | ✅ 결정됨 — 별도 테이블 없이 휘발성 UUID로 유지 ([ticketing-service/adr/010](ticketing-service/adr/010-hold-id-ephemeral-uuid.md)) |
 
 ### Order / Payment
 
@@ -709,8 +709,8 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | Kafka 이벤트 발행 (Transactional Outbox) | ✅ |
 | 주문 타임아웃 자동 취소 스케줄러 | ✅ |
 | 환불 미완료 복구 배치 | ✅ |
-| PAYMENT_REQUESTED zombie 처리 | ❌ |
-| 결제 재시도 로직 (P1) | ❌ |
+| PAYMENT_REQUESTED zombie 처리 | ✅ (`ZombiePaymentRecoveryWriter`) |
+| 결제 재시도 로직 (P1) | ✅ (`PaymentRetryWriter`) |
 | 운영자 manual-review API 권한 검증 | ❌ 엔드포인트는 있으나 role 가드 없음 |
 
 ### 공통
@@ -722,7 +722,7 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | Gateway JWT 검증 + 내부 인증 헤더(X-Id-Card) 전파 | ✅ |
 | 서비스 간 FeignClient 통신 | ✅ (ticketing→order 1건) |
 | Zipkin 분산 추적 | ✅ (docker-compose 구성됨, 활용도는 별도 확인 필요) |
-| Swagger API 문서화 | **[TODO] 확인 필요** — 본 문서 작성 과정에서 springdoc 설정을 확인하지 못함 |
+| Swagger API 문서화 | ✅ (`build.gradle`에서 9개 서비스에 springdoc 일괄 적용) |
 
 ---
 
@@ -802,7 +802,7 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | Payment | `PG_ERROR` | 502 | |
 | Payment | `INVALID_SIGNATURE` | 401 | 웹훅 `X-PG-Signature` 검증 실패 |
 
-> 로지스틱스 예시처럼 `서비스코드_숫자`(`ORDER_001` 등) 형식의 전역 넘버링은 쓰지 않는다. 대신 도메인별 `XxxErrorCode` enum + 서술적 이름을 쓴다 — 새 에러 추가 시 번호 충돌/재배치 이슈가 없다는 장점, 서비스 간 에러코드 목록을 한눈에 볼 방법이 없다는 단점이 있다.
+> 도메인별 `XxxErrorCode` enum + 서술적 이름을 쓴다 — 새 에러 추가 시 번호 충돌/재배치 이슈가 없다는 장점, 서비스 간 에러코드 목록을 한눈에 볼 방법이 없다는 단점이 있다.
 
 ---
 
@@ -812,7 +812,7 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 2. `/admin/v1/orders/manual-review`에 `MASTER` 역할 검증 추가 (현재 미보호 상태)
 3. `purchase-limit` 엔드포인트 설계 확정 (경로/응답 스펙)
 4. `holdId` 전용 테이블 분리 여부 결정
-5. PAYMENT_REQUESTED zombie 처리, 결제 재시도(P1) 설계
+5. ~~PAYMENT_REQUESTED zombie 처리, 결제 재시도(P1) 설계~~ (완료됨 — `ZombiePaymentRecoveryWriter`/`PaymentRetryWriter`)
 6. 공통 에러 응답에 `errors[]` 필드(필드별 검증 실패 상세) 추가 여부 검토
 7. feed/chat/cs/notification/aiops/gateway 상세 규칙을 다루는 후속 문서 작성
 8. `QueueScheduler`(대기열 처리)에 분산 락 없음 — ticketing min 2 이상 배포 시 대기열 중복 처리 가능
