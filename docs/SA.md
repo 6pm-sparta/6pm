@@ -60,7 +60,7 @@ feed/chat/cs/notification/aiops는 후속 문서에서 다룬다.
 | 크리에이터 | `CREATOR` | 회원 기능 + 팔로우 대상(팔로우 당하는 쪽) |
 | 마스터 | `MASTER` | 운영자 |
 
-`UserIdCard`(Gateway가 발급, HMAC 서명)가 `userId`/`role`만 담아 내려온다. 판별은 `isMember()`/`isCreator()`/`isMaster()`/`isMe(userId)` 메서드로 한다. 자세한 흐름은 [auth-user-architecture.md](../../user-auth-gateway/auth-user-architecture.md) §4~5 참고.
+`UserIdCard`(Gateway가 발급, HMAC 서명)가 `userId`/`role`만 담아 내려온다. 판별은 `isMember()`/`isCreator()`/`isMaster()`/`isMe(userId)` 메서드로 한다. 자세한 흐름은 [auth-user-architecture.md](./user-auth-gateway/auth-user-architecture.md) §4~5 참고.
 
 ### 2.3 권한별 접근 범위
 
@@ -128,7 +128,7 @@ feed/chat/cs/notification/aiops는 후속 문서에서 다룬다.
 | POST | `/api/v1/auth/reissue` | 불필요(Refresh Token 필요) | Access Token 재발급 (RTR) |
 | POST | `/api/v1/auth/logout` | 필요 | 로그아웃, Access Token blacklist 등록 |
 
-Redis 키: `refresh:{userId}:{tokenId}`, `blacklist:access:{jti}`, `blacklist:user:{userId}` (자세한 내용은 [auth-user-architecture.md](../../user-auth-gateway/auth-user-architecture.md) §6.2)
+Redis 키: `refresh:{userId}:{tokenId}`, `blacklist:access:{jti}`, `blacklist:user:{userId}` (자세한 내용은 [auth-user-architecture.md](./user-auth-gateway/auth-user-architecture.md) §6.2)
 
 ### 3.3 회원/크리에이터/프로필/팔로우 (user-service)
 
@@ -842,6 +842,6 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | A' | 1좌석=1주문 유지 + 체크아웃 시 `batchId` 부여, 예매내역 조회 시 그룹핑 표시만 | 작음(컬럼 1개 + 조회 로직) |
 | B | N좌석=주문 1개(결제도 1건) | 큼 — `orders.seat_id` → 좌석 리스트 필드로 스키마 변경, `uq_orders_seat_active` 2차 방어 재설계, **결제 후 좌석 확정 부분실패(N개 중 일부만 성공) 보상 로직 신규 설계 필요** |
 
-**분기 기준**: "다중예매가 결제 1건으로 묶여야 하는 요구사항이냐, 예매내역에 묶여 보이기만 하면 되냐" — 전자면 B, 후자면 A'로 이번 주 안에 끝남.
+**분기 기준**: "다중예매가 결제 1건으로 묶여야 하는 요구사항이냐, 예매내역에 묶여 보이기만 하면 되냐" — 전자면 B, 후자면 A'로 이번 주 안에 끝난다.
 
 관련: §5.3 SAGA 패턴(정상 흐름 다이어그램의 주문 생성 단계가 이 변경으로 바뀔 예정)

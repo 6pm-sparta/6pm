@@ -27,4 +27,4 @@
 
 ## 참고
 
-상세: [entity rules](../../260618%20entity%20rules.md)
+상세: [entity rules](../archive/260618%20entity%20rules.md)
