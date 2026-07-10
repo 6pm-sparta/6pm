@@ -65,6 +65,9 @@ docker_data/
 postman/datasets/
 postman/environments/
 
+## postman (main 배포용)
+postman/
+
 ## db backup
 backup/
 
