@@ -488,8 +488,12 @@ erDiagram
     }
     order_outbox {
         UUID id PK
+        UUID aggregate_id "Kafka partition key (동일 주문 이벤트 순서 보장)"
         VARCHAR topic
-        VARCHAR status "PENDING|PUBLISHED"
+        TEXT payload "직렬화된 이벤트 JSON"
+        VARCHAR status "PENDING|PUBLISHED|FAILED"
+        TIMESTAMP published_at
+        INT retry_count "MAX_RETRY_COUNT 초과 시 FAILED로 전이"
     }
     orders ||--o{ payments : "order_id"
     orders ||--o{ order_status_histories : "order_id"
