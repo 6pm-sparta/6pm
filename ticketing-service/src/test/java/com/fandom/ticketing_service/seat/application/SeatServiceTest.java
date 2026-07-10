@@ -379,10 +379,10 @@ class SeatServiceTest {
             assertThat(seat.getOrderId()).isNull();
         }
 
+        // TODO: 해당 로직이 구현되면 주석 해제
+        /*
         @Test
-        // (2026-07-09, ADR 011) order-service 자체 취소 경로의 self-heal로 충분하다고 결론나서
-        // releaseHold()는 order-service를 아예 호출하지 않는다.
-        @DisplayName("선점 해제 시 연결된 주문이 있어도 order-service를 호출하지 않는다 (의도적 미연동)")
+        @DisplayName("선점 해제 시 연결된 주문이 있으면 order-service를 호출한다")
         void releaseHold_success_doesNotCancelOrder() {
             // given
             UUID seatId = UUID.randomUUID();
@@ -400,6 +400,7 @@ class SeatServiceTest {
             // then
             verifyNoInteractions(orderClient);
         }
+        */
 
         @Test
         @DisplayName("존재하지 않는 좌석이면 SEAT_NOT_FOUND 예외가 발생한다")
