@@ -3,7 +3,6 @@ package com.fandom.ticketing_service.seat.application;
 import com.fandom.common.exception.CustomException;
 import com.fandom.ticketing_service.common.exception.TicketingErrorCode;
 import com.fandom.ticketing_service.order.infrastructure.client.OrderClient;
-import com.fandom.ticketing_service.order.infrastructure.client.OrderClientRetryWrapper;
 import com.fandom.ticketing_service.queue.application.PurchaseTokenService;
 import com.fandom.ticketing_service.order.infrastructure.dto.CreateOrderRequest;
 import com.fandom.ticketing_service.seat.domain.entity.ShowSeat;
@@ -103,7 +102,6 @@ public class SeatService {
     private final RedisTemplate<String, String> redisTemplate;
     private final ShowSeatRepository showSeatRepository;
     private final OrderClient orderClient;
-    private final OrderClientRetryWrapper orderClientRetryWrapper;
     private final PurchaseTokenService purchaseTokenService;
     private final MeterRegistry meterRegistry;
     private final RedissonClient redissonClient;
@@ -227,17 +225,11 @@ public class SeatService {
             default -> throw new CustomException(TicketingErrorCode.SEAT_NOT_HELD);
         }
 
-        UUID orderId = seat.getOrderId();
         seat.releaseOrder();
         log.info("좌석 선점 해제: seatId={}, userId={}", showSeatId, userId);
 
-        // TODO: order-service의 DELETE /internal/v1/orders/{orderId} 엔드포인트가 아직 develop에 없음 —
-        // 설계 미확정으로 임시 주석 처리함. order-service 쪽 주문 취소는 당분간
-        // order-service 타임아웃 자동취소(#231)에만 의존. 설계 확정되고 엔드포인트 추가되면 아래 주석을 풀 것.
-        // if (orderId != null) {
-        //     orderClientRetryWrapper.cancel(orderId, userId);
-        //     log.info("주문 취소 요청: orderId={}, showSeatId={}", orderId, showSeatId);
-        // }
+        // order-service 취소 요청은 의도적으로 안 함 — order-service 자체 취소 경로가
+        // order.hold.released를 발행해 onHoldReleased()가 이미 좌석을 정리해준다(self-heal).
     }
 
     // inventory 키는 쇼/좌석 생성 시점에 초기화되는 곳이 없어서, hold 시점에 없으면 DB 기준으로 lazy 초기화한다.

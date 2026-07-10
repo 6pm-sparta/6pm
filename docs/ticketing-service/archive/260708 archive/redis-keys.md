@@ -163,20 +163,7 @@ KEYS = `[ownerKey, seatKey, inventoryKey, countKey]`, ARGV = `[userId]`. `HELD`/
 | `releaseExpiredHold()` (TTL 자연 만료) | DECR (수정 완료) |
 | `releaseSeat()` (결제 실패/취소/`hold.released`) | DECR (수정 완료) |
 
-과거엔 정상적으로 좌석을 선점했다가 결제까지 못 가고(타임아웃) 풀리거나 결제 실패/취소된 경우 카운터가 영구히 남아, 실제로는 아무것도 못 산 유저가 `PURCHASE_LIMIT_EXCEEDED`(400)에 막히는 버그가 있었다. `SeatService.releaseExpiredHold()`/`SeatConfirmService.releaseSeat()`에 `decrement` 로직을 추가해 해결함(owner 값에서 userId를 파싱해 카운트를 내림 — owner가 이미 없으면 다른 경로가 먼저 처리한 것으로 보고 중복 감소하지 않음).
-
-`GET /purchase-limit` 엔드포인트(`SeatController.java:63-68`)는 구현 완료됐고 설계가 미확정인 상태가 아니다.
-
-**리팩토링 계획 (착수 전) — Set 기반으로 전환**
-지금의 순수 `INCR`/`DECR` 카운터는 해제 경로마다(`checkout()` 실패 롤백/`releaseHold()`/`releaseExpiredHold()`/`releaseSeat()`) 사람이 일일이 짝을 맞춰 감소시켜야 하는 구조라, 한 곳이라도 빠지면 카운터가 영구히 새는 버그 클래스(#286이 바로 이 유형)가 항상 잠재해있다. 유저가 현재 보유한 좌석을 카운터 대신 **Set으로 직접 추적**하는 방식으로 바꾸는 걸 계획 중이다:
-
-```
-SADD purchase-seats:{userId}:{showId} {seatId}   # hold 시
-SREM purchase-seats:{userId}:{showId} {seatId}   # 모든 해제 경로에서 공통
-SCARD purchase-seats:{userId}:{showId}           # 한도 체크(getPurchaseLimit)
-```
-
-`SADD`/`SREM`은 멱등이라(이미 있는 걸 또 넣거나, 없는 걸 지워도 안전) 여러 해제 경로가 중복 호출돼도 구조적으로 안전하다 — INCR/DECR처럼 호출 누락이 카운터 드리프트로 이어지는 버그 클래스 자체가 사라진다.
+과거엔 정상적으로 좌석을 선점했다가 결제까지 못 가고(타임아웃) 풀리거나 결제 실패/취소된 경우 카운터가 영구히 남아, 실제로는 아무것도 못 산 유저가 `PURCHASE_LIMIT_EXCEEDED`(400)에 막히는 버그가 있었다. `SeatService.releaseExpiredHold()`/`SeatConfirmService.releaseSeat()`에 `decrement` 로직을 추가해 해결함(owner 값에서 userId를 파싱해 카운트를 내림 — owner가 이미 없으면 다른 경로가 먼저 처리한 것으로 보고 중복 감소하지 않음). `GET /purchase-limit` 엔드포인트 자체의 설계 확정은 별개로 여전히 미확정([architecture.md §6](./architecture.md#6-미확정-항목)).
 
 ---
 

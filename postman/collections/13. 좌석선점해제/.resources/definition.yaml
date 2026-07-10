@@ -10,7 +10,11 @@ description: |-
   4. 주문조회 — 주문 상태가 CANCELLED로 바뀌었는지 확인
   5. 좌석목록조회 — 해당 좌석이 다시 AVAILABLE로 보이는지 확인 (Redis 정상 복구)
 
-  ## 정합성 버그 재현 (육안 확인용)
+  > (2026-07-09) 아래 재현/전환 시나리오는 폐기됨 — order-service 자체 취소 경로(#231 타임아웃 등)의
+  > self-heal(order.hold.released → onHoldReleased)로 충분하다고 결론나서, releaseHold()가 order-service를
+  > 아예 호출하지 않도록 되돌아감. `orderClient.cancel()`/`ticketing.seat.hold.released`는 현재 코드에 없음.
+
+  ## 정합성 버그 재현 (육안 확인용, 폐기됨)
   현재 releaseHold()는 Redis 해제 → orderClient.cancel() 동기 Feign 순서로 동작한다(#155).
   장애 상황을 재현하려면:
 
