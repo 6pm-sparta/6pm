@@ -41,6 +41,8 @@ Gateway는 브라우저 preflight 요청을 인증 예외로 처리한다.
 | `POST` | `/api/v1/creators` | 크리에이터 회원가입 |
 | `GET` | `/api/v1/members/{userId}/profile` | 일반 회원 공개 프로필 조회 |
 | `GET` | `/api/v1/creators/{userId}/profile` | 크리에이터 공개 프로필 조회 |
+| `GET` | `/v3/api-docs/**` | OpenAPI 문서(JSON) — Swagger 통합 UI용 |
+| `GET` | `/swagger-ui/**` | Swagger UI 정적 리소스 |
 | `OPTIONS` | `/**` | CORS preflight |
 
 ## 4. RBAC 적용 정책

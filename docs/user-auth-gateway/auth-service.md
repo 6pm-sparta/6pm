@@ -95,6 +95,8 @@ Client
 
 사용자 단위 blacklist가 존재하면 Refresh Token이 유효해도 재발급을 거부한다.
 
+현재 Refresh Token rotation은 적용하지 않는다. 동일 Refresh Token으로 동시에 재발급을 요청하면 각각 새 Access Token이 발급될 수 있다(현재 정책, 후속 보안 강화 대상).
+
 ## 7. 로그아웃 흐름
 
 로그아웃은 현재 세션의 토큰을 사용할 수 없게 만드는 작업이다.
@@ -202,8 +204,8 @@ API 스모크 테스트:
 Redis 확인 예시:
 
 ```powershell
-docker exec 6pm-redis redis-cli -a fandom_redis_pw --scan --pattern "refresh:${userId}:*"
-docker exec 6pm-redis redis-cli -a fandom_redis_pw EXISTS "blacklist:user:${userId}"
+docker exec 6pm-redis-general redis-cli -a fandom_redis_pw --scan --pattern "refresh:${userId}:*"
+docker exec 6pm-redis-general redis-cli -a fandom_redis_pw EXISTS "blacklist:user:${userId}"
 ```
 
 ## 14. 후속 과제
@@ -212,6 +214,6 @@ docker exec 6pm-redis redis-cli -a fandom_redis_pw EXISTS "blacklist:user:${user
 - 다중 기기 로그인 정책 정리
 - 권한 변경 시 기존 토큰 무효화
 - 계정 정지 이벤트 연동
-- Redis 장애 시 인증 정책 정리
+- Redis 장애 시 인증 정책 고도화 (현재 Gateway는 인증 상태 저장소 조회 실패 시 fail-closed로 503을 반환 — #228 구현 완료)
 - Consumer DLQ 및 재처리 정책 구현
 
