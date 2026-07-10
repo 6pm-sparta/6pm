@@ -6,7 +6,7 @@
 예매 핵심 흐름인 **auth-service · user-service · ticketing-service · order-service** (+ gateway/common 통신 규약)만 다룬다.
 feed/chat/cs/notification/aiops는 후속 문서에서 다룬다.
 
-**작성 방식**: 구현된 항목은 코드(`*/src/main/java`) 및 기존 서비스 문서(`docs/order-service/`, `docs/ticketing-service/`, `docs/auth-user-architecture.md`)에서 역추출했다. 미구현/미확정 항목은 각 절에 **[TODO]**로 표시했다.
+**작성 방식**: 구현된 항목은 코드(`*/src/main/java`) 및 기존 서비스 문서(`docs/order-service/`, `docs/ticketing-service/`, `docs/user-auth-gateway/auth-user-architecture.md`)에서 역추출했다. 미구현/미확정 항목은 각 절에 **[TODO]**로 표시했다.
 
 </aside>
 
@@ -60,7 +60,7 @@ feed/chat/cs/notification/aiops는 후속 문서에서 다룬다.
 | 크리에이터 | `CREATOR` | 회원 기능 + 팔로우 대상(팔로우 당하는 쪽) |
 | 마스터 | `MASTER` | 운영자 |
 
-`UserIdCard`(Gateway가 발급, HMAC 서명)가 `userId`/`role`만 담아 내려온다. 판별은 `isMember()`/`isCreator()`/`isMaster()`/`isMe(userId)` 메서드로 한다. 자세한 흐름은 [auth-user-architecture.md](auth-user-architecture.md) §4~5 참고.
+`UserIdCard`(Gateway가 발급, HMAC 서명)가 `userId`/`role`만 담아 내려온다. 판별은 `isMember()`/`isCreator()`/`isMaster()`/`isMe(userId)` 메서드로 한다. 자세한 흐름은 [auth-user-architecture.md](./user-auth-gateway/auth-user-architecture.md) §4~5 참고.
 
 ### 2.3 권한별 접근 범위
 
@@ -128,7 +128,7 @@ feed/chat/cs/notification/aiops는 후속 문서에서 다룬다.
 | POST | `/api/v1/auth/reissue` | 불필요(Refresh Token 필요) | Access Token 재발급 (RTR) |
 | POST | `/api/v1/auth/logout` | 필요 | 로그아웃, Access Token blacklist 등록 |
 
-Redis 키: `refresh:{userId}:{tokenId}`, `blacklist:access:{jti}`, `blacklist:user:{userId}` (자세한 내용은 [auth-user-architecture.md](auth-user-architecture.md) §6.2)
+Redis 키: `refresh:{userId}:{tokenId}`, `blacklist:access:{jti}`, `blacklist:user:{userId}` (자세한 내용은 [auth-user-architecture.md](./user-auth-gateway/auth-user-architecture.md) §6.2)
 
 ### 3.3 회원/크리에이터/프로필/팔로우 (user-service)
 
@@ -488,8 +488,12 @@ erDiagram
     }
     order_outbox {
         UUID id PK
+        UUID aggregate_id "Kafka partition key (동일 주문 이벤트 순서 보장)"
         VARCHAR topic
-        VARCHAR status "PENDING|PUBLISHED"
+        TEXT payload "직렬화된 이벤트 JSON"
+        VARCHAR status "PENDING|PUBLISHED|FAILED"
+        TIMESTAMP published_at
+        INT retry_count "MAX_RETRY_COUNT 초과 시 FAILED로 전이"
     }
     orders ||--o{ payments : "order_id"
     orders ||--o{ order_status_histories : "order_id"
@@ -692,8 +696,8 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | 좌석 Hold 해제 (본인 확인, TTL 자연만료, 결제실패/취소 연동) | ✅ |
 | 구매 한도 체크 | ✅ (엔드포인트 설계는 [TODO]) |
 | Venue/Performance/Show 관리 API | ❌ 미구현 (엔티티만 존재) |
-| 스케줄러 분산 락 (`QueueScheduler`) | ❌ |
-| `holdId` 별도 테이블 분리 여부 | ❌ 미확정 |
+| 스케줄러 분산 락 (`QueueScheduler`) | ✅ (2026-07-05 완료, Redisson RLock) |
+| `holdId` 별도 테이블 분리 여부 | ✅ 결정됨 — 별도 테이블 없이 휘발성 UUID로 유지 ([ticketing-service/adr/010](ticketing-service/adr/010-hold-id-ephemeral-uuid.md)) |
 
 ### Order / Payment
 
@@ -709,8 +713,8 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | Kafka 이벤트 발행 (Transactional Outbox) | ✅ |
 | 주문 타임아웃 자동 취소 스케줄러 | ✅ |
 | 환불 미완료 복구 배치 | ✅ |
-| PAYMENT_REQUESTED zombie 처리 | ❌ |
-| 결제 재시도 로직 (P1) | ❌ |
+| PAYMENT_REQUESTED zombie 처리 | ✅ (`ZombiePaymentRecoveryWriter`) |
+| 결제 재시도 로직 (P1) | ✅ (`PaymentRetryWriter`) |
 | 운영자 manual-review API 권한 검증 | ❌ 엔드포인트는 있으나 role 가드 없음 |
 
 ### 공통
@@ -722,7 +726,7 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | Gateway JWT 검증 + 내부 인증 헤더(X-Id-Card) 전파 | ✅ |
 | 서비스 간 FeignClient 통신 | ✅ (ticketing→order 1건) |
 | Zipkin 분산 추적 | ✅ (docker-compose 구성됨, 활용도는 별도 확인 필요) |
-| Swagger API 문서화 | **[TODO] 확인 필요** — 본 문서 작성 과정에서 springdoc 설정을 확인하지 못함 |
+| Swagger API 문서화 | ✅ (`build.gradle`에서 9개 서비스에 springdoc 일괄 적용) |
 
 ---
 
@@ -802,7 +806,7 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | Payment | `PG_ERROR` | 502 | |
 | Payment | `INVALID_SIGNATURE` | 401 | 웹훅 `X-PG-Signature` 검증 실패 |
 
-> 로지스틱스 예시처럼 `서비스코드_숫자`(`ORDER_001` 등) 형식의 전역 넘버링은 쓰지 않는다. 대신 도메인별 `XxxErrorCode` enum + 서술적 이름을 쓴다 — 새 에러 추가 시 번호 충돌/재배치 이슈가 없다는 장점, 서비스 간 에러코드 목록을 한눈에 볼 방법이 없다는 단점이 있다.
+> 도메인별 `XxxErrorCode` enum + 서술적 이름을 쓴다 — 새 에러 추가 시 번호 충돌/재배치 이슈가 없다는 장점, 서비스 간 에러코드 목록을 한눈에 볼 방법이 없다는 단점이 있다.
 
 ---
 
@@ -812,7 +816,7 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 2. `/admin/v1/orders/manual-review`에 `MASTER` 역할 검증 추가 (현재 미보호 상태)
 3. `purchase-limit` 엔드포인트 설계 확정 (경로/응답 스펙)
 4. `holdId` 전용 테이블 분리 여부 결정
-5. PAYMENT_REQUESTED zombie 처리, 결제 재시도(P1) 설계
+5. ~~PAYMENT_REQUESTED zombie 처리, 결제 재시도(P1) 설계~~ (완료됨 — `ZombiePaymentRecoveryWriter`/`PaymentRetryWriter`)
 6. 공통 에러 응답에 `errors[]` 필드(필드별 검증 실패 상세) 추가 여부 검토
 7. feed/chat/cs/notification/aiops/gateway 상세 규칙을 다루는 후속 문서 작성
 8. `QueueScheduler`(대기열 처리)에 분산 락 없음 — ticketing min 2 이상 배포 시 대기열 중복 처리 가능
@@ -842,6 +846,6 @@ Docker Compose로 단일 호스트에서 실행한다. 서비스별로 **Postgre
 | A' | 1좌석=1주문 유지 + 체크아웃 시 `batchId` 부여, 예매내역 조회 시 그룹핑 표시만 | 작음(컬럼 1개 + 조회 로직) |
 | B | N좌석=주문 1개(결제도 1건) | 큼 — `orders.seat_id` → 좌석 리스트 필드로 스키마 변경, `uq_orders_seat_active` 2차 방어 재설계, **결제 후 좌석 확정 부분실패(N개 중 일부만 성공) 보상 로직 신규 설계 필요** |
 
-**분기 기준**: "다중예매가 결제 1건으로 묶여야 하는 요구사항이냐, 예매내역에 묶여 보이기만 하면 되냐" — 전자면 B, 후자면 A'로 이번 주 안에 끝남.
+**분기 기준**: "다중예매가 결제 1건으로 묶여야 하는 요구사항이냐, 예매내역에 묶여 보이기만 하면 되냐" — 전자면 B, 후자면 A'로 이번 주 안에 끝난다.
 
 관련: §5.3 SAGA 패턴(정상 흐름 다이어그램의 주문 생성 단계가 이 변경으로 바뀔 예정)

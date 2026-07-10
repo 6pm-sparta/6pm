@@ -2,13 +2,13 @@
 
 ## 1. 기술 스택
 
-| 역할 | 기술 |
-|------|------|
-| DB | PostgreSQL 17 |
-| Cache / 상태 관리 | Redis (RDB 영속성) |
-| 메시지 큐 | Kafka |
-| 대기열 실시간 안내 | SSE (Server-Sent Events) |
-| 서비스 간 통신 | FeignClient(`OrderClient`, 동기) — order-service 주문 생성만(취소 연동은 [ADR 011](./adr/011-hold-release-no-order-cancel-call.md)로 의도적 미연동) |
+| 역할 | 기술                                                                                                                       |
+|------|--------------------------------------------------------------------------------------------------------------------------|
+| DB | PostgreSQL 17                                                                                                            |
+| Cache / 상태 관리 | Redis (RDB 영속성)                                                                                                          |
+| 메시지 큐 | Kafka                                                                                                                    |
+| 대기열 실시간 안내 | SSE (Server-Sent Events)                                                                                                 |
+| 서비스 간 통신 | FeignClient(`OrderClient`, 동기) — order-service 주문 생성만(주문 취소는 [ADR 011](./adr/011-hold-release-no-order-cancel-call.md)) |
 
 ---
 
@@ -131,7 +131,7 @@ erDiagram
 | `PENDING` | 체크아웃 진행 중(`orderClient.create()` 호출 대기) — `releaseHold()`가 끼어들어 "Redis는 풀렸는데 DB엔 orderId가 뒤늦게 박히는" 더블부킹 레이스를 막기 위한 상태. 이 상태에서는 해제 요청을 `SEAT_HOLD_PROCESSING`(409)으로 거부한다 |
 | `CONFIRMED` | 주문 생성 완료. 재요청은 기존 `orderId`로 멱등 응답 |
 
-> **변경 이력 (2026-07-03)**: 이전에는 `hold()`가 선점(Redis)과 주문 생성(order-service Feign 동기 호출)을 한 번에 처리했고, owner 상태도 `PENDING`/`CONFIRMED` 2단계였다. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출이 들어있는 게 역효과라고 판단해 `checkout()` API로 주문 생성을 분리했고, 그 사이 상태로 `HELD`가 추가됐다. 배경은 [SA-260703.md §11](../SA-260703.md) 참고.
+> **변경 이력 (2026-07-03)**: 이전에는 `hold()`가 선점(Redis)과 주문 생성(order-service Feign 동기 호출)을 한 번에 처리했고, owner 상태도 `PENDING`/`CONFIRMED` 2단계였다. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출이 들어있는 게 역효과라고 판단해 `checkout()` API로 주문 생성을 분리했고, 그 사이 상태로 `HELD`가 추가됐다. 배경은 [SA-260703.md §11](./archive/SA-260703.md) 참고.
 
 ### 헷갈리기 쉬운 지점 — 이 시스템엔 "상태"가 3군데 있다
 
@@ -206,13 +206,4 @@ order-service는 도메인 상태 변경과 이벤트 저장을 같은 트랜잭
 
 ## 6. 미확정 항목
 
-| 항목 | 현황                                               | 내용 |
-|------|--------------------------------------------------|------|
-| 대기열 스케줄러 분산 락 | 완료(2026-07-05)                                   | Redisson `RLock`으로 `processQueue()`를 감싸 인스턴스당 한 번만 실행되도록 수정 |
-| Kafka 발행 신뢰성(Outbox 미적용) | 초안, [ADR 012](./adr/012-outbox-pattern-draft.md) | §4 참고. DB 커밋 후 Kafka 발행 실패 시 이벤트 유실 가능 |
-| Venue/Performance/Show 관리 API | 미구현                                              | 엔티티만 존재, 컨트롤러 없음. 시드 데이터로만 채워짐 |
-| CONFIRMED 취소(공연 확정 후 환불) 시 좌석 처리 | 정책 변경                                            | 취소 가능 시간 기준(공연 시작 vs 확정 시각)이 order-service 쪽에서도 미정 — [order-service/architecture.md §6](../order-service/architecture.md#6-미확정-항목) 참고 |
-| 다중예매(N좌석 묶음) | v2                                               | A(1좌석=1주문 유지) / A'(batchId만 부여) / B(N좌석=주문 1개) 트레이드오프 검토 — [SA-260703.md §11](../SA-260703.md#다중예매-옵션-결정-대기--담당자-확인-중) 참고 |
-| 좌석 생성 API 부재 → inventory lazy 초기화 | 알려진 제약                                           | 좌석/쇼 생성 API가 없어 `inventory:{showId}`가 첫 hold 요청 시 DB 기준으로 lazy 초기화된다([redis-keys.md §5](./redis-keys.md#5-inventoryshowid--잔여-재고-카운터))는 게 사실상 유일한 초기화 경로. 좌석 생성 API가 추가되면 생성 시점에 미리 세팅하는 방식으로 바꿀지 검토 |
-| 대기열 단계 사용자 이탈 감지 수단 없음 (2026-07-09 발견) | 미착수                                              | `waiting_queue:{showId}` ZSET엔 TTL이 없고, `QueueSseService`의 `emitter.onCompletion()`/`onTimeout()`([QueueSseService.java:32-33](../../ticketing-service/src/main/java/com/fandom/ticketing_service/queue/application/QueueSseService.java))은 이 서버 인스턴스의 in-memory emitter Map만 정리함 — SSE 연결이 끊겨도 ZSET 순번이나 이후 발급될 purchase-token엔 영향 없음. 이탈한 유저 자리를 스케줄러가 그대로 소비함. 좌석 선점 단계(TTL 600초)와 달리 대기열 단계엔 안전망 자체가 없음 |
-| Redis 장애 복구(ADR 007) 미구현 (2026-07-09 재확인) | 결정만 있고 실행 안 됨 | [ADR 007](./adr/007-redis-backup-strategy.md)이 "RDB 영속성 + 장애 시 PostgreSQL 기준 재적재"로 확정돼있으나: (1) 그 재적재를 수행하는 코드가 없음(`CommandLineRunner`/`ApplicationRunner`/`@PostConstruct` 전무, grep으로 확인) (2) 인프라도 안 맞음 — [terraform/datastores.tf:40-50](../../terraform/datastores.tf)의 ElastiCache 클러스터에 `snapshot_retention_limit`가 없어(기본값 0, 자동 백업 비활성) RDB 스냅샷 자체가 안 찍히고, `num_cache_nodes = 1`이라 복제본도 없음. `BOOKED`(확정) 좌석은 원본이 `orders` 테이블에 있어 이론상 복구 가능하지만 지금은 수동 복구 방법도 없음 — 노드 하나 죽으면 좌석 상태 전체 유실 |
+[improvement-roadmap.md](./improvement-roadmap.md) 참고.

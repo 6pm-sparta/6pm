@@ -227,7 +227,8 @@ sequenceDiagram
 ```
 DELETE .../seats/{seatId}/hold
 → RELEASE_SCRIPT: 본인 확인 + PENDING 아님 확인 → seatKey/ownerKey DELETE, inventory+1, count-1
-→ show_seats.order_id != null이면 order-service에 주문 취소 요청 (Feign)
+→ order-service에는 알리지 않음 — order-service 자체 취소 경로가 order.hold.released를
+  발행하면 PaymentEventConsumer.onHoldReleased() → releaseSeat()가 멱등하게 뒤따라 정리한다(self-heal)
 ```
 
 ```mermaid
@@ -236,7 +237,6 @@ sequenceDiagram
     participant T as SeatService
     participant R as Redis
     participant DB as PostgreSQL
-    participant O as order-service
 
     Client->>T: DELETE .../seats/{seatId}/hold
     T->>R: RELEASE_SCRIPT(ownerKey, seatKey, inventoryKey, countKey, userId)
@@ -249,12 +249,16 @@ sequenceDiagram
     else 성공
         R->>R: DEL ownerKey/seatKey, INCR inventory, DECR count
         T->>DB: releaseOrder() (order_id = null)
-        alt orderId 존재(체크아웃까지 진행됐던 경우)
-            T->>O: DELETE /internal/v1/orders/{orderId}?requesterId=userId
-        end
+        note over T,DB: order-service 취소 요청은 하지 않는다(의도적) — order-service 자체 취소 경로의 self-heal에 의존
         T-->>Client: 200 SUCCESS
     end
 ```
+
+**레이스 방지·멱등성:** owner 키 3단계 상태(`HELD`→`PENDING`→`CONFIRMED`) 가드로 hold↔release↔checkout 동시 호출 레이스를 막는다. 결제 실패/취소·TTL 만료 경로의 멱등 처리 방식 포함 — [ADR 016](./adr/016-release-path-consistency.md).
+
+**inventory 최초 초기화:** 첫 hold 요청 시 lazy 초기화되며, 동시 DB 조회 경합은 Redisson 분산락으로 방지 — [ADR 017](./adr/017-inventory-lazy-init-lock.md).
+
+> **주문 취소 연동:** `releaseHold()`는 order-service에 취소를 요청하지 않는다는 결정이 코드 리뷰로 발견된 교차 유저 케이스 때문에 재검토 대상이 됐다 — [ADR 011](./adr/011-hold-release-no-order-cancel-call.md) 참고.
 
 ---
 
@@ -292,7 +296,7 @@ sequenceDiagram
 
 > **해결됨 (#286, 2026-07-06)**: 과거엔 `order_id == null`(체크아웃 없이 hold만 하다 방치된 경우)이면 조기 return해서 inventory/purchase-count 둘 다 복구가 안 되는 버그가 있었다. 이제는 order_id 여부와 무관하게 항상 inventory를 복구하고, ownerKey에 남아있던 userId를 파싱해 purchase-count도 감소시킨다.
 
-> 이 경로는 `orderClient.cancel()`을 호출하지 않는다 — order-service가 자체 `expired_at` 기준 타임아웃 스케줄러로 `PENDING` 주문을 별도로 취소하고 `order.hold.released`를 발행하며, ticketing은 그 이벤트를 `onHoldReleased()`(§5)로 다시 수신해 멱등 처리한다. 즉 좌석 hold TTL(600초)과 order-service 주문 만료(`expirationMinutes`)가 각자 독립적으로 동작하고, 두 이벤트가 겹쳐도 `releaseSeat()`의 멱등성으로 안전하다.
+> 이 경로는 order-service가 자체 `expired_at` 기준 타임아웃 스케줄러로 `PENDING` 주문을 별도로 취소하고 `order.hold.released`를 발행하며, ticketing은 그 이벤트를 `onHoldReleased()`(§5)로 다시 수신해 멱등 처리한다. 즉 좌석 hold TTL(600초)과 order-service 주문 만료(`expirationMinutes`)가 각자 독립적으로 동작하고, 두 이벤트가 겹쳐도 `releaseSeat()`의 멱등성으로 안전하다.
 
 ---
 
