@@ -131,7 +131,7 @@ erDiagram
 | `PENDING` | 체크아웃 진행 중(`orderClient.create()` 호출 대기) — `releaseHold()`가 끼어들어 "Redis는 풀렸는데 DB엔 orderId가 뒤늦게 박히는" 더블부킹 레이스를 막기 위한 상태. 이 상태에서는 해제 요청을 `SEAT_HOLD_PROCESSING`(409)으로 거부한다 |
 | `CONFIRMED` | 주문 생성 완료. 재요청은 기존 `orderId`로 멱등 응답 |
 
-> **변경 이력 (2026-07-03)**: 이전에는 `hold()`가 선점(Redis)과 주문 생성(order-service Feign 동기 호출)을 한 번에 처리했고, owner 상태도 `PENDING`/`CONFIRMED` 2단계였다. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출이 들어있는 게 역효과라고 판단해 `checkout()` API로 주문 생성을 분리했고, 그 사이 상태로 `HELD`가 추가됐다. 배경은 [SA-260703.md §11](../SA-260703.md) 참고.
+> **변경 이력 (2026-07-03)**: 이전에는 `hold()`가 선점(Redis)과 주문 생성(order-service Feign 동기 호출)을 한 번에 처리했고, owner 상태도 `PENDING`/`CONFIRMED` 2단계였다. 가장 트래픽이 몰리는 hold 구간에 동기 cross-service 호출이 들어있는 게 역효과라고 판단해 `checkout()` API로 주문 생성을 분리했고, 그 사이 상태로 `HELD`가 추가됐다. 배경은 [SA-260703.md §11](./archive/SA-260703.md) 참고.
 
 ### 헷갈리기 쉬운 지점 — 이 시스템엔 "상태"가 3군데 있다
 
