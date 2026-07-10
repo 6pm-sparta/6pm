@@ -2,13 +2,13 @@
 
 ## 1. 기술 스택
 
-| 역할 | 기술 |
-|------|------|
-| DB | PostgreSQL 17 |
-| Cache / 상태 관리 | Redis (RDB 영속성) |
-| 메시지 큐 | Kafka |
-| 대기열 실시간 안내 | SSE (Server-Sent Events) |
-| 서비스 간 통신 | FeignClient(`OrderClient`, 동기) — order-service 주문 생성만(취소 연동은 [ADR 011](./adr/011-hold-release-no-order-cancel-call.md)로 의도적 미연동) |
+| 역할 | 기술                                                                                                                       |
+|------|--------------------------------------------------------------------------------------------------------------------------|
+| DB | PostgreSQL 17                                                                                                            |
+| Cache / 상태 관리 | Redis (RDB 영속성)                                                                                                          |
+| 메시지 큐 | Kafka                                                                                                                    |
+| 대기열 실시간 안내 | SSE (Server-Sent Events)                                                                                                 |
+| 서비스 간 통신 | FeignClient(`OrderClient`, 동기) — order-service 주문 생성만(주문 취소는 [ADR 011](./adr/011-hold-release-no-order-cancel-call.md)) |
 
 ---
 
