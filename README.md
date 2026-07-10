@@ -39,7 +39,7 @@
 
 ![인프라 설계도](docs/assets/infrastructure.png)
 
-전체 시스템 구조와 도메인·API·테이블·ERD 상세는 [시스템 설계 개요](docs/SA-260703.md)를 참고하세요.
+전체 시스템 구조와 도메인·API·테이블·ERD 상세는 [시스템 설계 개요](docs/SA.md)를 참고하세요.
 
 ## 서비스 구성
 
