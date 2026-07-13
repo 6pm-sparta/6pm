@@ -80,7 +80,7 @@ docker compose --profile all up -d --build
 
 ## 문서
 
-- [시스템 설계 개요 (SA)](docs/SA-260703.md) — 도메인·API·테이블·ERD·인프라 전반
+- [시스템 설계 개요 (SA)](docs/SA.md) — 도메인·API·테이블·ERD·인프라 전반
 - [로컬 실행 가이드](docs/infra/dev-start-guide.md) — 개발 환경 기동
 
 <!-- TODO: ERD 이미지 삽입 -->
