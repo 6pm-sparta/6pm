@@ -1,4 +1,0 @@
-$kind: collection
-description: |-
-  firing 웹훅 전송 → 사건 기록(DETECTED) → Kafka(incident.detected) → Slack 분석 메시지 →
-  resolved 웹훅 전송 → 사건 해소(RESOLVED) + MTTR 계산 → Grafana 대시보드 집계 확인

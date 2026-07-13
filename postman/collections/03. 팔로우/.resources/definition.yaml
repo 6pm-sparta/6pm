@@ -1,2 +1,0 @@
-$kind: collection
-description: A가 C를 팔로우 → A/C의 팔로잉/팔로워 목록 조회 → A가 C를 언팔 → A/C의 팔로잉/팔로워 목록 조회 → KafkaUI에서 관련 이벤트 잘 발생되는지도 확인(user.followed?)

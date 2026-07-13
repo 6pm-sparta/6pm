@@ -1,8 +1,0 @@
-$kind: http-request
-url: "{{baseUrl}}/api/v1/tickets/shows/{{showId}}/seats"
-method: GET
-scripts:
-  - type: afterResponse
-    code: pm.test("Status code is 200", function () { pm.response.to.have.status(200); }); const seats = pm.response.json().data; const available = seats.find(s => s.status === "AVAILABLE"); if (available) { pm.collectionVariables.set("seatId", available.seatId); }
-    language: text/javascript
-order: 1000
